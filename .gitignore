@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+.env
+models/*.nemo
+models/*.ckpt
+models/training.log
+eval_recall_results.json
+eval_clartts_results.json
+.1code/
+*.egg-info/
+dist/
+build/

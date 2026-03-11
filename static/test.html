@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>i3rab — Test Dataset Builder</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --parchment: #f5f0e8; --parchment-deep: #ebe4d6; --ink: #2c1810; --ink-light: #5a3e2b;
+    --gold: #b8860b; --gold-light: #daa520;
+    --correct: #2d6a4f; --wrong: #9b2226; --irab: #1565c0;
+    --red-record: #c0392b; --border: rgba(0,0,0,0.1);
+  }
+  body { font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif; background: var(--parchment); color: var(--ink); min-height: 100vh; padding: 2rem; line-height: 1.7; }
+  h1 { font-family: 'Amiri', serif; font-size: 2rem; text-align: center; color: var(--gold); margin-bottom: 0.5rem; }
+  .subtitle { text-align: center; color: var(--ink-light); margin-bottom: 2rem; font-size: 0.95rem; }
+  .back-link { display: block; text-align: center; margin-bottom: 1rem; color: var(--gold); text-decoration: none; }
+  .back-link:hover { text-decoration: underline; }
+
+  /* Sections */
+  .section { background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .section h2 { font-family: 'Amiri', serif; font-size: 1.3rem; color: var(--ink); margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+
+  /* Test word grid */
+  .test-words { display: grid; gap: 1rem; }
+  .test-word-group { background: var(--parchment); border-radius: 8px; padding: 1rem; }
+  .test-word-group .base { font-family: 'Amiri', serif; font-size: 1.4rem; color: var(--ink); margin-bottom: 0.75rem; font-weight: 700; }
+  .variants { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .variant-btn {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 1rem; border-radius: 8px; border: 2px solid var(--border);
+    background: white; cursor: pointer; font-family: 'Amiri', serif; font-size: 1.2rem;
+    transition: all 0.2s;
+  }
+  .variant-btn:hover { border-color: var(--gold); background: rgba(184,134,11,0.05); }
+  .variant-btn.recording { border-color: var(--red-record); background: rgba(192,57,43,0.08); animation: pulse 1s infinite; }
+  .variant-btn .case-label { font-family: 'IBM Plex Sans Arabic', sans-serif; font-size: 0.75rem; color: var(--ink-light); }
+  .variant-btn .mic-icon { font-size: 0.9rem; }
+  .variant-btn.saved { border-color: var(--correct); }
+  .variant-btn.saved::after { content: ' \2713'; color: var(--correct); }
+
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+  /* Custom input */
+  .custom-input { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
+  .custom-input input, .custom-input select {
+    padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 6px;
+    font-family: 'Amiri', serif; font-size: 1.1rem; background: white;
+  }
+  .custom-input input { flex: 1; min-width: 200px; direction: rtl; }
+  .custom-input select { font-family: 'IBM Plex Sans Arabic', sans-serif; font-size: 0.9rem; }
+  .custom-input button {
+    padding: 0.5rem 1rem; background: var(--gold); color: white; border: none;
+    border-radius: 6px; cursor: pointer; font-size: 0.9rem;
+  }
+
+  /* Results */
+  .results-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+  .results-table th { text-align: right; background: var(--parchment-deep); padding: 0.6rem; font-weight: 600; border-bottom: 2px solid var(--border); }
+  .results-table td { padding: 0.6rem; border-bottom: 1px solid var(--border); }
+  .results-table .match { color: var(--correct); font-weight: 600; }
+  .results-table .mismatch { color: var(--wrong); font-weight: 600; }
+  .results-table .word-cell { font-family: 'Amiri', serif; font-size: 1.1rem; }
+
+  .run-btn {
+    display: inline-block; padding: 0.75rem 2rem; background: var(--gold); color: white;
+    border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: 500;
+    transition: background 0.2s;
+  }
+  .run-btn:hover { background: var(--gold-light); }
+  .run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .summary-box {
+    display: inline-block; padding: 0.75rem 1.5rem; background: var(--parchment);
+    border-radius: 8px; margin-top: 1rem; font-size: 1.1rem; font-weight: 600;
+  }
+  .summary-box .acc { color: var(--correct); font-size: 1.3rem; }
+
+  /* Recordings list */
+  .rec-count { display: inline-block; background: var(--gold); color: white; border-radius: 12px; padding: 0.1rem 0.6rem; font-size: 0.8rem; margin-right: 0.5rem; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); background: var(--ink); color: white; padding: 0.75rem 1.5rem; border-radius: 8px; opacity: 0; transition: opacity 0.3s; z-index: 100; font-size: 0.9rem; }
+  .toast.visible { opacity: 1; }
+
+  .hyp-details { font-size: 0.8rem; color: var(--ink-light); margin-top: 0.25rem; }
+  .hyp-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.15rem 0; }
+  .hyp-score { font-family: monospace; }
+  .hyp-best { font-weight: 700; color: var(--irab); }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid var(--border); }
+  .tab-btn {
+    padding: 0.6rem 1.5rem; border: none; background: none; cursor: pointer;
+    font-family: 'IBM Plex Sans Arabic', sans-serif; font-size: 0.95rem; color: var(--ink-light);
+    border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s;
+  }
+  .tab-btn.active { color: var(--gold); border-bottom-color: var(--gold); font-weight: 600; }
+  .tab-btn:hover { color: var(--gold); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Sentence grid */
+  .sentence-group { background: var(--parchment); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; }
+  .sentence-text { font-family: 'Amiri', serif; font-size: 1.4rem; color: var(--ink); margin-bottom: 0.5rem; line-height: 2; }
+  .sentence-controls { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .sentence-rec-btn {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 1.25rem; border-radius: 8px; border: 2px solid var(--gold);
+    background: white; cursor: pointer; font-size: 0.9rem; color: var(--gold); transition: all 0.2s;
+  }
+  .sentence-rec-btn:hover { background: rgba(184,134,11,0.05); }
+  .sentence-rec-btn.recording { border-color: var(--red-record); color: var(--red-record); animation: pulse 1s infinite; }
+  .sentence-rec-btn.saved { border-color: var(--correct); color: var(--correct); }
+  .sentence-rec-btn.saved::after { content: ' \2713'; }
+  .sentence-label { font-size: 0.8rem; color: var(--ink-light); }
+
+  /* Sentence results */
+  .sentence-result { background: var(--parchment); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; }
+  .sentence-result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+  .sentence-result-text { font-family: 'Amiri', serif; font-size: 1.2rem; line-height: 2; }
+  .sentence-result-words { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+  .word-chip {
+    display: inline-block; padding: 0.25rem 0.6rem; border-radius: 6px;
+    font-family: 'Amiri', serif; font-size: 1.1rem;
+  }
+  .word-chip.correct { background: rgba(45,106,79,0.1); color: var(--correct); }
+  .word-chip.wrong { background: rgba(155,34,38,0.1); color: var(--wrong); }
+  .word-chip-detail { font-size: 0.75rem; color: var(--ink-light); display: block; text-align: center; }
+
+  .custom-sentence-input { display: flex; gap: 0.5rem; margin-top: 1rem; }
+  .custom-sentence-input input {
+    flex: 1; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 6px;
+    font-family: 'Amiri', serif; font-size: 1.1rem; direction: rtl;
+  }
+  .custom-sentence-input button {
+    padding: 0.5rem 1rem; background: var(--gold); color: white; border: none;
+    border-radius: 6px; cursor: pointer; font-size: 0.9rem; white-space: nowrap;
+  }
+
+  /* Confirm/Restart buttons */
+  .confirm-actions {
+    display: inline-flex; gap: 0.4rem; margin-right: 0.5rem;
+  }
+  .confirm-btn, .restart-btn {
+    padding: 0.35rem 0.9rem; border-radius: 6px; border: none; cursor: pointer;
+    font-size: 0.85rem; font-family: 'IBM Plex Sans Arabic', sans-serif; transition: all 0.2s;
+  }
+  .confirm-btn { background: var(--correct); color: white; }
+  .confirm-btn:hover { opacity: 0.85; }
+  .restart-btn { background: var(--wrong); color: white; }
+  .restart-btn:hover { opacity: 0.85; }
+  .variant-btn.pending-confirm { border-color: var(--gold); background: rgba(184,134,11,0.08); }
+  .sentence-rec-btn.pending-confirm { border-color: var(--gold); background: rgba(184,134,11,0.08); }
+</style>
+</head>
+<body>
+
+<a href="/" class="back-link">&#8592; Back to main</a>
+<h1>Test Dataset Builder</h1>
+<p class="subtitle">Record audio samples with known diacritizations to build a reusable test dataset</p>
+
+<!-- Section 1: Record -->
+<div class="section">
+  <h2>Record Samples</h2>
+  <p style="color:var(--ink-light);font-size:0.9rem;margin-bottom:1rem;">Click a variant or sentence to start recording. Click again to stop and save.</p>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('words')">Words</button>
+    <button class="tab-btn" onclick="switchTab('sentences')">Sentences</button>
+  </div>
+
+  <!-- Words tab -->
+  <div class="tab-panel active" id="tab-words">
+    <div class="test-words" id="testWords"></div>
+    <div class="custom-input">
+      <input type="text" id="customWord" placeholder="Add custom diacritized word...">
+      <select id="customCase">
+        <option value="nom">Nominative (nom)</option>
+        <option value="acc">Accusative (acc)</option>
+        <option value="gen">Genitive (gen)</option>
+        <option value="original">Original</option>
+        <option value="pausal">Pausal</option>
+      </select>
+      <button onclick="recordCustom()">Record Custom</button>
+    </div>
+  </div>
+
+  <!-- Sentences tab -->
+  <div class="tab-panel" id="tab-sentences">
+    <div id="testSentences"></div>
+    <div class="custom-sentence-input">
+      <input type="text" id="customSentence" placeholder="Add custom diacritized sentence...">
+      <button onclick="recordCustomSentence()">Record Custom Sentence</button>
+    </div>
+  </div>
+</div>
+
+<!-- Section 2: Results -->
+<div class="section">
+  <h2>Saved Recordings <span class="rec-count" id="recCount">0</span></h2>
+  <button class="run-btn" id="runBtn" onclick="runAllTests()">Run All Tests</button>
+  <div id="summaryBox" style="display:none" class="summary-box"></div>
+  <table class="results-table" id="resultsTable" style="display:none">
+    <thead>
+      <tr>
+        <th>Word</th>
+        <th>Intended</th>
+        <th>Detected</th>
+        <th>Match</th>
+        <th>Confidence</th>
+        <th>Gap</th>
+        <th>Details</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="resultsBody"></tbody>
+  </table>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var TEST_WORDS = [
+  {
+    base: 'الكتاب',
+    sentence: 'قَرَأَ الطَّالِبُ الكِتَابَ',
+    variants: [
+      { diac: 'الكِتَابَ', case_label: 'acc', display: 'الكِتَابَ (نصب)' },
+      { diac: 'الكِتَابُ', case_label: 'nom', display: 'الكِتَابُ (رفع)' },
+      { diac: 'الكِتَابِ', case_label: 'gen', display: 'الكِتَابِ (جر)' },
+    ]
+  },
+  {
+    base: 'الطالب',
+    sentence: 'جَاءَ الطَّالِبُ',
+    variants: [
+      { diac: 'الطَّالِبُ', case_label: 'nom', display: 'الطَّالِبُ (رفع)' },
+      { diac: 'الطَّالِبَ', case_label: 'acc', display: 'الطَّالِبَ (نصب)' },
+      { diac: 'الطَّالِبِ', case_label: 'gen', display: 'الطَّالِبِ (جر)' },
+    ]
+  },
+  {
+    base: 'المدرسة',
+    sentence: 'ذَهَبَ إِلَى المَدْرَسَةِ',
+    variants: [
+      { diac: 'المَدْرَسَةُ', case_label: 'nom', display: 'المَدْرَسَةُ (رفع)' },
+      { diac: 'المَدْرَسَةَ', case_label: 'acc', display: 'المَدْرَسَةَ (نصب)' },
+      { diac: 'المَدْرَسَةِ', case_label: 'gen', display: 'المَدْرَسَةِ (جر)' },
+    ]
+  },
+  {
+    base: 'العلم',
+    sentence: 'طَلَبَ العِلْمَ',
+    variants: [
+      { diac: 'العِلْمُ', case_label: 'nom', display: 'العِلْمُ (رفع)' },
+      { diac: 'العِلْمَ', case_label: 'acc', display: 'العِلْمَ (نصب)' },
+      { diac: 'العِلْمِ', case_label: 'gen', display: 'العِلْمِ (جر)' },
+    ]
+  },
+  {
+    base: 'المعلم',
+    sentence: 'شَكَرَ المُعَلِّمَ',
+    variants: [
+      { diac: 'المُعَلِّمُ', case_label: 'nom', display: 'المُعَلِّمُ (رفع)' },
+      { diac: 'المُعَلِّمَ', case_label: 'acc', display: 'المُعَلِّمَ (نصب)' },
+      { diac: 'المُعَلِّمِ', case_label: 'gen', display: 'المُعَلِّمِ (جر)' },
+    ]
+  },
+];
+
+var TEST_SENTENCES = [
+  // ── Short sentences ──
+  { text: 'قَرَأَ الطَّالِبُ الكِتَابَ فِي المَكْتَبَةِ', label: 'فعل + فاعل + مفعول به + جار ومجرور' },
+  { text: 'ذَهَبَ المُعَلِّمُ إِلَى المَدْرَسَةِ', label: 'فعل + فاعل + جار ومجرور' },
+  { text: 'كَتَبَ الطَّالِبُ الدَّرْسَ', label: 'فعل + فاعل + مفعول به' },
+  { text: 'شَرِبَ الوَلَدُ المَاءَ البَارِدَ', label: 'فعل + فاعل + مفعول به + صفة' },
+  { text: 'المُعَلِّمُ فِي الفَصْلِ', label: 'مبتدأ + خبر شبه جملة' },
+  { text: 'الكِتَابُ مُفِيدٌ', label: 'مبتدأ + خبر' },
+  { text: 'إِنَّ العِلْمَ نُورٌ', label: 'إنّ واسمها وخبرها' },
+  { text: 'كَانَ الجَوُّ جَمِيلًا', label: 'كان واسمها وخبرها' },
+  // ── Paragraphs ──
+  { text: 'قَرَأَ الطَّالِبُ الكِتَابَ فِي المَكْتَبَةِ وَكَتَبَ المُعَلِّمُ الدَّرْسَ عَلَى السَّبُّورَةِ ثُمَّ سَأَلَ الطُّلَّابُ عَنِ القَوَاعِدِ النَّحْوِيَّةِ فَشَرَحَ المُعَلِّمُ الإِجَابَةَ بِوُضُوحٍ', label: 'فقرة: أفعال متسلسلة + جار ومجرور' },
+  { text: 'العِلْمُ نُورٌ وَالجَهْلُ ظَلَامٌ وَالصَّبْرُ مِفْتَاحُ الفَرَجِ', label: 'فقرة: جمل اسمية + إضافة' },
+  { text: 'إِنَّ اللُّغَةَ العَرَبِيَّةَ جَمِيلَةٌ وَكَانَ العُلَمَاءُ يَدْرُسُونَهَا بِاهْتِمَامٍ كَبِيرٍ', label: 'فقرة: إنّ + كان + جار ومجرور' },
+  { text: 'ذَهَبَ الوَلَدُ إِلَى المَدْرَسَةِ وَجَلَسَ فِي الفَصْلِ وَاسْتَمَعَ إِلَى المُعَلِّمِ', label: 'فقرة: أفعال + جار ومجرور' },
+  // ── Long paragraphs (5+ sentences) ──
+  { text: 'خَرَجَ الطَّالِبُ مِنَ البَيْتِ صَبَاحًا وَذَهَبَ إِلَى المَدْرَسَةِ. دَخَلَ الفَصْلَ وَجَلَسَ فِي مَقْعَدِهِ. أَخْرَجَ الكِتَابَ مِنَ الحَقِيبَةِ وَفَتَحَهُ. اسْتَمَعَ إِلَى المُعَلِّمِ بِاهْتِمَامٍ كَبِيرٍ. كَتَبَ الدَّرْسَ فِي الدَّفْتَرِ بِخَطٍّ جَمِيلٍ. ثُمَّ عَادَ إِلَى البَيْتِ مَسْرُورًا', label: 'فقرة طويلة: يوم الطالب (6 جمل)' },
+  { text: 'إِنَّ القِرَاءَةَ مِفْتَاحُ العِلْمِ وَالمَعْرِفَةِ. يَقْرَأُ الإِنْسَانُ الكُتُبَ فَيَتَعَلَّمُ أَشْيَاءَ جَدِيدَةً. كَانَ العُلَمَاءُ يَقْضُونَ سَاعَاتٍ طَوِيلَةً فِي المَكْتَبَاتِ. وَالكِتَابُ خَيْرُ جَلِيسٍ فِي الزَّمَانِ. مَنْ طَلَبَ العِلْمَ وَجَدَ النُّورَ فِي حَيَاتِهِ', label: 'فقرة طويلة: فضل القراءة (5 جمل)' },
+  { text: 'كَانَ الجَوُّ جَمِيلًا فِي ذَلِكَ اليَوْمِ. خَرَجَتِ الأُسْرَةُ إِلَى الحَدِيقَةِ العَامَّةِ. لَعِبَ الأَطْفَالُ عَلَى العُشْبِ الأَخْضَرِ. جَلَسَ الأَبُ تَحْتَ الشَّجَرَةِ الكَبِيرَةِ وَقَرَأَ الصَّحِيفَةَ. أَعَدَّتِ الأُمُّ الطَّعَامَ اللَّذِيذَ لِلْعَائِلَةِ. كَانَ يَوْمًا سَعِيدًا لِلْجَمِيعِ', label: 'فقرة طويلة: نزهة عائلية (6 جمل)' },
+  { text: 'دَخَلَ المُعَلِّمُ الفَصْلَ وَسَلَّمَ عَلَى الطُّلَّابِ. كَتَبَ الدَّرْسَ الجَدِيدَ عَلَى السَّبُّورَةِ. شَرَحَ القَوَاعِدَ النَّحْوِيَّةَ بِأُسْلُوبٍ سَهْلٍ. سَأَلَ الطُّلَّابَ أَسْئِلَةً كَثِيرَةً. أَجَابَ الطُّلَّابُ عَنِ الأَسْئِلَةِ بِثِقَةٍ. فَرِحَ المُعَلِّمُ بِإِجَابَاتِهِمُ الصَّحِيحَةِ', label: 'فقرة طويلة: درس النحو (6 جمل)' },
+  { text: 'ذَهَبَ أَحْمَدُ إِلَى السُّوقِ لِشِرَاءِ الفَوَاكِهِ وَالخُضْرَوَاتِ. اشْتَرَى التُّفَّاحَ الأَحْمَرَ وَالبُرْتُقَالَ الطَّازِجَ. دَفَعَ الثَّمَنَ لِلْبَائِعِ وَشَكَرَهُ. حَمَلَ الأَكْيَاسَ إِلَى السَّيَّارَةِ. عَادَ إِلَى البَيْتِ وَأَعْطَى الفَوَاكِهَ لِأُمِّهِ', label: 'فقرة طويلة: التسوق (5 جمل)' },
+];
+
+var activeRecording = null;
+var mediaRecorder = null;
+var mediaStream = null;
+var recordedChunks = [];
+
+// Build test word grid
+function buildTestWords() {
+  var container = document.getElementById('testWords');
+  container.textContent = '';
+
+  TEST_WORDS.forEach(function(group, gi) {
+    var div = document.createElement('div');
+    div.className = 'test-word-group';
+
+    var base = document.createElement('div');
+    base.className = 'base';
+    base.textContent = group.base;
+    div.appendChild(base);
+
+    var variants = document.createElement('div');
+    variants.className = 'variants';
+
+    group.variants.forEach(function(v) {
+      var btn = document.createElement('button');
+      btn.className = 'variant-btn';
+      btn.setAttribute('data-diac', v.diac);
+      btn.setAttribute('data-case', v.case_label);
+      btn.setAttribute('data-sentence', group.sentence);
+
+      var mic = document.createElement('span');
+      mic.className = 'mic-icon';
+      mic.textContent = '\uD83C\uDFA4';
+      btn.appendChild(mic);
+
+      var text = document.createElement('span');
+      text.textContent = v.display;
+      btn.appendChild(text);
+
+      btn.addEventListener('click', function() { toggleRecord(btn); });
+      variants.appendChild(btn);
+    });
+
+    div.appendChild(variants);
+    container.appendChild(div);
+  });
+}
+
+function toggleRecord(btn) {
+  if (activeRecording === btn) {
+    stopAndSave(btn);
+  } else {
+    if (activeRecording) stopAndSave(activeRecording);
+    startRecord(btn);
+  }
+}
+
+function startRecord(btn) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('Microphone not available. Use HTTPS or localhost.');
+    return;
+  }
+
+  navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true } })
+    .then(function(stream) {
+      mediaStream = stream;
+      recordedChunks = [];
+      activeRecording = btn;
+      btn.classList.add('recording');
+
+      var options = {};
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) options.mimeType = 'audio/webm;codecs=opus';
+      else if (MediaRecorder.isTypeSupported('audio/webm')) options.mimeType = 'audio/webm';
+
+      mediaRecorder = new MediaRecorder(stream, options);
+      mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) recordedChunks.push(e.data); };
+      mediaRecorder.start(250);
+    })
+    .catch(function(err) {
+      showToast('Mic error: ' + err.message);
+    });
+}
+
+function stopAndSave(btn) {
+  btn.classList.remove('recording');
+  activeRecording = null;
+
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.onstop = function() {
+      if (mediaStream) { mediaStream.getTracks().forEach(function(t) { t.stop(); }); mediaStream = null; }
+      if (recordedChunks.length === 0) { showToast('No audio recorded'); return; }
+
+      var blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      showConfirmRestart(btn, blob, 'word');
+    };
+    mediaRecorder.stop();
+  }
+}
+
+function showConfirmRestart(btn, blob, type) {
+  btn.classList.add('pending-confirm');
+  // Remove existing confirm actions if any
+  var existing = btn.parentNode.querySelector('.confirm-actions');
+  if (existing) existing.remove();
+
+  var actions = document.createElement('span');
+  actions.className = 'confirm-actions';
+
+  var confirmBtn = document.createElement('button');
+  confirmBtn.className = 'confirm-btn';
+  confirmBtn.textContent = 'Confirm';
+  confirmBtn.onclick = function(e) {
+    e.stopPropagation();
+    actions.remove();
+    btn.classList.remove('pending-confirm');
+    if (type === 'word') {
+      saveRecording(blob, btn.getAttribute('data-diac'), btn.getAttribute('data-case'), btn.getAttribute('data-sentence'));
+      btn.classList.add('saved');
+    } else {
+      saveSentenceRecording(blob, btn.getAttribute('data-text'), btn);
+    }
+  };
+
+  var restartBtn = document.createElement('button');
+  restartBtn.className = 'restart-btn';
+  restartBtn.textContent = 'Restart';
+  restartBtn.onclick = function(e) {
+    e.stopPropagation();
+    actions.remove();
+    btn.classList.remove('pending-confirm');
+    if (type === 'sentence') btn.innerHTML = '\uD83C\uDFA4 Record';
+    showToast('Recording discarded');
+  };
+
+  actions.appendChild(confirmBtn);
+  actions.appendChild(restartBtn);
+  btn.parentNode.insertBefore(actions, btn.nextSibling);
+}
+
+function saveRecording(blob, diac, caseLabel, sentence) {
+  var formData = new FormData();
+  var ext = (blob.type && blob.type.indexOf('webm') >= 0) ? 'webm' : 'wav';
+  formData.append('audio', blob, 'test.' + ext);
+  formData.append('word_diacritized', diac);
+  formData.append('intended_case', caseLabel);
+  formData.append('sentence_context', sentence || '');
+
+  fetch('/api/test/record', { method: 'POST', body: formData })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      showToast('Saved: ' + data.id + ' (' + data.word_diacritized + ' / ' + data.intended_case + ')');
+      loadRecordingCount();
+    })
+    .catch(function(e) { showToast('Save error: ' + e.message); });
+}
+
+function recordCustom() {
+  var word = document.getElementById('customWord').value.trim();
+  var caseLabel = document.getElementById('customCase').value;
+  if (!word) { showToast('Enter a diacritized word first'); return; }
+
+  // Create a temporary button for recording
+  var btn = document.createElement('button');
+  btn.className = 'variant-btn';
+  btn.setAttribute('data-diac', word);
+  btn.setAttribute('data-case', caseLabel);
+  btn.setAttribute('data-sentence', '');
+  btn.textContent = 'Recording: ' + word;
+  document.querySelector('.custom-input').appendChild(btn);
+
+  if (activeRecording) stopAndSave(activeRecording);
+  startRecord(btn);
+
+  // Auto-stop after 4 seconds
+  setTimeout(function() {
+    if (activeRecording === btn) {
+      stopAndSave(btn);
+      setTimeout(function() { btn.remove(); }, 2000);
+    }
+  }, 4000);
+}
+
+// ── Tab switching ───────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.querySelector('.tab-btn[onclick*="' + tab + '"]').classList.add('active');
+}
+
+// ── Sentence recording ─────────────────────────────────────────
+function buildTestSentences() {
+  var container = document.getElementById('testSentences');
+  container.textContent = '';
+
+  TEST_SENTENCES.forEach(function(s, i) {
+    var div = document.createElement('div');
+    div.className = 'sentence-group';
+
+    var text = document.createElement('div');
+    text.className = 'sentence-text';
+    text.textContent = s.text;
+    div.appendChild(text);
+
+    var controls = document.createElement('div');
+    controls.className = 'sentence-controls';
+
+    var label = document.createElement('span');
+    label.className = 'sentence-label';
+    label.textContent = s.label;
+    controls.appendChild(label);
+
+    var btn = document.createElement('button');
+    btn.className = 'sentence-rec-btn';
+    btn.setAttribute('data-type', 'sentence');
+    btn.setAttribute('data-text', s.text);
+    btn.innerHTML = '\uD83C\uDFA4 Record';
+    btn.addEventListener('click', function() { toggleSentenceRecord(btn); });
+    controls.appendChild(btn);
+
+    div.appendChild(controls);
+    container.appendChild(div);
+  });
+}
+
+function toggleSentenceRecord(btn) {
+  if (activeRecording === btn) {
+    stopAndSaveSentence(btn);
+  } else {
+    if (activeRecording) {
+      // Stop whatever is recording
+      if (activeRecording.getAttribute('data-type') === 'sentence') {
+        stopAndSaveSentence(activeRecording);
+      } else {
+        stopAndSave(activeRecording);
+      }
+    }
+    startSentenceRecord(btn);
+  }
+}
+
+function startSentenceRecord(btn) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('Microphone not available. Use HTTPS or localhost.');
+    return;
+  }
+
+  navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true } })
+    .then(function(stream) {
+      mediaStream = stream;
+      recordedChunks = [];
+      activeRecording = btn;
+      btn.classList.add('recording');
+      btn.innerHTML = '\u23F9 Stop';
+
+      var options = {};
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) options.mimeType = 'audio/webm;codecs=opus';
+      else if (MediaRecorder.isTypeSupported('audio/webm')) options.mimeType = 'audio/webm';
+
+      mediaRecorder = new MediaRecorder(stream, options);
+      mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) recordedChunks.push(e.data); };
+      mediaRecorder.start(250);
+    })
+    .catch(function(err) {
+      showToast('Mic error: ' + err.message);
+    });
+}
+
+function stopAndSaveSentence(btn) {
+  btn.classList.remove('recording');
+  activeRecording = null;
+
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.onstop = function() {
+      if (mediaStream) { mediaStream.getTracks().forEach(function(t) { t.stop(); }); mediaStream = null; }
+      if (recordedChunks.length === 0) { showToast('No audio recorded'); btn.innerHTML = '\uD83C\uDFA4 Record'; return; }
+
+      var blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      btn.innerHTML = '\uD83C\uDFA4 Record';
+      showConfirmRestart(btn, blob, 'sentence');
+    };
+    mediaRecorder.stop();
+  }
+}
+
+function saveSentenceRecording(blob, textDiac, btn) {
+  var formData = new FormData();
+  var ext = (blob.type && blob.type.indexOf('webm') >= 0) ? 'webm' : 'wav';
+  formData.append('audio', blob, 'test.' + ext);
+  formData.append('rec_type', 'sentence');
+  formData.append('text_diacritized', textDiac);
+
+  fetch('/api/test/record', { method: 'POST', body: formData })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      showToast('Saved: ' + data.id + ' (sentence)');
+      btn.classList.add('saved');
+      btn.innerHTML = '\uD83C\uDFA4 Record';
+      loadRecordingCount();
+    })
+    .catch(function(e) { showToast('Save error: ' + e.message); btn.innerHTML = '\uD83C\uDFA4 Record'; });
+}
+
+function recordCustomSentence() {
+  var text = document.getElementById('customSentence').value.trim();
+  if (!text) { showToast('Enter a diacritized sentence first'); return; }
+
+  var btn = document.createElement('button');
+  btn.className = 'sentence-rec-btn';
+  btn.setAttribute('data-type', 'sentence');
+  btn.setAttribute('data-text', text);
+  btn.innerHTML = '\uD83C\uDFA4 Recording...';
+  document.querySelector('.custom-sentence-input').appendChild(btn);
+
+  if (activeRecording) {
+    if (activeRecording.getAttribute('data-type') === 'sentence') stopAndSaveSentence(activeRecording);
+    else stopAndSave(activeRecording);
+  }
+  startSentenceRecord(btn);
+}
+
+function loadRecordingCount() {
+  fetch('/api/test/recordings')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      document.getElementById('recCount').textContent = data.length;
+    });
+}
+
+function runAllTests() {
+  var btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+
+  fetch('/api/test/run', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      btn.disabled = false;
+      btn.textContent = 'Run All Tests';
+      displayResults(data);
+    })
+    .catch(function(e) {
+      btn.disabled = false;
+      btn.textContent = 'Run All Tests';
+      showToast('Error: ' + e.message);
+    });
+}
+
+function displayResults(data) {
+  var table = document.getElementById('resultsTable');
+  var body = document.getElementById('resultsBody');
+  var summary = document.getElementById('summaryBox');
+
+  body.textContent = '';
+  table.style.display = 'table';
+  summary.style.display = 'inline-block';
+
+  summary.innerHTML = 'Accuracy: <span class="acc">' + data.summary.accuracy + '%</span> (' + data.summary.correct + '/' + data.summary.total + ' words correct)';
+
+  data.results.forEach(function(r) {
+    var recType = r.type || 'word';
+    var tr = document.createElement('tr');
+
+    if (recType === 'sentence') {
+      // Sentence result row
+      var tdWord = document.createElement('td');
+      tdWord.className = 'word-cell';
+      tdWord.colSpan = 1;
+      tdWord.textContent = r.text_diacritized || '';
+      tdWord.style.maxWidth = '300px';
+      tr.appendChild(tdWord);
+
+      var tdIntended = document.createElement('td');
+      tdIntended.textContent = 'sentence';
+      tdIntended.style.fontStyle = 'italic';
+      tr.appendChild(tdIntended);
+
+      var tdDetected = document.createElement('td');
+      tdDetected.textContent = r.transcript || '-';
+      tdDetected.style.maxWidth = '200px';
+      tdDetected.style.fontSize = '0.85rem';
+      tr.appendChild(tdDetected);
+
+      var tdMatch = document.createElement('td');
+      if (r.error) {
+        tdMatch.textContent = 'error';
+        tdMatch.style.color = 'var(--wrong)';
+      } else {
+        tdMatch.textContent = r.words_correct + '/' + r.words_total;
+        tdMatch.className = r.is_match ? 'match' : 'mismatch';
+      }
+      tr.appendChild(tdMatch);
+
+      var tdConf = document.createElement('td');
+      tdConf.textContent = '-';
+      tr.appendChild(tdConf);
+
+      var tdGap = document.createElement('td');
+      tdGap.textContent = '-';
+      tr.appendChild(tdGap);
+
+      // Word-by-word details
+      var tdDetails = document.createElement('td');
+      if (r.word_results) {
+        var words = document.createElement('div');
+        words.className = 'sentence-result-words';
+        r.word_results.forEach(function(w) {
+          var chip = document.createElement('span');
+          chip.className = 'word-chip ' + (w.is_correct ? 'correct' : 'wrong');
+          chip.innerHTML = w.ref_word + '<span class="word-chip-detail">' + w.kind + '</span>';
+          if (!w.is_correct && w.hyp_word) {
+            chip.title = 'Got: ' + w.hyp_word + (w.detected_case ? ' (' + w.detected_case + ')' : '');
+          }
+          words.appendChild(chip);
+        });
+        tdDetails.appendChild(words);
+      }
+      tr.appendChild(tdDetails);
+    } else {
+      // Word result row (existing)
+      var tdWord = document.createElement('td');
+      tdWord.className = 'word-cell';
+      tdWord.textContent = r.word_diacritized || '';
+      tr.appendChild(tdWord);
+
+      var tdIntended = document.createElement('td');
+      tdIntended.textContent = r.intended_case || '';
+      tr.appendChild(tdIntended);
+
+      var tdDetected = document.createElement('td');
+      tdDetected.textContent = r.detected_case || r.error || '-';
+      tr.appendChild(tdDetected);
+
+      var tdMatch = document.createElement('td');
+      if (r.error) {
+        tdMatch.textContent = 'error';
+        tdMatch.style.color = 'var(--wrong)';
+      } else {
+        tdMatch.textContent = r.is_match ? 'Yes' : 'No';
+        tdMatch.className = r.is_match ? 'match' : 'mismatch';
+      }
+      tr.appendChild(tdMatch);
+
+      var tdConf = document.createElement('td');
+      tdConf.textContent = r.confidence || '-';
+      tr.appendChild(tdConf);
+
+      var tdGap = document.createElement('td');
+      tdGap.textContent = r.score_gap != null ? r.score_gap : '-';
+      tr.appendChild(tdGap);
+
+      var tdDetails = document.createElement('td');
+      if (r.hypothesis_scores) {
+        var details = document.createElement('div');
+        details.className = 'hyp-details';
+        r.hypothesis_scores.slice(0, 4).forEach(function(h, i) {
+          var row = document.createElement('div');
+          row.className = 'hyp-row' + (i === 0 ? ' hyp-best' : '');
+          row.innerHTML = '<span>' + h.diacritized + ' (' + h.case + ')</span><span class="hyp-score">' + h.score + '</span>';
+          details.appendChild(row);
+        });
+        tdDetails.appendChild(details);
+      }
+      tr.appendChild(tdDetails);
+    }
+
+    var tdDel = document.createElement('td');
+    var delBtn = document.createElement('button');
+    delBtn.textContent = '\u2715';
+    delBtn.style.cssText = 'border:none;background:none;color:var(--wrong);cursor:pointer;font-size:1rem;';
+    delBtn.onclick = function() { deleteRecording(r.id, tr); };
+    tdDel.appendChild(delBtn);
+    tr.appendChild(tdDel);
+
+    body.appendChild(tr);
+  });
+}
+
+function deleteRecording(recId, row) {
+  fetch('/api/test/recordings/' + recId, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      row.remove();
+      loadRecordingCount();
+      showToast('Deleted ' + recId);
+    });
+}
+
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('visible');
+  setTimeout(function() { t.classList.remove('visible'); }, 3000);
+}
+
+// Init
+buildTestWords();
+buildTestSentences();
+loadRecordingCount();
+</script>
+</body>
+</html>

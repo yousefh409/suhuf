@@ -1,0 +1,1460 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>إعراب — Arabic Recitation Correction</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --parchment: #f5f0e8;
+    --parchment-deep: #ebe4d6;
+    --ink: #2c1810;
+    --ink-light: #5a3e2b;
+    --gold: #b8860b;
+    --gold-light: #daa520;
+    --gold-glow: rgba(184, 134, 11, 0.15);
+    --correct: #2d6a4f;
+    --correct-bg: rgba(45, 106, 79, 0.08);
+    --correct-border: rgba(45, 106, 79, 0.25);
+    --tashkeel: #b8860b;
+    --tashkeel-bg: rgba(184, 134, 11, 0.08);
+    --tashkeel-border: rgba(184, 134, 11, 0.3);
+    --wrong: #9b2226;
+    --wrong-bg: rgba(155, 34, 38, 0.08);
+    --wrong-border: rgba(155, 34, 38, 0.25);
+    --missing: #6c757d;
+    --missing-bg: rgba(108, 117, 125, 0.06);
+    --missing-border: rgba(108, 117, 125, 0.2);
+    --extra: #7b2d8b;
+    --extra-bg: rgba(123, 45, 139, 0.08);
+    --extra-border: rgba(123, 45, 139, 0.25);
+    --irab: #1565c0;
+    --irab-bg: rgba(21, 101, 192, 0.08);
+    --irab-border: rgba(21, 101, 192, 0.3);
+    --pausal: #2d6a4f;
+    --pausal-bg: rgba(45, 106, 79, 0.05);
+    --pausal-border: rgba(45, 106, 79, 0.2);
+    --red-record: #c0392b;
+  }
+
+  body {
+    font-family: 'IBM Plex Sans Arabic', 'SF Arabic', system-ui, sans-serif;
+    background: var(--parchment);
+    color: var(--ink);
+    min-height: 100vh;
+    line-height: 1.7;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* Subtle noise texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Geometric border decoration */
+  .geo-border {
+    width: 100%;
+    height: 24px;
+    background:
+      linear-gradient(135deg, var(--gold) 25%, transparent 25%) -12px 0,
+      linear-gradient(225deg, var(--gold) 25%, transparent 25%) -12px 0,
+      linear-gradient(315deg, var(--gold) 25%, transparent 25%),
+      linear-gradient(45deg, var(--gold) 25%, transparent 25%);
+    background-size: 24px 24px;
+    background-color: var(--parchment-deep);
+    opacity: 0.2;
+  }
+
+  /* Header */
+  header {
+    text-align: center;
+    padding: 2.5rem 1.5rem 1.5rem;
+    position: relative;
+  }
+
+  header h1 {
+    font-family: 'Amiri', serif;
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    margin-bottom: 0.25rem;
+  }
+
+  header p {
+    font-size: 0.95rem;
+    color: var(--ink-light);
+    font-weight: 300;
+    letter-spacing: 0.02em;
+  }
+
+  /* Main container */
+  main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 1.5rem 4rem;
+  }
+
+  /* ── Reading area ────────────────────────────────────────────── */
+  .reading-area {
+    background: linear-gradient(135deg, var(--parchment-deep) 0%, #e8e0d0 100%);
+    border: 1px solid rgba(184, 134, 11, 0.2);
+    border-radius: 16px;
+    padding: 2rem 2.5rem;
+    margin: 1.5rem 0 1.5rem;
+    position: relative;
+    box-shadow: 0 2px 20px rgba(44, 24, 16, 0.04);
+  }
+
+  .reading-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 1rem;
+    display: block;
+    text-align: center;
+  }
+
+  .reading-text {
+    font-family: 'Amiri', serif;
+    font-size: clamp(1.5rem, 3.5vw, 2.1rem);
+    line-height: 2.6;
+    color: var(--ink);
+    direction: rtl;
+    text-align: right;
+    transition: opacity 0.3s ease;
+  }
+
+  /* Individual word spans */
+  .ref-word {
+    display: inline;
+    padding: 3px 1px;
+    border-radius: 4px;
+    transition: color 0.4s ease, background 0.4s ease, opacity 0.4s ease;
+    position: relative;
+  }
+
+  /* Words already read (position tracked during recording) */
+  .ref-word.read {
+    color: var(--ink);
+    background: rgba(184, 134, 11, 0.1);
+    border-radius: 6px;
+    padding: 3px 6px;
+  }
+
+  /* During processing: unscored words dim, read words semi-visible */
+  .reading-text.processing .ref-word {
+    opacity: 0.3;
+    transition: opacity 0.3s ease;
+  }
+  .reading-text.processing .ref-word.read {
+    opacity: 0.7;
+  }
+  .reading-text.processing .ref-word.scored,
+  .reading-text.processing .ref-word.current {
+    opacity: 1;
+  }
+
+  /* Current word being scored — gold pulse */
+  .ref-word.current {
+    background: rgba(184, 134, 11, 0.2);
+    color: var(--gold);
+    animation: pulse-word 1.2s ease-in-out infinite;
+    border-radius: 6px;
+    padding: 3px 6px;
+  }
+
+  @keyframes pulse-word {
+    0%, 100% { background: rgba(184, 134, 11, 0.15); }
+    50% { background: rgba(184, 134, 11, 0.35); }
+  }
+
+  /* Scored word states */
+  .ref-word.correct { color: var(--correct); }
+  .ref-word.pausal_ok { color: var(--correct); opacity: 0.85; }
+
+  .ref-word.tashkeel {
+    color: var(--tashkeel);
+    text-decoration-line: underline;
+    text-decoration-style: wavy;
+    text-decoration-color: var(--tashkeel);
+    text-underline-offset: 10px;
+  }
+
+  .ref-word.irab {
+    color: var(--irab);
+    text-decoration-line: underline;
+    text-decoration-style: wavy;
+    text-decoration-color: var(--irab);
+    text-underline-offset: 10px;
+  }
+
+  .ref-word.wrong {
+    color: var(--wrong);
+    text-decoration: line-through;
+    text-decoration-color: rgba(155, 34, 38, 0.5);
+  }
+
+  .ref-word.missing {
+    color: var(--missing);
+    opacity: 0.4;
+  }
+
+  .ref-word.extra { color: var(--extra); }
+
+  /* Clickable scored words */
+  .ref-word.scored {
+    cursor: pointer;
+  }
+  .ref-word.scored:hover {
+    background: rgba(44, 24, 16, 0.06);
+    border-radius: 6px;
+    padding: 3px 6px;
+  }
+
+  /* Active word in explain panel */
+  .ref-word.active-explain {
+    background: var(--gold-glow);
+    border-radius: 6px;
+    padding: 3px 6px;
+  }
+
+  /* ── Stream status ───────────────────────────────────────────── */
+  .stream-status {
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--ink-light);
+    padding: 0.5rem 0;
+    min-height: 1.5em;
+    display: none;
+  }
+  .stream-status.visible { display: flex; align-items: center; justify-content: center; gap: 0.4rem; }
+
+  .mini-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--parchment-deep);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+
+  /* ── Mode toggle ────────────────────────────────────────────── */
+  .mode-toggle {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    margin: 0.5rem auto;
+  }
+
+  .mode-btn {
+    font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 0.35rem 1rem;
+    border: 1.5px solid var(--gold);
+    background: transparent;
+    color: var(--ink-light);
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.02em;
+  }
+
+  .mode-btn:first-child {
+    border-radius: 0 6px 6px 0;
+    border-left: none;
+  }
+
+  .mode-btn:last-child {
+    border-radius: 6px 0 0 6px;
+    border-right: none;
+  }
+
+  .mode-btn.active {
+    background: var(--gold);
+    color: #fff;
+  }
+
+  .mode-btn:hover:not(.active) {
+    background: var(--gold-glow);
+  }
+
+  /* ── Record section ──────────────────────────────────────────── */
+  .record-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    margin: 2rem 0;
+  }
+
+  .record-btn {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    border: 3px solid var(--ink-light);
+    background: var(--parchment);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    box-shadow: 0 4px 16px rgba(44, 24, 16, 0.08);
+  }
+
+  .record-btn:hover {
+    border-color: var(--gold);
+    box-shadow: 0 4px 24px var(--gold-glow);
+    transform: scale(1.04);
+  }
+
+  .record-btn:active { transform: scale(0.97); }
+
+  .record-btn.recording {
+    border-color: var(--red-record);
+    background: rgba(192, 57, 43, 0.06);
+    animation: pulse-ring 1.8s ease-in-out infinite;
+  }
+
+  .record-btn.recording .mic-icon { color: var(--red-record); }
+
+  @keyframes pulse-ring {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.25); }
+    50% { box-shadow: 0 0 0 18px rgba(192, 57, 43, 0); }
+  }
+
+  .mic-icon {
+    width: 32px;
+    height: 32px;
+    color: var(--ink-light);
+    transition: color 0.3s;
+  }
+
+  .stop-icon {
+    width: 22px;
+    height: 22px;
+    background: var(--red-record);
+    border-radius: 4px;
+  }
+
+  .record-label {
+    font-size: 0.9rem;
+    color: var(--ink-light);
+    font-weight: 400;
+    min-height: 1.4em;
+  }
+
+  .record-label.recording-active { color: var(--red-record); font-weight: 500; }
+
+  .timer {
+    font-size: 0.85rem;
+    color: var(--red-record);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    opacity: 0;
+    transition: opacity 0.3s;
+    min-height: 1.2em;
+    direction: ltr;
+  }
+  .timer.visible { opacity: 1; }
+
+  /* ── Spinner ─────────────────────────────────────────────────── */
+  .spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--parchment-deep);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 0.75rem;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Results section ─────────────────────────────────────────── */
+  .results-section {
+    display: none;
+    animation: fadeUp 0.5s ease-out;
+  }
+  .results-section.visible { display: block; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .transcript-row {
+    background: var(--parchment-deep);
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(44, 24, 16, 0.06);
+  }
+
+  .transcript-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--ink-light);
+    margin-bottom: 0.35rem;
+    display: block;
+  }
+
+  .transcript-text {
+    font-family: 'Amiri', serif;
+    font-size: 1.3rem;
+    line-height: 1.9;
+    color: var(--ink);
+  }
+
+  /* ── Legend ───────────────────────────────────────────────────── */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+    font-size: 0.75rem;
+    direction: ltr;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--ink-light);
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .legend-dot.correct { background: var(--correct); }
+  .legend-dot.tashkeel { background: var(--tashkeel); }
+  .legend-dot.irab { background: var(--irab); }
+  .legend-dot.wrong { background: var(--wrong); }
+  .legend-dot.missing { background: var(--missing); }
+
+  /* ── Score ────────────────────────────────────────────────────── */
+  .score-bar { text-align: center; margin: 1.5rem 0; }
+
+  .score-text {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--ink-light);
+  }
+  .score-number {
+    font-weight: 700;
+    color: var(--gold);
+    font-size: 1.3rem;
+  }
+
+  /* ── Explanation panel ───────────────────────────────────────── */
+  .explain-panel {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s, padding 0.3s;
+    opacity: 0;
+    background: linear-gradient(135deg, var(--parchment-deep), #e6dece);
+    border: 1px solid rgba(184, 134, 11, 0.15);
+    border-radius: 14px;
+    margin: 1rem 0;
+  }
+
+  .explain-panel.open {
+    max-height: 700px;
+    opacity: 1;
+    padding: 1.5rem 2rem;
+  }
+
+  .explain-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    flex-direction: row-reverse;
+  }
+
+  .explain-header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-direction: row-reverse;
+  }
+
+  .explain-word {
+    font-family: 'Amiri', serif;
+    font-size: 1.6rem;
+    color: var(--ink);
+  }
+
+  .explain-kind {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(44, 24, 16, 0.06);
+  }
+  .explain-kind.correct { color: var(--correct); background: var(--correct-bg); }
+  .explain-kind.pausal_ok { color: var(--pausal); background: var(--pausal-bg); }
+  .explain-kind.tashkeel { color: var(--tashkeel); background: var(--tashkeel-bg); }
+  .explain-kind.irab { color: var(--irab); background: var(--irab-bg); }
+  .explain-kind.wrong { color: var(--wrong); background: var(--wrong-bg); }
+  .explain-kind.missing { color: var(--missing); background: var(--missing-bg); }
+  .explain-kind.extra { color: var(--extra); background: var(--extra-bg); }
+
+  .explain-close {
+    background: none;
+    border: none;
+    font-size: 1.4rem;
+    color: var(--ink-light);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: background 0.2s;
+    line-height: 1;
+  }
+  .explain-close:hover { background: rgba(44, 24, 16, 0.06); }
+
+  /* Haraka detail in explain panel */
+  .explain-haraka {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid rgba(44, 24, 16, 0.08);
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--ink-light);
+    direction: ltr;
+    text-align: left;
+    line-height: 1.8;
+  }
+
+  .explain-haraka-title {
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.35rem;
+    color: var(--ink-light);
+  }
+
+  .haraka-letter {
+    font-family: 'Amiri', serif;
+    font-size: 1.1rem;
+    color: var(--ink);
+    direction: rtl;
+    display: inline;
+  }
+  .haraka-expected { color: var(--correct); font-weight: 500; }
+  .haraka-got { color: var(--wrong); font-weight: 500; }
+
+  .explain-hyp {
+    font-family: 'Amiri', serif;
+    font-size: 1rem;
+    color: var(--ink-light);
+    margin-bottom: 0.5rem;
+    direction: rtl;
+  }
+
+  .explain-body {
+    font-family: 'Amiri', serif;
+    font-size: 1.1rem;
+    line-height: 2;
+    color: var(--ink);
+    white-space: pre-wrap;
+    direction: rtl;
+  }
+
+  .explain-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    justify-content: center;
+    padding: 1rem 0;
+  }
+
+  .explain-loading .spinner {
+    width: 24px;
+    height: 24px;
+    border-width: 2px;
+    margin: 0;
+  }
+
+  /* ── Try again button ────────────────────────────────────────── */
+  .try-again-row { text-align: center; margin-top: 2rem; }
+
+  .try-again-btn {
+    font-family: 'IBM Plex Sans Arabic', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 0.7rem 2rem;
+    border: 1.5px solid var(--ink-light);
+    border-radius: 10px;
+    background: var(--parchment);
+    color: var(--ink);
+    cursor: pointer;
+    transition: all 0.25s;
+  }
+  .try-again-btn:hover {
+    background: var(--ink);
+    color: var(--parchment);
+    border-color: var(--ink);
+  }
+
+  /* ── Error toast ─────────────────────────────────────────────── */
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--wrong);
+    color: #fff;
+    padding: 0.8rem 1.5rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    box-shadow: 0 8px 30px rgba(155, 34, 38, 0.3);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 100;
+    direction: ltr;
+  }
+  .toast.visible { transform: translateX(-50%) translateY(0); }
+
+  footer {
+    text-align: center;
+    padding: 2rem 1rem;
+    font-size: 0.75rem;
+    color: var(--ink-light);
+    opacity: 0.5;
+  }
+
+  @media (max-width: 600px) {
+    main { padding: 0 1rem 3rem; }
+    .reading-area { padding: 1.5rem 1.2rem; }
+    .reading-text { font-size: 1.3rem; line-height: 2.4; }
+    .record-btn { width: 76px; height: 76px; }
+    .explain-panel.open { padding: 1.2rem 1.2rem; }
+    .legend { gap: 0.6rem; font-size: 0.65rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="geo-border"></div>
+
+<header>
+  <h1>إعراب</h1>
+  <p>Arabic Recitation Correction</p>
+</header>
+
+<main>
+  <!-- Reading area: paragraph with interactive word spans -->
+  <div class="reading-area">
+    <span class="reading-label">Reference Text</span>
+    <div class="reading-text" id="readingText"></div>
+  </div>
+
+  <!-- Stream status indicator -->
+  <div class="stream-status" id="streamStatus">
+    <span class="mini-spinner" id="statusSpinner"></span>
+    <span id="statusText"></span>
+  </div>
+
+  <!-- Scoring mode toggle -->
+  <div class="mode-toggle">
+    <button class="mode-btn active" id="modeWhisper" data-mode="whisper">Whisper</button>
+    <button class="mode-btn" id="modePCD" data-mode="pcd">PCD</button>
+  </div>
+
+  <!-- Record button -->
+  <div class="record-section">
+    <button class="record-btn" id="recordBtn" aria-label="Record audio">
+      <svg class="mic-icon" id="micIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+        <line x1="8" y1="23" x2="16" y2="23"/>
+      </svg>
+      <div class="stop-icon" id="stopIcon" style="display:none"></div>
+    </button>
+    <div class="timer" id="timer">0:00</div>
+    <div class="record-label" id="recordLabel">Press to start recording</div>
+  </div>
+
+  <!-- Results section (shown after streaming completes) -->
+  <div class="results-section" id="resultsSection">
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot correct"></div> Correct</div>
+      <div class="legend-item"><div class="legend-dot tashkeel"></div> Tashkeel</div>
+      <div class="legend-item"><div class="legend-dot irab"></div> I'rab</div>
+      <div class="legend-item"><div class="legend-dot wrong"></div> Wrong word</div>
+      <div class="legend-item"><div class="legend-dot missing"></div> Missing</div>
+    </div>
+
+    <div class="transcript-row">
+      <span class="transcript-label">What you said</span>
+      <div class="transcript-text" id="transcriptText"></div>
+    </div>
+
+    <div class="score-bar" id="scoreBar"></div>
+
+    <!-- Explanation panel (opens on word click) -->
+    <div class="explain-panel" id="explainPanel">
+      <div class="explain-header">
+        <div class="explain-header-right">
+          <span class="explain-word" id="explainWord"></span>
+          <span class="explain-kind" id="explainKind"></span>
+        </div>
+        <button class="explain-close" id="explainClose" aria-label="Close explanation">&times;</button>
+      </div>
+      <div class="explain-hyp" id="explainHyp" style="display:none"></div>
+      <div class="explain-haraka" id="explainHaraka" style="display:none"></div>
+      <div id="explainContent">
+        <div class="explain-loading" id="explainLoading" style="display:none">
+          <div class="spinner"></div>
+          <span style="font-size:0.9rem; color:var(--ink-light)">Loading i3rab explanation...</span>
+        </div>
+        <div class="explain-body" id="explainBody"></div>
+      </div>
+    </div>
+
+    <div class="try-again-row">
+      <button class="try-again-btn" id="tryAgainBtn">Try Again</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</main>
+
+<div class="geo-border"></div>
+<footer>i3rab — hypothesis-scored diacritics assessment + GPT-4o explanations</footer>
+
+<script>
+(function() {
+  'use strict';
+
+  // ── State ──────────────────────────────────────────────────────
+  var mediaStream = null;
+  var mediaRecorder = null;
+  var recordedChunks = [];
+  var isRecording = false;
+  var timerInterval = null;
+  var recordStartTime = 0;
+  var referenceData = null;
+  var wordResults = {};       // index -> result data from stream
+  var activeWordIdx = null;   // currently open in explain panel
+  var positionCheckInterval = null;
+  var positionCheckInProgress = false;
+  var liveScoredIndices = {};   // index -> true for words already scored during recording
+  var liveCorrectCount = 0;
+  var liveTotalCount = 0;
+  var scoringMode = 'whisper'; // 'whisper' or 'pcd'
+
+  // ── DOM refs ───────────────────────────────────────────────────
+  var readingText = document.getElementById('readingText');
+  var streamStatus = document.getElementById('streamStatus');
+  var statusSpinner = document.getElementById('statusSpinner');
+  var statusText = document.getElementById('statusText');
+  var recordBtn = document.getElementById('recordBtn');
+  var micIcon = document.getElementById('micIcon');
+  var stopIcon = document.getElementById('stopIcon');
+  var timerEl = document.getElementById('timer');
+  var recordLabel = document.getElementById('recordLabel');
+  var resultsSection = document.getElementById('resultsSection');
+  var transcriptText = document.getElementById('transcriptText');
+  var scoreBar = document.getElementById('scoreBar');
+  var explainPanel = document.getElementById('explainPanel');
+  var explainWord = document.getElementById('explainWord');
+  var explainKind = document.getElementById('explainKind');
+  var explainHyp = document.getElementById('explainHyp');
+  var explainHaraka = document.getElementById('explainHaraka');
+  var explainClose = document.getElementById('explainClose');
+  var explainLoading = document.getElementById('explainLoading');
+  var explainBody = document.getElementById('explainBody');
+  var tryAgainBtn = document.getElementById('tryAgainBtn');
+  var toastEl = document.getElementById('toast');
+
+  var KIND_LABELS = {
+    correct: 'Correct',
+    pausal_ok: 'Pausal OK',
+    tashkeel: 'Wrong tashkeel',
+    irab: 'Wrong i\u2018rab',
+    wrong: 'Wrong word',
+    missing: 'Missing',
+    extra: 'Extra'
+  };
+
+  // ── Init ───────────────────────────────────────────────────────
+  fetchReference();
+  recordBtn.addEventListener('click', toggleRecording);
+  explainClose.addEventListener('click', closeExplanation);
+  tryAgainBtn.addEventListener('click', resetUI);
+
+  // Mode toggle
+  document.querySelectorAll('.mode-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.mode-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      scoringMode = btn.dataset.mode;
+    });
+  });
+
+  // ── Reference loading ──────────────────────────────────────────
+  function fetchReference() {
+    fetch('/api/reference')
+      .then(function(resp) { return resp.json(); })
+      .then(function(data) {
+        referenceData = data;
+        renderReadingText(data.words);
+      })
+      .catch(function() {
+        readingText.textContent = '\u0642\u064e\u0631\u064e\u0623\u064e \u0627\u0644\u0637\u0651\u064e\u0627\u0644\u0650\u0628\u064f \u0627\u0644\u0643\u0650\u062a\u064e\u0627\u0628\u064e';
+      });
+  }
+
+  function renderReadingText(words) {
+    readingText.textContent = '';
+    words.forEach(function(w, i) {
+      if (i > 0) readingText.appendChild(document.createTextNode(' '));
+      var span = document.createElement('span');
+      span.className = 'ref-word';
+      span.dataset.idx = w.index;
+      span.textContent = w.text;
+      span.addEventListener('click', function() { onWordClick(w.index); });
+      readingText.appendChild(span);
+    });
+  }
+
+  // ── Recording ──────────────────────────────────────────────────
+  function toggleRecording() {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }
+
+  function startRecording() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast('Microphone not available. Use HTTPS or localhost.');
+      return;
+    }
+
+    navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true }
+    })
+    .then(function(stream) {
+      mediaStream = stream;
+      recordedChunks = [];
+
+      var options = {};
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        options.mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        options.mimeType = 'audio/webm';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        options.mimeType = 'audio/mp4';
+      }
+
+      mediaRecorder = new MediaRecorder(stream, options);
+      mediaRecorder.ondataavailable = function(e) {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+      mediaRecorder.onstop = function() {
+        var elapsed = (Date.now() - recordStartTime) / 1000;
+        if (elapsed < 0.5 || recordedChunks.length === 0) {
+          showToast('Recording too short. Try again.');
+          return;
+        }
+        var blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+        finishScoring(blob);
+      };
+
+      mediaRecorder.start(250);
+
+      // Start periodic live scoring during recording
+      if (scoringMode === 'whisper') {
+        positionCheckInterval = setInterval(checkLiveProgress, 4000);
+      } else if (scoringMode === 'pcd') {
+        positionCheckInterval = setInterval(checkPCDLiveProgress, 1500);
+      }
+
+      isRecording = true;
+      recordBtn.classList.add('recording');
+      micIcon.style.display = 'none';
+      stopIcon.style.display = 'block';
+      recordLabel.textContent = 'Recording... press to stop';
+      recordLabel.classList.add('recording-active');
+      timerEl.classList.add('visible');
+      recordStartTime = Date.now();
+      timerInterval = setInterval(updateTimer, 100);
+
+      resultsSection.classList.remove('visible');
+      closeExplanation();
+      clearWordStates();
+
+      // In PCD mode, show transcript area during recording for live diacritized output
+      if (scoringMode === 'pcd') {
+        transcriptText.textContent = '';
+        resultsSection.classList.add('visible');
+      }
+    })
+    .catch(function(err) {
+      console.error('Mic error:', err);
+      showToast('Microphone access denied. Check browser permissions.');
+    });
+  }
+
+  function stopRecording() {
+    isRecording = false;
+    clearInterval(timerInterval);
+    if (positionCheckInterval) {
+      clearInterval(positionCheckInterval);
+      positionCheckInterval = null;
+    }
+    positionCheckInProgress = false;
+
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(function(t) { t.stop(); });
+      mediaStream = null;
+    }
+
+    recordBtn.classList.remove('recording');
+    micIcon.style.display = '';
+    stopIcon.style.display = 'none';
+    recordLabel.textContent = 'Press to start recording';
+    recordLabel.classList.remove('recording-active');
+    timerEl.classList.remove('visible');
+  }
+
+  function updateTimer() {
+    var elapsed = Math.floor((Date.now() - recordStartTime) / 1000);
+    var mins = Math.floor(elapsed / 60);
+    var secs = elapsed % 60;
+    timerEl.textContent = mins + ':' + (secs < 10 ? '0' : '') + secs;
+  }
+
+  // ── Real-time live scoring during recording ──────────────────────
+  function checkLiveProgress() {
+    if (positionCheckInProgress || recordedChunks.length === 0) return;
+    positionCheckInProgress = true;
+
+    var blob = new Blob(recordedChunks, {
+      type: (mediaRecorder && mediaRecorder.mimeType) || 'audio/webm'
+    });
+    var ext = (blob.type && blob.type.indexOf('webm') >= 0) ? 'webm' : 'wav';
+    var formData = new FormData();
+    formData.append('audio', blob, 'live.' + ext);
+    formData.append('scored_indices', Object.keys(liveScoredIndices).join(','));
+
+    fetch('/api/transcribe/live', {
+      method: 'POST',
+      body: formData,
+    })
+    .then(function(resp) { return resp.json(); })
+    .then(function(data) {
+      positionCheckInProgress = false;
+      if (!isRecording) return; // Recording already stopped
+
+      if (data.matched_indices && data.matched_indices.length > 0) {
+        updateReadingPosition(data.matched_indices);
+      }
+      if (data.scored_words && data.scored_words.length > 0) {
+        applyLiveScores(data.scored_words);
+      }
+    })
+    .catch(function() {
+      positionCheckInProgress = false;
+    });
+  }
+
+  function updateReadingPosition(indices) {
+    var indexSet = {};
+    for (var i = 0; i < indices.length; i++) {
+      indexSet[indices[i]] = true;
+    }
+    readingText.querySelectorAll('.ref-word').forEach(function(span) {
+      var idx = parseInt(span.dataset.idx, 10);
+      if (indexSet[idx] && !span.classList.contains('scored')) {
+        span.classList.add('read');
+      }
+    });
+  }
+
+  function applyLiveScores(scoredWords) {
+    for (var i = 0; i < scoredWords.length; i++) {
+      var sw = scoredWords[i];
+      var span = readingText.querySelector('.ref-word[data-idx="' + sw.index + '"]');
+      if (span) {
+        span.classList.remove('read');
+        span.classList.add('scored', sw.kind);
+      }
+      wordResults[sw.index] = sw;
+      liveScoredIndices[sw.index] = true;
+      liveTotalCount++;
+      if (sw.kind === 'correct' || sw.kind === 'pausal_ok') {
+        liveCorrectCount++;
+      }
+    }
+  }
+
+  // ── Real-time PCD live scoring during recording ───────────────────
+  function checkPCDLiveProgress() {
+    if (positionCheckInProgress || recordedChunks.length === 0) return;
+    positionCheckInProgress = true;
+
+    var blob = new Blob(recordedChunks, {
+      type: (mediaRecorder && mediaRecorder.mimeType) || 'audio/webm'
+    });
+    var ext = (blob.type && blob.type.indexOf('webm') >= 0) ? 'webm' : 'wav';
+    var formData = new FormData();
+    formData.append('audio', blob, 'live.' + ext);
+    formData.append('scored_indices', Object.keys(liveScoredIndices).join(','));
+
+    fetch('/api/transcribe/pcd/live', {
+      method: 'POST',
+      body: formData,
+    })
+    .then(function(resp) { return resp.json(); })
+    .then(function(data) {
+      positionCheckInProgress = false;
+      if (!isRecording) return;
+
+      // Update live transcript display
+      if (data.transcript) {
+        transcriptText.textContent = data.transcript;
+      }
+
+      if (data.matched_indices && data.matched_indices.length > 0) {
+        updateReadingPosition(data.matched_indices);
+      }
+      if (data.scored_words && data.scored_words.length > 0) {
+        applyLiveScores(data.scored_words);
+      }
+    })
+    .catch(function() {
+      positionCheckInProgress = false;
+    });
+  }
+
+  function finishScoring(blob) {
+    recordBtn.style.display = 'none';
+    recordLabel.style.display = 'none';
+
+    if (scoringMode === 'pcd') {
+      finishScoringPCD(blob);
+    } else {
+      finishScoringWhisper(blob);
+    }
+  }
+
+  function finishScoringWhisper(blob) {
+    setStreamStatus('Finishing scoring...');
+
+    var formData = new FormData();
+    var ext = (blob.type && blob.type.indexOf('webm') >= 0) ? 'webm' : 'wav';
+    formData.append('audio', blob, 'final.' + ext);
+    formData.append('scored_indices', Object.keys(liveScoredIndices).join(','));
+
+    fetch('/api/transcribe/live', {
+      method: 'POST',
+      body: formData,
+    })
+    .then(function(resp) { return resp.json(); })
+    .then(function(data) {
+      // Update transcript
+      if (data.transcript) {
+        transcriptText.textContent = data.transcript;
+      }
+
+      // Apply remaining position + scoring
+      if (data.matched_indices && data.matched_indices.length > 0) {
+        updateReadingPosition(data.matched_indices);
+      }
+      if (data.scored_words && data.scored_words.length > 0) {
+        applyLiveScores(data.scored_words);
+      }
+
+      // Show final results
+      hideStreamStatus();
+      recordBtn.style.display = '';
+      recordLabel.style.display = '';
+      displayScore({ correct: liveCorrectCount, total: liveTotalCount });
+      resultsSection.classList.add('visible');
+    })
+    .catch(function(e) {
+      hideStreamStatus();
+      recordBtn.style.display = '';
+      recordLabel.style.display = '';
+      showToast('Scoring error: ' + e.message);
+    });
+  }
+
+  function finishScoringPCD(blob) {
+    setStreamStatus('Final PCD scoring...');
+
+    var formData = new FormData();
+    var ext = (blob.type && blob.type.indexOf('webm') >= 0) ? 'webm' : 'wav';
+    formData.append('audio', blob, 'final.' + ext);
+    formData.append('scored_indices', Object.keys(liveScoredIndices).join(','));
+
+    fetch('/api/transcribe/pcd/live', {
+      method: 'POST',
+      body: formData,
+    })
+    .then(function(resp) { return resp.json(); })
+    .then(function(data) {
+      if (data.error) {
+        hideStreamStatus();
+        recordBtn.style.display = '';
+        recordLabel.style.display = '';
+        showToast('PCD error: ' + data.error);
+        return;
+      }
+
+      if (data.transcript) {
+        transcriptText.textContent = data.transcript;
+      }
+
+      if (data.matched_indices && data.matched_indices.length > 0) {
+        updateReadingPosition(data.matched_indices);
+      }
+      if (data.scored_words && data.scored_words.length > 0) {
+        applyLiveScores(data.scored_words);
+      }
+
+      hideStreamStatus();
+      recordBtn.style.display = '';
+      recordLabel.style.display = '';
+      displayScore({ correct: liveCorrectCount, total: liveTotalCount });
+      resultsSection.classList.add('visible');
+    })
+    .catch(function(e) {
+      hideStreamStatus();
+      recordBtn.style.display = '';
+      recordLabel.style.display = '';
+      showToast('PCD error: ' + e.message);
+    });
+  }
+
+  // ── Streaming audio evaluation via SSE ─────────────────────────
+  function sendAudioStream(blob) {
+    // Enter processing state
+    wordResults = {};
+    readingText.classList.add('processing');
+    setStreamStatus('Transcribing your recitation...');
+    recordBtn.style.display = 'none';
+    recordLabel.style.display = 'none';
+
+    var formData = new FormData();
+    var ext = (blob.type && blob.type.indexOf('webm') >= 0) ? 'webm' : 'wav';
+    formData.append('audio', blob, 'recording.' + ext);
+
+    fetch('/api/transcribe/stream', {
+      method: 'POST',
+      body: formData,
+    })
+    .then(function(response) {
+      if (!response.ok) throw new Error('Transcription failed');
+      return processSSEStream(response);
+    })
+    .catch(function(e) {
+      readingText.classList.remove('processing');
+      hideStreamStatus();
+      recordBtn.style.display = '';
+      recordLabel.style.display = '';
+      showToast('Transcription error: ' + e.message);
+    });
+  }
+
+  function processSSEStream(response) {
+    var reader = response.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+
+    function pump() {
+      return reader.read().then(function(result) {
+        if (result.done) return;
+
+        buffer += decoder.decode(result.value, { stream: true });
+
+        // Split on double newline (SSE event separator)
+        var events = buffer.split('\n\n');
+        buffer = events.pop(); // Keep incomplete part
+
+        for (var i = 0; i < events.length; i++) {
+          var eventStr = events[i].trim();
+          if (!eventStr) continue;
+
+          var eventType = null;
+          var eventData = null;
+          var lines = eventStr.split('\n');
+
+          for (var j = 0; j < lines.length; j++) {
+            var line = lines[j];
+            if (line.indexOf('event: ') === 0) {
+              eventType = line.substring(7);
+            } else if (line.indexOf('data: ') === 0) {
+              eventData = line.substring(6);
+            }
+          }
+
+          if (eventType && eventData) {
+            try {
+              handleStreamEvent(eventType, JSON.parse(eventData));
+            } catch (e) {
+              console.error('SSE parse error:', e);
+            }
+          }
+        }
+
+        return pump();
+      });
+    }
+
+    return pump();
+  }
+
+  function handleStreamEvent(type, data) {
+    switch (type) {
+      case 'transcript':
+        transcriptText.textContent = data.transcript || '(empty)';
+        setStreamStatus('Scoring words...');
+        break;
+
+      case 'word_start':
+        // Clear previous current highlight
+        var prev = readingText.querySelector('.ref-word.current');
+        if (prev) prev.classList.remove('current');
+
+        // Highlight the word being scored
+        var wordSpan = readingText.querySelector('.ref-word[data-idx="' + data.index + '"]');
+        if (wordSpan) {
+          wordSpan.classList.add('current');
+        }
+        break;
+
+      case 'word_result':
+        // Remove current pulse
+        var currentSpan = readingText.querySelector('.ref-word.current');
+        if (currentSpan) currentSpan.classList.remove('current');
+
+        // Apply result styling
+        var resultSpan = readingText.querySelector('.ref-word[data-idx="' + data.index + '"]');
+        if (resultSpan) {
+          resultSpan.classList.remove('read');
+          resultSpan.classList.add('scored', data.kind);
+        }
+
+        // Store result for click-to-explain
+        wordResults[data.index] = data;
+        break;
+
+      case 'done':
+        readingText.classList.remove('processing');
+        hideStreamStatus();
+        recordBtn.style.display = '';
+        recordLabel.style.display = '';
+        displayScore(data.score);
+        resultsSection.classList.add('visible');
+        break;
+
+      case 'error':
+        readingText.classList.remove('processing');
+        hideStreamStatus();
+        recordBtn.style.display = '';
+        recordLabel.style.display = '';
+        showToast('Error: ' + (data.error || 'Unknown error'));
+        break;
+    }
+  }
+
+  // ── Score display ──────────────────────────────────────────────
+  function displayScore(score) {
+    scoreBar.textContent = '';
+    var scoreSpan = document.createElement('span');
+    scoreSpan.className = 'score-text';
+    scoreSpan.textContent = 'Score: ';
+    var scoreNum = document.createElement('span');
+    scoreNum.className = 'score-number';
+    scoreNum.textContent = score.correct + '/' + score.total;
+    scoreSpan.appendChild(scoreNum);
+    scoreSpan.appendChild(document.createTextNode(' words correct'));
+    scoreBar.appendChild(scoreSpan);
+  }
+
+  // ── Word click → explain panel ─────────────────────────────────
+  function onWordClick(index) {
+    var result = wordResults[index];
+    if (!result) return; // Not scored yet
+
+    // If same word clicked, toggle panel
+    if (activeWordIdx === index && explainPanel.classList.contains('open')) {
+      closeExplanation();
+      return;
+    }
+
+    activeWordIdx = index;
+    var word = result.ref_word || result.hyp_word;
+
+    // Highlight active word
+    readingText.querySelectorAll('.ref-word').forEach(function(s) {
+      s.classList.remove('active-explain');
+    });
+    var activeSpan = readingText.querySelector('.ref-word[data-idx="' + index + '"]');
+    if (activeSpan) activeSpan.classList.add('active-explain');
+
+    // Set panel header
+    explainWord.textContent = word;
+    explainKind.textContent = KIND_LABELS[result.kind] || result.kind;
+    explainKind.className = 'explain-kind ' + result.kind;
+
+    // Show hypothesis if different from reference
+    if (result.hyp_word && result.hyp_word !== result.ref_word &&
+        (result.kind === 'tashkeel' || result.kind === 'wrong' || result.kind === 'irab')) {
+      explainHyp.textContent = result.ref_word + ' \u2190 ' + result.hyp_word;
+      explainHyp.style.display = '';
+    } else {
+      explainHyp.style.display = 'none';
+    }
+
+    // Show haraka diffs
+    if (result.haraka_diffs && result.haraka_diffs.length > 0) {
+      explainHaraka.textContent = '';
+      var title = document.createElement('div');
+      title.className = 'explain-haraka-title';
+      title.textContent = 'Diacritics differences';
+      explainHaraka.appendChild(title);
+
+      result.haraka_diffs.forEach(function(hd) {
+        var line = document.createElement('div');
+
+        var letter = document.createElement('span');
+        letter.className = 'haraka-letter';
+        letter.textContent = hd.letter;
+        line.appendChild(letter);
+
+        line.appendChild(document.createTextNode('  '));
+
+        var expected = document.createElement('span');
+        expected.className = 'haraka-expected';
+        expected.textContent = hd.expected;
+        line.appendChild(expected);
+
+        line.appendChild(document.createTextNode(' \u2192 '));
+
+        var got = document.createElement('span');
+        got.className = 'haraka-got';
+        got.textContent = hd.got;
+        line.appendChild(got);
+
+        if (hd.is_irab) {
+          line.appendChild(document.createTextNode('  (i\u2018rab)'));
+        }
+
+        explainHaraka.appendChild(line);
+      });
+      explainHaraka.style.display = '';
+    } else {
+      explainHaraka.style.display = 'none';
+    }
+
+    // Fetch GPT-4o explanation
+    explainBody.textContent = '';
+    explainLoading.style.display = 'flex';
+    explainPanel.classList.add('open');
+
+    var sentence = referenceData ? referenceData.reference : '';
+
+    fetch('/api/explain', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word: word, sentence: sentence })
+    })
+    .then(function(resp) { return resp.json(); })
+    .then(function(data) {
+      explainLoading.style.display = 'none';
+      explainBody.textContent = data.explanation;
+    })
+    .catch(function() {
+      explainLoading.style.display = 'none';
+      explainBody.textContent = 'Failed to load explanation.';
+    });
+  }
+
+  function closeExplanation() {
+    explainPanel.classList.remove('open');
+    activeWordIdx = null;
+    readingText.querySelectorAll('.ref-word.active-explain').forEach(function(s) {
+      s.classList.remove('active-explain');
+    });
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────
+  function clearWordStates() {
+    wordResults = {};
+    liveScoredIndices = {};
+    liveCorrectCount = 0;
+    liveTotalCount = 0;
+    readingText.querySelectorAll('.ref-word').forEach(function(s) {
+      s.classList.remove(
+        'scored', 'current', 'active-explain', 'read',
+        'correct', 'pausal_ok', 'tashkeel', 'irab', 'wrong', 'missing', 'extra'
+      );
+    });
+    readingText.classList.remove('processing');
+  }
+
+  function resetUI() {
+    resultsSection.classList.remove('visible');
+    closeExplanation();
+    clearWordStates();
+    transcriptText.textContent = '';
+    scoreBar.textContent = '';
+    hideStreamStatus();
+    recordBtn.style.display = '';
+    recordLabel.style.display = '';
+    // Reset backend tracker position
+    fetch('/api/reset', { method: 'POST' }).catch(function() {});
+  }
+
+  function setStreamStatus(msg) {
+    statusText.textContent = msg;
+    streamStatus.classList.add('visible');
+  }
+
+  function hideStreamStatus() {
+    streamStatus.classList.remove('visible');
+  }
+
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('visible');
+    setTimeout(function() { toastEl.classList.remove('visible'); }, 3500);
+  }
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,18 @@
+sounddevice
+soundfile
+numpy
+python-dotenv
+openai
+fastapi
+uvicorn[standard]
+python-multipart
+transformers
+torch
+scipy
+
+# Optional: enhanced diacritization and morphology
+# pip install catt-tashkeel    # SOTA text diacritizer (auto-diacritize books)
+# pip install camel-tools      # Morphological analysis for i3rab hypotheses
+
+# Optional: better word-level timestamps via CTC forced alignment
+# pip install ctc-forced-aligner
