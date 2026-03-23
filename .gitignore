@@ -1,13 +1,52 @@
-venv/
+# Python
 __pycache__/
-*.pyc
-.env
-models/*.nemo
-models/*.ckpt
-models/training.log
-eval_recall_results.json
-eval_clartts_results.json
-.1code/
+*.py[cod]
+*$py.class
+*.so
 *.egg-info/
+*.egg
 dist/
 build/
+*.whl
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Models & large files (entire directory — multi-GB weights)
+recitation/models/
+
+# Recitation runtime data
+recitation/uploads/
+recitation/cache/
+recitation/samples/
+
+# Eval results
+recitation/eval_recall_results.json
+recitation/eval_clartts_results.json
+
+# Playwright
+.playwright-mcp/
+
+# Misc
+.1code/

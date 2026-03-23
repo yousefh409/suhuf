@@ -4,15 +4,19 @@
 import os
 import io
 import json
+import uuid
+import asyncio
 from datetime import datetime
 from pathlib import Path
+from dataclasses import asdict
 
 import numpy as np
 import soundfile as sf
 from dotenv import load_dotenv
-from fastapi import FastAPI, UploadFile, File, Form
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks
+from fastapi.responses import FileResponse, StreamingResponse, Response
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from i3rab.models import DiffKind, Confidence
@@ -37,16 +41,38 @@ DEFAULT_REFERENCE = (
 
 app = FastAPI(title="i3rab")
 
+# CORS for Expo dev
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 pipeline: I3rabPipeline | None = None
 openai_client = None
 current_book: Book | None = None
 
+# PDF pipeline state
+pdf_documents: dict[str, dict] = {}  # doc_id -> {path, hash, pages, analysis_status, ...}
+analysis_progress: dict[str, dict] = {}  # doc_id -> {current, total, status}
+analysis_cache = None
+
 
 @app.on_event("startup")
 async def startup():
-    global pipeline, openai_client, current_book
+    global pipeline, openai_client, current_book, analysis_cache
 
     config = Config()
+
+    # Create upload and cache directories
+    Path(config.pdf_upload_dir).mkdir(exist_ok=True)
+    Path(config.cache_dir).mkdir(exist_ok=True)
+
+    # Initialize analysis cache
+    from i3rab.cache import AnalysisCache
+    analysis_cache = AnalysisCache(config.cache_dir)
 
     # Create default book from reference sentence
     current_book = Book.from_sentence(DEFAULT_REFERENCE)
@@ -74,6 +100,11 @@ class ExplainRequest(BaseModel):
 class LoadBookRequest(BaseModel):
     text: str
     title: str = ""
+
+
+class SwitchModelRequest(BaseModel):
+    model_type: str  # "pcd" or "ssl"
+    model_path: str = ""  # specific model path/dir (optional)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -499,6 +530,68 @@ async def explain_irab(req: ExplainRequest):
     return {"explanation": response.choices[0].message.content}
 
 
+@app.get("/api/config/models")
+async def list_available_models():
+    """List all available PCD and SSL models."""
+    models_dir = Path("models")
+    pcd_models = []
+    ssl_models = []
+
+    if models_dir.exists():
+        for f in sorted(models_dir.iterdir()):
+            if f.suffix == ".nemo":
+                pcd_models.append({"name": f.stem, "path": str(f)})
+            elif f.is_dir() and (f / "config.json").exists():
+                ssl_models.append({"name": f.name, "path": str(f)})
+
+    # Determine active model
+    active_type = "pcd"
+    active_path = pipeline.config.pcd_model_path if pipeline else ""
+    if pipeline and pipeline.config.ssl_model_dir:
+        active_type = "ssl"
+        active_path = pipeline.config.ssl_model_dir
+
+    return {
+        "pcd_models": pcd_models,
+        "ssl_models": ssl_models,
+        "active": {"type": active_type, "path": active_path},
+    }
+
+
+@app.post("/api/config/model")
+async def switch_model(req: SwitchModelRequest):
+    """Switch between PCD (NeMo) and SSL (XLS-R) models at runtime."""
+    global pipeline
+
+    if not pipeline:
+        return {"error": "Pipeline not loaded"}
+
+    if req.model_type == "ssl":
+        model_dir = req.model_path or "models/ssl_xls_r_16k"
+        if not Path(model_dir).exists():
+            return {"error": f"SSL model not found: {model_dir}"}
+        pipeline.config.ssl_model_dir = model_dir
+    elif req.model_type == "pcd":
+        model_path = req.model_path or "models/pcd_clartts_v4.nemo"
+        if not Path(model_path).exists():
+            return {"error": f"PCD model not found: {model_path}"}
+        pipeline.config.ssl_model_dir = ""
+        pipeline.config.pcd_model_path = model_path
+    else:
+        return {"error": f"Unknown model type: {req.model_type}"}
+
+    # Clear cached transcriber so it reloads with new config
+    pipeline._pcd_transcriber = None
+
+    active_type = "ssl" if pipeline.config.ssl_model_dir else "pcd"
+    active_path = pipeline.config.ssl_model_dir or pipeline.config.pcd_model_path
+
+    return {
+        "status": "ok",
+        "active": {"type": active_type, "path": active_path},
+    }
+
+
 @app.post("/api/reset")
 async def reset_tracker():
     """Reset the position tracker to the beginning."""
@@ -767,6 +860,430 @@ async def test_delete_recording(rec_id: str):
     manifest = [e for e in manifest if e["id"] != rec_id]
     _save_manifest(manifest)
     return {"status": "deleted", "id": rec_id}
+
+
+# ── PDF Pipeline Endpoints ───────────────────────────────────────────────────
+
+
+class AnalyzeWordRequest(BaseModel):
+    word: str
+    sentence: str
+
+
+@app.post("/api/pdf/upload")
+async def upload_pdf(file: UploadFile = File(...)):
+    """Upload a PDF and extract text with word positions."""
+    from i3rab.pdf_extractor import extract_pdf
+    from i3rab.cache import AnalysisCache
+
+    config = Config()
+    upload_dir = Path(config.pdf_upload_dir)
+    upload_dir.mkdir(exist_ok=True)
+
+    doc_id = str(uuid.uuid4())[:8]
+    file_ext = Path(file.filename or "doc.pdf").suffix or ".pdf"
+    file_path = upload_dir / f"{doc_id}{file_ext}"
+
+    # Save uploaded file
+    content = await file.read()
+    file_path.write_bytes(content)
+
+    # Extract text and word positions
+    try:
+        pdf_doc = extract_pdf(str(file_path))
+    except Exception as e:
+        file_path.unlink(missing_ok=True)
+        return {"error": f"Failed to extract PDF: {e}"}
+
+    # Compute file hash for caching
+    doc_hash = AnalysisCache.hash_file(str(file_path))
+
+    # Use original filename as title
+    original_title = Path(file.filename or "document").stem
+
+    # Store document info
+    pdf_documents[doc_id] = {
+        "path": str(file_path),
+        "hash": doc_hash,
+        "title": original_title,
+        "num_pages": len(pdf_doc.pages),
+        "total_words": pdf_doc.total_words,
+        "full_text": pdf_doc.full_text,
+        "pages": [
+            {
+                "page_num": p.page_num,
+                "width": p.width,
+                "height": p.height,
+                "is_scanned": p.is_scanned,
+                "num_words": len(p.words),
+            }
+            for p in pdf_doc.pages
+        ],
+        "words_by_page": {
+            p.page_num: [
+                {
+                    "text": w.text,
+                    "bbox": list(w.bbox),
+                    "line_num": w.line_num,
+                    "word_idx": w.word_idx_in_line,
+                    "confidence": w.confidence,
+                }
+                for w in p.words
+            ]
+            for p in pdf_doc.pages
+        },
+        "analysis_status": "pending",
+        "analysis": None,
+    }
+
+    # Cache word positions
+    if analysis_cache:
+        for p in pdf_doc.pages:
+            words_data = [
+                {
+                    "text": w.text,
+                    "bbox": list(w.bbox),
+                    "line_num": w.line_num,
+                    "word_idx": w.word_idx_in_line,
+                    "confidence": w.confidence,
+                }
+                for w in p.words
+            ]
+            analysis_cache.put_pdf_words(doc_hash, p.page_num, words_data)
+
+    return {
+        "doc_id": doc_id,
+        "title": pdf_doc.title,
+        "num_pages": len(pdf_doc.pages),
+        "total_words": pdf_doc.total_words,
+        "pages": pdf_documents[doc_id]["pages"],
+    }
+
+
+@app.get("/api/pdf/{doc_id}/page/{page_num}")
+async def get_pdf_page_image(doc_id: str, page_num: int):
+    """Render a PDF page as PNG for display."""
+    if doc_id not in pdf_documents:
+        return {"error": "Document not found"}
+
+    from i3rab.pdf_extractor import render_page_to_png
+    config = Config()
+
+    try:
+        png_bytes = render_page_to_png(
+            pdf_documents[doc_id]["path"],
+            page_num,
+            dpi=config.pdf_render_dpi,
+        )
+        return Response(content=png_bytes, media_type="image/png")
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/pdf/{doc_id}/words/{page_num}")
+async def get_pdf_words(doc_id: str, page_num: int):
+    """Get word positions for a specific page (for overlay rendering)."""
+    if doc_id not in pdf_documents:
+        return {"error": "Document not found"}
+
+    doc = pdf_documents[doc_id]
+    words = doc["words_by_page"].get(page_num, [])
+    page_info = next(
+        (p for p in doc["pages"] if p["page_num"] == page_num),
+        None,
+    )
+
+    return {
+        "doc_id": doc_id,
+        "page_num": page_num,
+        "page_width": page_info["width"] if page_info else 0,
+        "page_height": page_info["height"] if page_info else 0,
+        "words": words,
+    }
+
+
+@app.get("/api/pdf/{doc_id}/info")
+async def get_pdf_info(doc_id: str):
+    """Get document info and analysis status."""
+    if doc_id not in pdf_documents:
+        return {"error": "Document not found"}
+
+    doc = pdf_documents[doc_id]
+    return {
+        "doc_id": doc_id,
+        "title": doc["title"],
+        "num_pages": doc["num_pages"],
+        "total_words": doc["total_words"],
+        "analysis_status": doc["analysis_status"],
+        "pages": doc["pages"],
+    }
+
+
+async def _run_page_analysis(doc_id: str, page_num: int):
+    """Background task to run i3rab analysis on a single page."""
+    from i3rab.irab_agent import analyze_document
+
+    doc = pdf_documents.get(doc_id)
+    if not doc:
+        return
+
+    # Get text for this page only
+    page_words = doc["words_by_page"].get(page_num, [])
+    if not page_words:
+        return
+
+    page_text = " ".join(w["text"] for w in page_words)
+    progress_key = f"{doc_id}:{page_num}"
+
+    doc.setdefault("page_analysis_status", {})[page_num] = "analyzing"
+    analysis_progress[progress_key] = {"current": 0, "total": 0, "status": "analyzing"}
+
+    def progress_cb(current, total):
+        analysis_progress[progress_key] = {
+            "current": current,
+            "total": total,
+            "status": "analyzing",
+        }
+
+    try:
+        result = await analyze_document(
+            text=page_text,
+            document_id=f"{doc_id}_p{page_num}",
+            title=f"{doc['title']} - Page {page_num + 1}",
+            cache=analysis_cache,
+            progress_callback=progress_cb,
+        )
+
+        # Store per-page analysis
+        page_analysis = {
+            "sentences": [
+                {
+                    "sentence_text": s.sentence_text,
+                    "sentence_index": s.sentence_index,
+                    "words": [asdict(w) for w in s.words],
+                }
+                for s in result.sentences
+            ],
+            "total_words": result.total_words,
+        }
+        doc.setdefault("page_analyses", {})[page_num] = page_analysis
+        doc["page_analysis_status"][page_num] = "complete"
+        analysis_progress[progress_key] = {
+            "current": len(result.sentences),
+            "total": len(result.sentences),
+            "status": "complete",
+        }
+    except Exception as e:
+        doc.setdefault("page_analysis_status", {})[page_num] = f"error: {e}"
+        analysis_progress[progress_key] = {
+            "current": 0,
+            "total": 0,
+            "status": f"error: {e}",
+        }
+
+
+@app.post("/api/pdf/{doc_id}/analyze")
+async def start_analysis(
+    doc_id: str,
+    background_tasks: BackgroundTasks,
+    page_num: int | None = None,
+):
+    """Start async i3rab analysis for a specific page (or full document if page_num omitted)."""
+    if doc_id not in pdf_documents:
+        return {"error": "Document not found"}
+
+    doc = pdf_documents[doc_id]
+
+    if page_num is not None:
+        # Per-page analysis
+        page_status = doc.get("page_analysis_status", {}).get(page_num)
+
+        if page_status == "complete" and doc.get("page_analyses", {}).get(page_num):
+            return {"status": "already_complete", "doc_id": doc_id, "page_num": page_num}
+
+        if page_status == "analyzing":
+            return {"status": "already_running", "doc_id": doc_id, "page_num": page_num}
+
+        background_tasks.add_task(_run_page_analysis, doc_id, page_num)
+        return {"status": "started", "doc_id": doc_id, "page_num": page_num}
+
+    # Full document analysis (kept for backward compat)
+    from i3rab.irab_agent import analyze_document
+
+    if doc.get("analysis_status") == "complete" and doc.get("analysis"):
+        return {"status": "already_complete", "doc_id": doc_id}
+
+    if doc.get("analysis_status") == "analyzing":
+        return {"status": "already_running", "doc_id": doc_id}
+
+    # Analyze all pages sequentially
+    async def _run_all_pages():
+        for pn in range(doc["num_pages"]):
+            await _run_page_analysis(doc_id, pn)
+        doc["analysis_status"] = "complete"
+
+    doc["analysis_status"] = "analyzing"
+    background_tasks.add_task(_run_all_pages)
+    return {"status": "started", "doc_id": doc_id}
+
+
+@app.get("/api/pdf/{doc_id}/status")
+async def get_analysis_status(doc_id: str, page_num: int | None = None):
+    """Check analysis progress (per-page or overall)."""
+    if doc_id not in pdf_documents:
+        return {"error": "Document not found"}
+
+    if page_num is not None:
+        progress_key = f"{doc_id}:{page_num}"
+        progress = analysis_progress.get(progress_key, {"current": 0, "total": 0, "status": "pending"})
+        page_status = pdf_documents[doc_id].get("page_analysis_status", {}).get(page_num, "pending")
+        return {
+            "doc_id": doc_id,
+            "page_num": page_num,
+            "analysis_status": page_status,
+            **progress,
+        }
+
+    # Overall status
+    doc = pdf_documents[doc_id]
+    total_pages = doc["num_pages"]
+    completed_pages = sum(
+        1 for s in doc.get("page_analysis_status", {}).values() if s == "complete"
+    )
+    overall_status = "complete" if completed_pages == total_pages else (
+        "analyzing" if any(s == "analyzing" for s in doc.get("page_analysis_status", {}).values()) else "pending"
+    )
+    return {
+        "doc_id": doc_id,
+        "analysis_status": overall_status,
+        "current": completed_pages,
+        "total": total_pages,
+        "status": overall_status,
+    }
+
+
+@app.get("/api/pdf/{doc_id}/analysis")
+async def get_analysis(doc_id: str):
+    """Get the full i3rab analysis results."""
+    if doc_id not in pdf_documents:
+        return {"error": "Document not found"}
+
+    doc = pdf_documents[doc_id]
+    if doc["analysis_status"] != "complete" or not doc["analysis"]:
+        return {"error": "Analysis not complete", "status": doc["analysis_status"]}
+
+    return {
+        "doc_id": doc_id,
+        "title": doc["title"],
+        **doc["analysis"],
+    }
+
+
+@app.get("/api/pdf/{doc_id}/word/{word_global_idx}")
+async def get_word_analysis(doc_id: str, word_global_idx: int):
+    """Get i3rab analysis for a specific word by its global index."""
+    if doc_id not in pdf_documents:
+        return {"error": "Document not found"}
+
+    doc = pdf_documents[doc_id]
+    if not doc["analysis"]:
+        return {"error": "Analysis not complete"}
+
+    # Find the word across all sentences
+    running_idx = 0
+    for sentence in doc["analysis"]["sentences"]:
+        for word in sentence["words"]:
+            if running_idx == word_global_idx:
+                return {
+                    "doc_id": doc_id,
+                    "word_index": word_global_idx,
+                    "sentence": sentence["sentence_text"],
+                    **word,
+                }
+            running_idx += 1
+
+    return {"error": "Word index out of range"}
+
+
+@app.post("/api/pdf/{doc_id}/word/by-page")
+async def get_word_analysis_by_page(
+    doc_id: str,
+    page_num: int = Form(...),
+    word_idx_in_page: int = Form(...),
+):
+    """Get i3rab analysis for a word identified by page and position."""
+    if doc_id not in pdf_documents:
+        return {"error": "Document not found"}
+
+    doc = pdf_documents[doc_id]
+
+    # Get the word text from the page data
+    page_words = doc["words_by_page"].get(page_num, [])
+    if word_idx_in_page >= len(page_words):
+        return {"error": "Word index out of range for this page"}
+
+    target_word = page_words[word_idx_in_page]["text"]
+
+    # Check per-page analysis first
+    page_analysis = doc.get("page_analyses", {}).get(page_num)
+    if page_analysis:
+        # Find the word within this page's analysis
+        word_counter = 0
+        for sentence in page_analysis["sentences"]:
+            for word in sentence["words"]:
+                if word_counter == word_idx_in_page:
+                    return {
+                        "doc_id": doc_id,
+                        "page_num": page_num,
+                        "word_index": word_idx_in_page,
+                        "word_text": target_word,
+                        "sentence": sentence["sentence_text"],
+                        **word,
+                    }
+                word_counter += 1
+
+    return {
+        "doc_id": doc_id,
+        "page_num": page_num,
+        "word_index": word_idx_in_page,
+        "word_text": target_word,
+        "status": "analysis_pending",
+    }
+
+
+@app.get("/api/pdf/documents")
+async def list_documents():
+    """List all uploaded PDF documents."""
+    return {
+        "documents": [
+            {
+                "doc_id": doc_id,
+                "title": doc["title"],
+                "num_pages": doc["num_pages"],
+                "total_words": doc["total_words"],
+                "analysis_status": doc["analysis_status"],
+            }
+            for doc_id, doc in pdf_documents.items()
+        ]
+    }
+
+
+@app.delete("/api/pdf/{doc_id}")
+async def delete_document(doc_id: str):
+    """Delete an uploaded PDF document."""
+    if doc_id not in pdf_documents:
+        return {"error": "Document not found"}
+
+    doc = pdf_documents[doc_id]
+    # Delete the file
+    path = Path(doc["path"])
+    if path.exists():
+        path.unlink()
+
+    del pdf_documents[doc_id]
+    analysis_progress.pop(doc_id, None)
+
+    return {"status": "deleted", "doc_id": doc_id}
 
 
 # Mount static files last

@@ -277,12 +277,58 @@
 
   .mode-btn:first-child {
     border-radius: 0 6px 6px 0;
-    border-left: none;
+  }
+
+  .mode-btn:not(:first-child) {
+    border-right: none;
   }
 
   .mode-btn:last-child {
     border-radius: 6px 0 0 6px;
-    border-right: none;
+  }
+
+  .mode-btn:not(:first-child):not(:last-child) {
+    border-radius: 0;
+  }
+
+  .model-selector {
+    display: none;
+    justify-content: center;
+    margin: 0.3rem auto 0;
+  }
+
+  .model-selector.visible {
+    display: flex;
+  }
+
+  .model-selector select {
+    font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--gold);
+    border-radius: 4px;
+    background: var(--parchment);
+    color: var(--ink-light);
+    cursor: pointer;
+    outline: none;
+  }
+
+  .model-selector select:focus {
+    border-color: var(--gold-light);
+    box-shadow: 0 0 0 2px var(--gold-glow);
+  }
+
+  .model-switching {
+    font-size: 0.7rem;
+    color: var(--ink-light);
+    margin-left: 0.4rem;
+    display: none;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .model-switching.visible {
+    display: inline-flex;
   }
 
   .mode-btn.active {
@@ -766,7 +812,7 @@
   var liveScoredIndices = {};   // index -> true for words already scored during recording
   var liveCorrectCount = 0;
   var liveTotalCount = 0;
-  var scoringMode = 'whisper'; // 'whisper' or 'pcd'
+  var scoringMode = 'whisper'; // 'whisper', 'pcd', or 'ssl'
 
   // ── DOM refs ───────────────────────────────────────────────────
   var readingText = document.getElementById('readingText');
@@ -893,7 +939,7 @@
       // Start periodic live scoring during recording
       if (scoringMode === 'whisper') {
         positionCheckInterval = setInterval(checkLiveProgress, 4000);
-      } else if (scoringMode === 'pcd') {
+      } else if (scoringMode === 'pcd' || scoringMode === 'ssl') {
         positionCheckInterval = setInterval(checkPCDLiveProgress, 1500);
       }
 
@@ -911,8 +957,8 @@
       closeExplanation();
       clearWordStates();
 
-      // In PCD mode, show transcript area during recording for live diacritized output
-      if (scoringMode === 'pcd') {
+      // In PCD/SSL mode, show transcript area during recording for live diacritized output
+      if (scoringMode === 'pcd' || scoringMode === 'ssl') {
         transcriptText.textContent = '';
         resultsSection.classList.add('visible');
       }
@@ -1062,7 +1108,7 @@
     recordBtn.style.display = 'none';
     recordLabel.style.display = 'none';
 
-    if (scoringMode === 'pcd') {
+    if (scoringMode === 'pcd' || scoringMode === 'ssl') {
       finishScoringPCD(blob);
     } else {
       finishScoringWhisper(blob);

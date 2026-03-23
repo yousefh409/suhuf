@@ -104,3 +104,74 @@ class WordDiff:
     confidence: Confidence = Confidence.HIGH
     detected_case: str | None = None
     expected_case: str | None = None
+
+
+# ── PDF Pipeline Models ─────────────────────────────────────────────────────
+
+
+@dataclass
+class PDFWord:
+    """A word extracted from a PDF with its bounding box."""
+    text: str
+    page_num: int
+    bbox: tuple[float, float, float, float]  # (x0, y0, x1, y1)
+    line_num: int = 0
+    word_idx_in_line: int = 0
+    confidence: float = 1.0  # 1.0 for digital, OCR score for scanned
+
+
+@dataclass
+class PDFPage:
+    """A page from a PDF with extracted words."""
+    page_num: int
+    width: float
+    height: float
+    words: list[PDFWord] = field(default_factory=list)
+    is_scanned: bool = False
+
+
+@dataclass
+class PDFDocument:
+    """A complete PDF with all extracted text and positions."""
+    pages: list[PDFPage] = field(default_factory=list)
+    title: str = ""
+    full_text: str = ""
+
+    @property
+    def total_words(self) -> int:
+        return sum(len(p.words) for p in self.pages)
+
+
+@dataclass
+class WordI3rab:
+    """Full i3rab analysis for a single word."""
+    word_index: int
+    word_base: str
+    word_diacritized: str
+    pos: str  # Part of speech
+    syntactic_role: str  # Subject, object, etc.
+    case: str  # nom, acc, gen, jussive, etc.
+    case_reason: str  # Arabic explanation
+    i3rab_full: str  # Full i3rab statement in Arabic
+    translation_word: str  # Dictionary translation
+    translation_contextual: str  # Translation in context
+    confidence: str = "high"  # high, medium, low
+    sources: dict = field(default_factory=dict)  # {"catt": "nom", "llm1": "nom", ...}
+
+
+@dataclass
+class SentenceAnalysis:
+    """I3rab analysis for a complete sentence."""
+    sentence_text: str
+    sentence_index: int
+    words: list[WordI3rab] = field(default_factory=list)
+
+
+@dataclass
+class DocumentAnalysis:
+    """Full analysis of a PDF document."""
+    document_id: str = ""
+    title: str = ""
+    sentences: list[SentenceAnalysis] = field(default_factory=list)
+    total_words: int = 0
+    analyzed_words: int = 0

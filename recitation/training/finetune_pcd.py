@@ -39,7 +39,10 @@ def main():
     parser.add_argument("--freeze-encoder-epochs", type=int, default=5)
     parser.add_argument("--train-manifest", type=str, default=None,
                         help="Override train manifest path (e.g. data/train_combined.json)")
-    parser.add_argument("--resume", type=str, default=None)
+    parser.add_argument("--resume", type=str, default=None,
+                        help="Resume from checkpoint path")
+    parser.add_argument("--from-nemo", type=str, default=None,
+                        help="Start from a .nemo model instead of HuggingFace pretrained")
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -64,11 +67,15 @@ def main():
     logging.info(f"Train: {n_train} samples ({h_train:.1f}h)")
     logging.info(f"Val:   {n_val} samples ({h_val:.1f}h)")
 
-    # Load pretrained PCD
-    logging.info("Loading pretrained PCD model...")
-    model = nemo_asr.models.EncDecHybridRNNTCTCBPEModel.from_pretrained(
-        "nvidia/stt_ar_fastconformer_hybrid_large_pcd_v1.0"
-    )
+    # Load model — either from .nemo file or HuggingFace pretrained
+    if args.from_nemo:
+        logging.info(f"Loading model from {args.from_nemo}...")
+        model = nemo_asr.models.EncDecHybridRNNTCTCBPEModel.restore_from(args.from_nemo)
+    else:
+        logging.info("Loading pretrained PCD model from HuggingFace...")
+        model = nemo_asr.models.EncDecHybridRNNTCTCBPEModel.from_pretrained(
+            "nvidia/stt_ar_fastconformer_hybrid_large_pcd_v1.0"
+        )
 
     # Disable CUDA graphs in RNNT decoder (cu_call API mismatch with this CUDA version)
     # Must patch the instantiated decoding objects, not just config

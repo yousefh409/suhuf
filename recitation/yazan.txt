@@ -1,0 +1,34 @@
+i just finished fine-tuning a model that does phoneme matching
+
+so instead of:
+
+voice => Quranic text (Arabic)
+
+it does:
+
+voice => phonemes like this:
+
+"b i s m i | a l l a h i | a r r a H m aa n i | a r r a H
+ii m i"
+
+that's Bismillah al-Rahman al-Raheem broken into its raw sounds. phonemes are the smallest units of sound in speech. every letter, every vowel, every emphasis marker.
+
+and here's the crazy part:
+
+93% RECALL (!)
+
+basically matching the text-based model I already had, except this one never tries to recognize Arabic words.
+
+it just listens to the sounds.
+
+which is, like, the  point. Quran recitation has tajweed,
+very specific pronunciation rules that don't always map cleanly to text... and phonemes capture exactly how something was said, sound by sound.
+
+so now I can take what you recited, convert it to
+phonemes, and align it against the correct pronunciation, phoneme by phoneme... and pinpoint exactly where you went wrong.
+
+in theory, anyway, haha.
+
+we'll see how this works in practice tomorrow inshallah :)
+
+https://github.com/yazinsai/offline-tarteel

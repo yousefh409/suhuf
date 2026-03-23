@@ -25,6 +25,7 @@ from .book import Book
 from .scorer import DiacriticsScorer
 from .phoneme_scorer import PhonemeScorer
 from .pcd_transcriber import PCDTranscriber
+from .ssl_transcriber import SSLTranscriber
 from .tracker import PositionTracker
 from .config import Config
 from .aligner import CTCAligner, is_available as ctc_available
@@ -179,9 +180,14 @@ class I3rabPipeline:
             self._phoneme_scorer.load()
 
     def load_pcd(self):
-        """Load the PCD transcriber (lazy — only when first needed)."""
+        """Load the PCD/SSL transcriber (lazy — only when first needed)."""
         if self._pcd_transcriber is None:
-            self._pcd_transcriber = PCDTranscriber(self.config)
+            if self.config.ssl_model_dir:
+                self._pcd_transcriber = SSLTranscriber(
+                    self.config, model_dir=self.config.ssl_model_dir
+                )
+            else:
+                self._pcd_transcriber = PCDTranscriber(self.config)
         self._pcd_transcriber.load()
 
 
@@ -1093,7 +1099,13 @@ class I3rabPipeline:
                     # masking genuine pausal errors at true phrase
                     # boundaries.
                     _PAUSAL_CASES = {"pausal", "jussive"}
-                    _PAUSAL_MARGIN = 2.0
+                    # Context-aware margin: the last word in the
+                    # utterance is likely sentence-final where pausal
+                    # forms are expected, so require a high bar.
+                    # Mid-sentence words should NOT have pausal bias,
+                    # so use a much lower margin to catch real errors.
+                    _is_last_word = (i == len(all_words) - 1)
+                    _PAUSAL_MARGIN = 2.0 if _is_last_word else 0.5
 
                     det = scored.detected_hyp
                     correct_hyp = next(
@@ -1143,11 +1155,9 @@ class I3rabPipeline:
                             )
 
                     # ── Segment-level cross-check for i3rab ────────
-                    # Full-sentence CTC may prefer a wrong case ending
-                    # due to context effects.  Cross-check by scoring
-                    # ONLY the word's audio segment: if the segment
-                    # prefers the correct hypothesis (or can't decide),
-                    # revert to correct.
+                    # Only apply for MEDIUM confidence detections.
+                    # HIGH confidence full-sentence CTC detections
+                    # are trusted without segment verification.
                     det = scored.detected_hyp
                     if (
                         det is not None
@@ -1155,9 +1165,7 @@ class I3rabPipeline:
                         and not det.is_pausal
                         and correct_hyp is not None
                         and wb is not None
-                        and scored.confidence in (
-                            Confidence.HIGH, Confidence.MEDIUM
-                        )
+                        and scored.confidence == Confidence.MEDIUM
                     ):
                         _seg_correct = self._pcd_transcriber._ctc_score_segment(
                             log_probs, sf, ef, correct_hyp.diacritized
@@ -1165,16 +1173,102 @@ class I3rabPipeline:
                         _seg_detected = self._pcd_transcriber._ctc_score_segment(
                             log_probs, sf, ef, det.diacritized
                         )
-                        # If segment doesn't agree that detected is
-                        # better, revert to correct
-                        _SEG_MARGIN = 1.0
-                        if _seg_detected <= _seg_correct + _SEG_MARGIN:
+                        # Revert if segment prefers correct
+                        if _seg_detected <= _seg_correct:
                             scored = ScoredWord(
                                 word=book_word,
                                 detected_hyp=correct_hyp,
                                 confidence=scored.confidence,
                                 score_gap=scored.score_gap,
                             )
+
+                    # ── Proactive i3rab: segment-level ────────────
+                    # For words scored CORRECT by full-sentence CTC,
+                    # test all case-ending hypotheses at segment level.
+                    # If segment strongly prefers a different ending
+                    # AND the greedy decode confirms it, flag the error.
+                    det = scored.detected_hyp
+                    if (
+                        det is not None
+                        and det.is_correct
+                        and correct_hyp is not None
+                        and wb is not None
+                        and len(book_word.hypotheses) > 1
+                    ):
+                        _seg_ref = self._pcd_transcriber._ctc_score_segment(
+                            log_probs, sf, ef, correct_hyp.diacritized
+                        )
+                        _best_alt_hyp = None
+                        _best_alt_gap = 0.0
+                        for hyp in book_word.hypotheses:
+                            if hyp.is_correct or hyp.is_pausal:
+                                continue
+                            _seg_alt = self._pcd_transcriber._ctc_score_segment(
+                                log_probs, sf, ef, hyp.diacritized
+                            )
+                            _gap = _seg_alt - _seg_ref
+                            if _gap > _best_alt_gap:
+                                _best_alt_gap = _gap
+                                _best_alt_hyp = hyp
+                        _PROACTIVE_IRAB_THRESH = 3.0
+                        _do_flag = False
+                        if _best_alt_hyp and _best_alt_gap > _PROACTIVE_IRAB_THRESH:
+                            # Decode-assisted: check if greedy decode
+                            # of the segment independently suggests
+                            # a different case ending than correct.
+                            _raw = self._pcd_transcriber.decode_word_segment(
+                                log_probs, sf, ef
+                            )
+                            _dec = normalize_arabic(
+                                _clean_diacritics(_raw)
+                            ) if _raw else ""
+                            _dec_base = strip_harakat(_dec)
+                            _ref_base = strip_harakat(
+                                correct_hyp.diacritized
+                            )
+                            if _dec and _dec_base == _ref_base:
+                                # Decoded same consonants — compare
+                                # the last vowel with correct vs alt
+                                _dec_norm = unicodedata.normalize(
+                                    "NFC", _dec
+                                )
+                                _correct_norm = unicodedata.normalize(
+                                    "NFC", correct_hyp.diacritized
+                                )
+                                if _dec_norm != _correct_norm:
+                                    # Decode disagrees with correct —
+                                    # lower threshold, likely real error
+                                    _do_flag = True
+                            elif not _dec or _dec_base != _ref_base:
+                                # Decode gave different word — use
+                                # higher segment threshold
+                                if _best_alt_gap > 5.0:
+                                    _do_flag = True
+
+                        if _do_flag:
+                            # Full-sentence cross-check
+                            _ctx = [w.correct_diac for w in all_words]
+                            _alt_ctx = list(_ctx)
+                            _tpos = next(
+                                j for j, w in enumerate(all_words)
+                                if w.index == book_word.index
+                            )
+                            _alt_ctx[_tpos] = _best_alt_hyp.diacritized
+                            _fs_ref = self._pcd_transcriber._ctc_score(
+                                log_probs, encoded_len,
+                                " ".join(_ctx),
+                            )
+                            _fs_alt = self._pcd_transcriber._ctc_score(
+                                log_probs, encoded_len,
+                                " ".join(_alt_ctx),
+                            )
+                            if _fs_alt >= _fs_ref - 0.5:
+                                scored = ScoredWord(
+                                    word=book_word,
+                                    detected_hyp=_best_alt_hyp,
+                                    confidence=Confidence.MEDIUM,
+                                    score_gap=_best_alt_gap,
+                                )
 
                     diff = self._build_word_diff(
                         book_word, book_word.base, scored
@@ -1222,11 +1316,22 @@ class I3rabPipeline:
                     "ان", "أن", "إن", "هل", "ما", "لا",
                     "ثم", "لم", "لن",
                 }
+                _tashkeel_enabled = getattr(
+                    self.config, "pcd_tashkeel_detection", False
+                )
+                # Skip tashkeel detection for undiacritized ref words:
+                # if the reference has no harakat at all, any CTC
+                # decode will differ and produce a false positive.
+                _ref_has_harakat = any(
+                    c in HARAKAT for c in book_word.correct_diac
+                )
                 if (
-                    diff.kind in (DiffKind.CORRECT, DiffKind.PAUSAL_OK)
+                    _tashkeel_enabled
+                    and diff.kind in (DiffKind.CORRECT, DiffKind.PAUSAL_OK)
                     and wb is not None
                     and wb.score > -2.0
                     and book_word.base not in _SKIP_TASHKEEL_BASES
+                    and _ref_has_harakat
                 ):
                     raw_decoded = self._pcd_transcriber.decode_word_segment(
                         log_probs, sf, ef
@@ -1293,6 +1398,19 @@ class I3rabPipeline:
                             if not hd.is_irab or single_hyp
                         ]
 
+                        # Filter shadda-only diffs: if the only
+                        # difference is shadda presence/absence,
+                        # CTC shadda detection is too noisy to trust.
+                        _shadda_only = tashkeel_errs and all(
+                            (len(hd.expected) == 1 and hd.expected[0] == _SHADDA
+                             and not hd.got)
+                            or (len(hd.got) == 1 and hd.got[0] == _SHADDA
+                                and not hd.expected)
+                            for hd in tashkeel_errs
+                        )
+                        if _shadda_only:
+                            tashkeel_errs = []
+
                         # CTC-verify tashkeel errors: build two
                         # full sentences (ref vs decoded) and only flag
                         # errors if the decoded version genuinely scores
@@ -1351,7 +1469,8 @@ class I3rabPipeline:
                 # CTC to prevent false positives from CTC noise on
                 # short/common words.
                 if (
-                    diff.kind in (DiffKind.CORRECT, DiffKind.PAUSAL_OK)
+                    _tashkeel_enabled
+                    and diff.kind in (DiffKind.CORRECT, DiffKind.PAUSAL_OK)
                     and wb is not None
                     and wb.score > -6.0
                 ):
@@ -1428,7 +1547,26 @@ class I3rabPipeline:
                                 if _alt_positions & _dec_positions:
                                     _eff_thresh = 1.0
 
+                        _detected = False
                         if best_alt and best_gap > _eff_thresh:
+                            # Full-sentence cross-check: segment-
+                            # level CTC can be noisy on short words.
+                            _ctx = [w.correct_diac for w in all_words]
+                            _ref_ctx = list(_ctx)
+                            _alt_ctx = list(_ctx)
+                            _alt_ctx[i] = best_alt[0]
+                            _ref_fs = self._pcd_transcriber._ctc_score(
+                                log_probs, encoded_len,
+                                " ".join(_ref_ctx),
+                            )
+                            _alt_fs = self._pcd_transcriber._ctc_score(
+                                log_probs, encoded_len,
+                                " ".join(_alt_ctx),
+                            )
+                            if _alt_fs >= _ref_fs - 1.0:
+                                _detected = True
+
+                        if _detected and best_alt:
                                 alt_w, bi, orig_v, new_v = best_alt
                                 _p_diffs = compare_harakat(
                                     ref_norm_p, alt_w

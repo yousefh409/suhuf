@@ -31,8 +31,22 @@ def load_model(model_path: str):
     else:
         model = nemo_asr.models.EncDecHybridRNNTCTCBPEModel.from_pretrained(model_path)
 
+    # Disable CUDA graphs (known NeMo bug)
+    for name, module in model.named_modules():
+        if hasattr(module, 'cuda_graphs_mode'):
+            module.cuda_graphs_mode = None
+
     model.eval()
     return model
+
+
+def to_text(hyp) -> str:
+    """Extract text from NeMo transcription result (str or Hypothesis)."""
+    if isinstance(hyp, str):
+        return hyp
+    if hasattr(hyp, 'text'):
+        return hyp.text
+    return str(hyp)
 
 
 def count_diacritics(text: str) -> int:
@@ -122,7 +136,8 @@ def evaluate_clartts(model, data_dir: Path, decoder: str = "ctc"):
     # Batch transcribe
     transcriptions = model.transcribe(audio_paths, batch_size=16)
 
-    for entry, hyp in zip(entries, transcriptions):
+    for entry, raw_hyp in zip(entries, transcriptions):
+        hyp = to_text(raw_hyp)
         ref = entry["text"]
         ref_diac = count_diacritics(ref)
         hyp_diac = count_diacritics(hyp)
@@ -148,7 +163,8 @@ def evaluate_clartts(model, data_dir: Path, decoder: str = "ctc"):
 
     # Show some examples
     print(f"\nExamples:")
-    for entry, hyp in list(zip(entries, transcriptions))[:5]:
+    for entry, raw_hyp in list(zip(entries, transcriptions))[:5]:
+        hyp = to_text(raw_hyp)
         ref = entry["text"]
         has_diac = "DIAC" if count_diacritics(hyp) > 0 else "PLAIN"
         print(f"\n  [{has_diac}]")
@@ -185,7 +201,8 @@ def evaluate_i3rab(model, i3rab_dir: Path, decoder: str = "ctc"):
     correct_words = 0
     diac_errors = []
 
-    for entry, hyp in zip(sentence_entries, transcriptions):
+    for entry, raw_hyp in zip(sentence_entries, transcriptions):
+        hyp = to_text(raw_hyp)
         ref = entry["text_diacritized"]
         ref_words = ref.split()
         hyp_words = hyp.split()
@@ -297,7 +314,7 @@ def evaluate_ctc_scoring(model, i3rab_dir: Path):
                 continue
 
             filepath = test_data_dir / entry["filename"]
-            transcription = model.transcribe([str(filepath)])[0]
+            transcription = to_text(model.transcribe([str(filepath)])[0])
 
             book = Book.from_sentence(entry["text_diacritized"])
             book_word = find_word(book, case["word"])

@@ -14,9 +14,12 @@ Usage:
     python eval_recall.py                     # all error types
     python eval_recall.py --max-samples 30    # quick test
     python eval_recall.py --verbose           # show each miss
+    python eval_recall.py --exclude-final     # skip sentence-final words
+    python eval_recall.py --tashkeel-on       # enable tashkeel detection
 """
 
 import argparse
+from collections import defaultdict
 import json
 import random
 import sys
@@ -36,6 +39,7 @@ HARAKA_TO_CASE = {v: k for k, v in CASE_HARAKAT.items()}
 DEFINITE_CASES = {"nom": "\u064F", "acc": "\u064E", "gen": "\u0650"}
 VOWELS = {"\u064E", "\u064F", "\u0650"}  # fatha, damma, kasra
 VOWEL_NAMES = {"\u064E": "fatha", "\u064F": "damma", "\u0650": "kasra"}
+VOWEL_FROM_NAME = {v: k for k, v in VOWEL_NAMES.items()}
 
 
 def strip_harakat(text):
@@ -72,6 +76,10 @@ def inject_irab_error(word, rng):
     target_case = rng.choice([c for c in DEFINITE_CASES if c != orig_case])
     target_haraka = DEFINITE_CASES[target_case]
 
+    orig_haraka = DEFINITE_CASES[orig_case]
+    orig_vowel_name = VOWEL_NAMES.get(orig_haraka, "?")
+    target_vowel_name = VOWEL_NAMES.get(target_haraka, "?")
+
     prefix = word[:last_pos + 1]
     new_marks = []
     replaced = False
@@ -94,7 +102,13 @@ def inject_irab_error(word, rng):
     modified = unicodedata.normalize("NFC", prefix + "".join(new_marks) + text_after)
     if modified == word:
         return None, None
-    return modified, {"type": "irab", "orig_case": orig_case, "target_case": target_case}
+    return modified, {
+        "type": "irab",
+        "orig_case": orig_case,
+        "target_case": target_case,
+        "orig_vowel": orig_vowel_name,
+        "target_vowel": target_vowel_name,
+    }
 
 
 def inject_tashkeel_error(word, rng):
@@ -155,7 +169,7 @@ def inject_wrong_word(word, word_pool, rng):
     return replacement, {"type": "wrong_word", "replacement_base": strip_harakat(replacement)}
 
 
-def inject_all_errors(text, word_pool, fraction=0.3, seed=42):
+def inject_all_errors(text, word_pool, fraction=0.3, seed=42, exclude_final=False):
     """Inject a mix of irab, tashkeel, and wrong_word errors.
 
     Each eligible word gets at most one error type.
@@ -165,7 +179,13 @@ def inject_all_errors(text, word_pool, fraction=0.3, seed=42):
     words = text.split()
     injected = []
 
+    last_idx = len(words) - 1
+
     for wi, word in enumerate(words):
+        is_final = (wi == last_idx)
+        if exclude_final and is_final:
+            continue
+
         base = strip_harakat(word)
         if len(base) <= 2:
             continue
@@ -192,6 +212,7 @@ def inject_all_errors(text, word_pool, fraction=0.3, seed=42):
             modified, info = inject_wrong_word(word, word_pool, rng)
 
         if modified and info:
+            info["is_final"] = is_final
             injected.append({
                 "word_idx": wi,
                 "original": word,
@@ -206,10 +227,10 @@ def inject_all_errors(text, word_pool, fraction=0.3, seed=42):
 # ── Data loading ────────────────────────────────────────────────────
 
 
-def load_clartts_test(max_samples=0):
+def load_clartts_test(max_samples=0, split="test"):
     from datasets import load_dataset
-    print("Loading ClArTTS test set...")
-    ds = load_dataset("MBZUAI/ClArTTS", split="test")
+    print(f"Loading ClArTTS {split} set...")
+    ds = load_dataset("MBZUAI/ClArTTS", split=split)
     if max_samples > 0:
         ds = ds.select(range(min(max_samples, len(ds))))
     samples = []
@@ -246,6 +267,14 @@ def add_noise(audio, snr_db):
     return mixed
 
 
+# ── Confusion tracking ─────────────────────────────────────────────
+
+
+def confusion_key(orig_vowel, target_vowel):
+    """Canonical key for a vowel confusion pair."""
+    return f"{orig_vowel}→{target_vowel}"
+
+
 # ── Main ────────────────────────────────────────────────────────────
 
 
@@ -256,9 +285,28 @@ def main():
     parser.add_argument("--fraction", type=float, default=0.4,
                         help="Fraction of eligible words to inject errors into")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--exclude-final", action="store_true",
+                        help="Skip sentence-final words (avoids pausal misses)")
+    parser.add_argument("--tashkeel-on", action="store_true",
+                        help="Enable tashkeel detection in PCD pipeline")
+    parser.add_argument("--split", type=str, default="test",
+                        help="ClArTTS split: test, train, or all")
+    parser.add_argument("--ssl-model", type=str, default="",
+                        help="Path to SSL CTC model dir (use instead of NeMo PCD)")
+    parser.add_argument("--low-conf-thresh", type=float, default=0,
+                        help="Override low_confidence_threshold (0 = use default)")
+    parser.add_argument("--ssl-training-sr", type=int, default=0,
+                        help="Override ssl_training_sr (0 = use default)")
     args = parser.parse_args()
 
-    samples = load_clartts_test(args.max_samples)
+    if args.split == "all":
+        samples_train = load_clartts_test(0, split="train")
+        samples_test = load_clartts_test(0, split="test")
+        samples = samples_train + samples_test
+        if args.max_samples > 0:
+            samples = samples[:args.max_samples]
+    else:
+        samples = load_clartts_test(args.max_samples, split=args.split)
     if not samples:
         return
 
@@ -274,6 +322,14 @@ def main():
     from i3rab.tracker import PositionTracker
 
     config = Config()
+    if args.ssl_model:
+        config.ssl_model_dir = args.ssl_model
+    if args.low_conf_thresh > 0:
+        config.low_confidence_threshold = args.low_conf_thresh
+    if args.ssl_training_sr > 0:
+        config.ssl_training_sr = args.ssl_training_sr
+    if args.tashkeel_on:
+        config.pcd_tashkeel_detection = True
     initial_book = Book.from_text(samples[0]["text"])
     pipeline = Pipeline(initial_book, config)
     pipeline.load_pcd()
@@ -289,10 +345,26 @@ def main():
             "missed_low_conf": 0,
             "missed_ctc_wrong": 0,
             "not_scored": 0,
+            # Separate final vs non-final
+            "final_injected": 0,
+            "final_detected": 0,
+            "final_missed": 0,
+            "nonfinal_injected": 0,
+            "nonfinal_detected": 0,
+            "nonfinal_missed": 0,
         }
     total_clean = 0
     fp_on_clean = 0
     skipped = 0
+
+    # Confusion matrix: tracks which vowel swaps get missed
+    # Key: (error_type, "orig_vowel→target_vowel"), Value: {"detected": N, "missed": N}
+    confusion = defaultdict(lambda: {"detected": 0, "missed": 0})
+
+    # Detailed miss log for JSON output
+    miss_log = []
+    # FP log — clean words that got falsely flagged
+    fp_log = []
 
     t0 = time.time()
 
@@ -305,6 +377,7 @@ def main():
         modified_text, injections = inject_all_errors(
             original_text, all_words_pool,
             fraction=args.fraction, seed=si * 1000,
+            exclude_final=args.exclude_final,
         )
 
         if not injections:
@@ -330,7 +403,13 @@ def main():
 
         for inj in injections:
             etype = inj["type"]
+            is_final = inj.get("is_final", False)
             stats[etype]["injected"] += 1
+            if is_final:
+                stats[etype]["final_injected"] += 1
+            else:
+                stats[etype]["nonfinal_injected"] += 1
+
             wi = inj["word_idx"]
             sw = scored_by_idx.get(wi)
 
@@ -340,17 +419,37 @@ def main():
 
             kind = sw["kind"]
 
+            # Build confusion key for vowel-based errors
+            ckey = None
+            if etype in ("irab", "tashkeel"):
+                orig_v = inj.get("orig_vowel", "?")
+                tgt_v = inj.get("target_vowel", "?")
+                ckey = confusion_key(orig_v, tgt_v)
+
             # Did we detect an error?
-            # DiffKind values: "irab", "tashkeel", "wrong" (not "wrong_irab" etc.)
             is_detected = kind in ("irab", "tashkeel", "wrong")
 
             if is_detected:
                 stats[etype]["detected"] += 1
+                if is_final:
+                    stats[etype]["final_detected"] += 1
+                else:
+                    stats[etype]["nonfinal_detected"] += 1
+                if ckey:
+                    confusion[(etype, ckey)]["detected"] += 1
                 if args.verbose:
                     print(f"  CAUGHT [{etype}]: {inj['original']} → {inj['modified']} "
-                          f"as {kind} (conf={sw.get('confidence')})")
+                          f"as {kind} (conf={sw.get('confidence')})"
+                          f"{' [FINAL]' if is_final else ''}")
             else:
                 stats[etype]["missed"] += 1
+                if is_final:
+                    stats[etype]["final_missed"] += 1
+                else:
+                    stats[etype]["nonfinal_missed"] += 1
+                if ckey:
+                    confusion[(etype, ckey)]["missed"] += 1
+
                 reason = ""
                 if kind == "pausal_ok":
                     stats[etype]["missed_pausal"] += 1
@@ -361,17 +460,49 @@ def main():
                 else:
                     stats[etype]["missed_ctc_wrong"] += 1
                     reason = "ctc_wrong"
+
+                miss_log.append({
+                    "sample_idx": si,
+                    "error_type": etype,
+                    "original": inj["original"],
+                    "modified": inj["modified"],
+                    "verdict": kind,
+                    "reason": reason,
+                    "is_final": is_final,
+                    "orig_vowel": inj.get("orig_vowel"),
+                    "target_vowel": inj.get("target_vowel"),
+                    "confidence": sw.get("confidence"),
+                })
+
                 if args.verbose:
+                    vowel_info = ""
+                    if ckey:
+                        vowel_info = f" ({ckey})"
                     print(f"  MISSED [{etype}]: {inj['original']} → {inj['modified']} "
-                          f"verdict={kind} reason={reason} conf={sw.get('confidence')}")
+                          f"verdict={kind} reason={reason}{vowel_info}"
+                          f"{' [FINAL]' if is_final else ''}")
 
         # Track FP on non-injected words
         injected_idxs = {inj["word_idx"] for inj in injections}
+        orig_words = original_text.split()
         for sw in scored:
             if sw["index"] not in injected_idxs:
                 total_clean += 1
                 if sw["kind"] in ("irab", "tashkeel", "wrong"):
                     fp_on_clean += 1
+                    orig_word = orig_words[sw["index"]] if sw["index"] < len(orig_words) else "?"
+                    fp_log.append({
+                        "sample_idx": si,
+                        "word_idx": sw["index"],
+                        "word": orig_word,
+                        "fp_kind": sw["kind"],
+                        "confidence": sw.get("confidence"),
+                        "ref_word": sw.get("ref_word", ""),
+                        "hyp_word": sw.get("hyp_word", ""),
+                    })
+                    if args.verbose:
+                        print(f"  FP [{sw['kind']}]: '{orig_word}' flagged as {sw['kind']} "
+                              f"(conf={sw.get('confidence')})")
 
         if args.verbose and (si + 1) % 20 == 0:
             elapsed = time.time() - t0
@@ -385,56 +516,141 @@ def main():
 
     print(f"\n{'='*60}")
     print(f"Error Detection Recall Evaluation")
+    if args.exclude_final:
+        print(f"  (sentence-final words EXCLUDED from injection)")
+    if args.tashkeel_on:
+        print(f"  (tashkeel detection ENABLED)")
     print(f"{'='*60}")
 
     for etype in ("irab", "tashkeel", "wrong_word"):
         s = stats[etype]
-        scored = s["detected"] + s["missed"]
-        recall = s["detected"] / scored * 100 if scored > 0 else 0
+        scored_count = s["detected"] + s["missed"]
+        recall = s["detected"] / scored_count * 100 if scored_count > 0 else 0
+
+        # Non-final only recall (excludes pausal ceiling)
+        nf_scored = s["nonfinal_detected"] + s["nonfinal_missed"]
+        nf_recall = s["nonfinal_detected"] / nf_scored * 100 if nf_scored > 0 else 0
+
         print(f"\n  {etype.upper()} errors:")
         print(f"    Injected:  {s['injected']}")
-        print(f"    Scored:    {scored}")
+        print(f"    Scored:    {scored_count}")
         print(f"    Detected:  {s['detected']}")
         print(f"    Missed:    {s['missed']}")
         if s["missed"] > 0:
-            print(f"      pausal:   {s['missed_pausal']}")
-            print(f"      low_conf: {s['missed_low_conf']}")
-            print(f"      ctc_wrong:{s['missed_ctc_wrong']}")
+            print(f"      pausal:    {s['missed_pausal']}")
+            print(f"      low_conf:  {s['missed_low_conf']}")
+            print(f"      ctc_wrong: {s['missed_ctc_wrong']}")
         print(f"    Not scored: {s['not_scored']}")
-        print(f"    Recall:    {s['detected']}/{scored} ({recall:.1f}%)")
+        print(f"    Recall (all):       {s['detected']}/{scored_count} ({recall:.1f}%)")
+        if nf_scored > 0 and nf_scored != scored_count:
+            print(f"    Recall (non-final): {s['nonfinal_detected']}/{nf_scored} ({nf_recall:.1f}%)")
 
+    # Overall stats
     total_injected = sum(s["injected"] for s in stats.values())
     total_scored = sum(s["detected"] + s["missed"] for s in stats.values())
     total_detected = sum(s["detected"] for s in stats.values())
     overall_recall = total_detected / total_scored * 100 if total_scored > 0 else 0
 
+    total_nf_scored = sum(s["nonfinal_detected"] + s["nonfinal_missed"] for s in stats.values())
+    total_nf_detected = sum(s["nonfinal_detected"] for s in stats.values())
+    nf_overall = total_nf_detected / total_nf_scored * 100 if total_nf_scored > 0 else 0
+
+    total_pausal = sum(s["missed_pausal"] for s in stats.values())
+    total_low_conf = sum(s["missed_low_conf"] for s in stats.values())
+    total_ctc_wrong = sum(s["missed_ctc_wrong"] for s in stats.values())
+
     print(f"\n  OVERALL:")
     print(f"    Injected:  {total_injected}")
     print(f"    Scored:    {total_scored}")
     print(f"    Detected:  {total_detected}")
-    print(f"    Recall:    {total_detected}/{total_scored} ({overall_recall:.1f}%)")
+    print(f"    Recall (all):       {total_detected}/{total_scored} ({overall_recall:.1f}%)")
+    if total_nf_scored > 0 and total_nf_scored != total_scored:
+        print(f"    Recall (non-final): {total_nf_detected}/{total_nf_scored} ({nf_overall:.1f}%)")
+    print(f"    Missed breakdown:   {total_pausal} pausal, {total_low_conf} low_conf, {total_ctc_wrong} ctc_wrong")
     print(f"")
     print(f"Non-injected words: {total_clean}")
     print(f"  False positives:  {fp_on_clean} ({fp_rate:.2f}%)")
+    if fp_log:
+        print(f"\n  FP details:")
+        for fp in fp_log:
+            print(f"    [{fp['fp_kind']}] '{fp['word']}' (sample {fp['sample_idx']}, conf={fp['confidence']})")
     print(f"Time: {elapsed:.1f}s")
     if args.noise > 0:
         print(f"Noise: {args.noise} dB SNR")
     print(f"Skipped samples: {skipped}")
 
-    # Save
+    # ── Confusion matrix ────────────────────────────────────────────
+    if confusion:
+        print(f"\n{'='*60}")
+        print(f"Vowel Confusion Matrix (injected swap → detected/missed)")
+        print(f"{'='*60}")
+
+        for etype in ("irab", "tashkeel"):
+            type_confusions = {k: v for k, v in confusion.items() if k[0] == etype}
+            if not type_confusions:
+                continue
+
+            print(f"\n  {etype.upper()}:")
+            # Sort by miss count descending
+            sorted_conf = sorted(type_confusions.items(),
+                                 key=lambda x: x[1]["missed"], reverse=True)
+            for (_, ckey), counts in sorted_conf:
+                total = counts["detected"] + counts["missed"]
+                det_rate = counts["detected"] / total * 100 if total > 0 else 0
+                bar_len = counts["missed"]
+                bar = "█" * min(bar_len, 30)
+                print(f"    {ckey:16s}  det={counts['detected']:3d}  miss={counts['missed']:3d}  "
+                      f"({det_rate:5.1f}% caught)  {bar}")
+
+        # Summary: which vowel is hardest to distinguish?
+        print(f"\n  Per-vowel miss summary:")
+        vowel_misses = defaultdict(int)
+        vowel_totals = defaultdict(int)
+        for (etype, ckey), counts in confusion.items():
+            # Extract target vowel (what we swapped TO — false label)
+            parts = ckey.split("→")
+            if len(parts) == 2:
+                orig, tgt = parts
+                vowel_misses[f"audio={orig}, label={tgt}"] += counts["missed"]
+                vowel_totals[f"audio={orig}, label={tgt}"] += counts["detected"] + counts["missed"]
+
+        for key in sorted(vowel_misses.keys(), key=lambda k: vowel_misses[k], reverse=True):
+            total = vowel_totals[key]
+            missed = vowel_misses[key]
+            det = total - missed
+            rate = det / total * 100 if total > 0 else 0
+            print(f"    {key:32s}  {det}/{total} ({rate:.1f}% caught)")
+
+    # ── Save results ────────────────────────────────────────────────
+    # Build confusion data for JSON
+    confusion_data = {}
+    for (etype, ckey), counts in confusion.items():
+        if etype not in confusion_data:
+            confusion_data[etype] = {}
+        confusion_data[etype][ckey] = counts
+
     results = {
-        "per_type": {k: dict(v) for k, v in stats.items()},
+        "per_type": {},
         "total_injected": total_injected,
         "total_scored": total_scored,
         "total_detected": total_detected,
         "overall_recall_pct": round(overall_recall, 1),
+        "nonfinal_recall_pct": round(nf_overall, 1),
         "total_clean": total_clean,
         "fp_on_clean": fp_on_clean,
         "fp_rate_pct": round(fp_rate, 3),
         "noise_snr": args.noise,
         "fraction": args.fraction,
+        "exclude_final": args.exclude_final,
+        "tashkeel_on": args.tashkeel_on,
         "elapsed_seconds": round(elapsed, 1),
+        "confusion": confusion_data,
+        "miss_log": miss_log,
+        "fp_log": fp_log,
     }
+    for etype in ("irab", "tashkeel", "wrong_word"):
+        results["per_type"][etype] = dict(stats[etype])
+
     out_path = Path("eval_recall_results.json")
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
