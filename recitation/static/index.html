@@ -727,6 +727,7 @@
   <!-- Scoring mode toggle -->
   <div class="mode-toggle">
     <button class="mode-btn active" id="modeWhisper" data-mode="whisper">Whisper</button>
+    <button class="mode-btn" id="modeCTC" data-mode="ctc">CTC</button>
     <button class="mode-btn" id="modePCD" data-mode="pcd">PCD</button>
   </div>
 
@@ -812,7 +813,7 @@
   var liveScoredIndices = {};   // index -> true for words already scored during recording
   var liveCorrectCount = 0;
   var liveTotalCount = 0;
-  var scoringMode = 'whisper'; // 'whisper', 'pcd', or 'ssl'
+  var scoringMode = 'whisper'; // 'whisper', 'ctc', or 'pcd'
 
   // ── DOM refs ───────────────────────────────────────────────────
   var readingText = document.getElementById('readingText');
@@ -859,7 +860,27 @@
     btn.addEventListener('click', function() {
       document.querySelectorAll('.mode-btn').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
-      scoringMode = btn.dataset.mode;
+      var mode = btn.dataset.mode;
+
+      if (mode === 'ctc') {
+        // CTC = SSL v5 model, but pipeline uses 'pcd' scoring mode
+        scoringMode = 'pcd';
+        fetch('/api/config/model', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model_type: 'ssl', model_path: 'models/ssl_xls_r_v5' }),
+        }).catch(function() {});
+      } else if (mode === 'pcd') {
+        // PCD = NeMo model
+        scoringMode = 'pcd';
+        fetch('/api/config/model', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model_type: 'pcd' }),
+        }).catch(function() {});
+      } else {
+        scoringMode = mode;
+      }
     });
   });
 
@@ -939,7 +960,7 @@
       // Start periodic live scoring during recording
       if (scoringMode === 'whisper') {
         positionCheckInterval = setInterval(checkLiveProgress, 4000);
-      } else if (scoringMode === 'pcd' || scoringMode === 'ssl') {
+      } else if (scoringMode === 'pcd') {
         positionCheckInterval = setInterval(checkPCDLiveProgress, 1500);
       }
 
@@ -958,7 +979,7 @@
       clearWordStates();
 
       // In PCD/SSL mode, show transcript area during recording for live diacritized output
-      if (scoringMode === 'pcd' || scoringMode === 'ssl') {
+      if (scoringMode === 'pcd') {
         transcriptText.textContent = '';
         resultsSection.classList.add('visible');
       }
@@ -1108,7 +1129,7 @@
     recordBtn.style.display = 'none';
     recordLabel.style.display = 'none';
 
-    if (scoringMode === 'pcd' || scoringMode === 'ssl') {
+    if (scoringMode === 'pcd') {
       finishScoringPCD(blob);
     } else {
       finishScoringWhisper(blob);
