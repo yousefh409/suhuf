@@ -56,10 +56,13 @@ main { flex:1; display:flex; flex-direction:column; align-items:center; padding:
   transition: background .3s, color .3s;
   position:relative;
 }
-.word.correct { background:#e8f5e9; }
+.word.current { background:#fff9c4; }
+.word.correct { background:#e8f5e9; cursor:pointer; }
 .word.i3rab { background:#e3f2fd; color:#1565c0; text-decoration:underline; text-decoration-color:#90caf9; cursor:pointer; }
 .word.tashkeel { background:#fff3e0; color:#e65100; text-decoration:underline; text-decoration-color:#ffcc80; cursor:pointer; }
+.word.diacritic { background:#fff3e0; color:#e65100; text-decoration:underline; text-decoration-color:#ffcc80; cursor:pointer; }
 .word.wrong { background:#ffebee; color:#c62828; text-decoration:line-through; text-decoration-color:#ef9a9a; cursor:pointer; }
+.word.skipped { background:#f5f5f5; color:#9e9e9e; text-decoration:line-through; text-decoration-color:#bdbdbd; cursor:pointer; }
 
 /* Tooltip for errors */
 .tooltip {
@@ -127,6 +130,36 @@ main { flex:1; display:flex; flex-direction:column; align-items:center; padding:
 .status.scoring { color:#8b6914; }
 .status.error { color:#c62828; }
 
+/* Debug toggle */
+.debug-btn {
+  position:fixed; top:8px; left:8px; z-index:100;
+  background:none; border:1px solid #e8e0d4; border-radius:4px;
+  padding:2px 8px; font-size:.65rem; color:#a89b8e; cursor:pointer;
+  font-family:monospace; direction:ltr;
+}
+.debug-btn.on { background:#fff3e0; border-color:#e65100; color:#e65100; }
+
+/* Debug score overlay on words */
+.word .debug-scores {
+  display:none;
+  position:absolute;
+  top:calc(100% + 2px);
+  left:50%;
+  transform:translateX(-50%);
+  background:rgba(0,0,0,0.85);
+  color:#eee;
+  padding:6px 8px;
+  border-radius:4px;
+  font:11px/1.4 'SF Mono',Menlo,monospace;
+  white-space:pre;
+  z-index:200;
+  direction:ltr;
+  text-align:left;
+  pointer-events:none;
+  min-width:180px;
+}
+.debug-mode .word:hover .debug-scores { display:block; }
+
 /* Loading spinner */
 .spinner {
   display:inline-block;
@@ -148,6 +181,7 @@ main { flex:1; display:flex; flex-direction:column; align-items:center; padding:
   <p>Live Arabic Readalong</p>
 </header>
 
+<button class="debug-btn" id="debugBtn" onclick="toggleDebug()">DBG</button>
 <div class="tabs" id="tabs"></div>
 
 <main>
@@ -169,12 +203,19 @@ let allWords = [];
 let phraseBreaks = new Set();
 let isRecording = false;
 let activeTooltipWord = null;
+let debugMode = false;
 
 // Streaming state
 let ws = null;
 let audioCtx = null;
 let micStream = null;
 let workletNode = null;
+
+function toggleDebug() {
+  debugMode = !debugMode;
+  document.getElementById('debugBtn').classList.toggle('on', debugMode);
+  document.body.classList.toggle('debug-mode', debugMode);
+}
 
 // ── Init ──
 async function init() {
@@ -244,6 +285,7 @@ async function toggleRecord() {
 
 async function startRecording() {
   clearHighlights();
+  lastMaxScoredIdx = -1;
 
   try {
     micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -320,7 +362,7 @@ async function startRecording() {
   ws = new WebSocket(`${proto}//${location.host}/ws/score`);
 
   ws.onopen = () => {
-    ws.send(JSON.stringify({ passage_id: currentPassage.id }));
+    ws.send(JSON.stringify({ passage_id: currentPassage.id, debug: debugMode }));
   };
 
   ws.onmessage = (evt) => {
@@ -386,7 +428,7 @@ function stopRecording() {
 
 function clearHighlights() {
   document.querySelectorAll('.word').forEach(span => {
-    span.classList.remove('correct', 'i3rab', 'tashkeel', 'wrong', 'active');
+    span.classList.remove('correct', 'i3rab', 'tashkeel', 'diacritic', 'wrong', 'skipped', 'current', 'active');
     const tip = span.querySelector('.tooltip');
     if (tip) tip.remove();
   });
@@ -396,66 +438,121 @@ function clearHighlights() {
 }
 
 // ── Apply live results (incremental merge) ──
+let lastMaxScoredIdx = -1;
+
 function applyResults(result) {
   const wordSpans = document.querySelectorAll('.word');
-
-  // Build a Set of word indices in this update for quick lookup
-  const updatedIndices = new Set(result.words.map(wr => wr.idx));
+  const isFinal = !!result.final;
 
   let errorCount = 0, i3rabCount = 0, tashkeelCount = 0, scoredCount = 0;
+  let firstNewIdx = -1;
+  let maxIdx = -1;
 
   result.words.forEach(wr => {
     const span = wordSpans[wr.idx];
     if (!span) return;
     scoredCount++;
+    if (wr.idx > maxIdx) maxIdx = wr.idx;
+    if (firstNewIdx < 0 && wr.idx > lastMaxScoredIdx) firstNewIdx = wr.idx;
 
     // Clear previous state on this span only
-    span.classList.remove('correct', 'i3rab', 'tashkeel', 'wrong');
+    span.classList.remove('correct', 'i3rab', 'tashkeel', 'diacritic', 'wrong', 'skipped', 'current');
     const oldTip = span.querySelector('.tooltip');
     if (oldTip) oldTip.remove();
 
     if (wr.status === 'correct') {
       span.classList.add('correct');
     } else if (wr.status === 'error') {
-      if (wr.error_type === 'i3rab') {
+      if (wr.error_type === 'wrong') {
+        span.classList.add('wrong');
+      } else if (wr.error_type === 'skipped') {
+        span.classList.add('skipped');
+      } else if (wr.error_type === 'i3rab') {
         span.classList.add('i3rab');
         i3rabCount++;
-      } else if (wr.error_type === 'tashkeel') {
-        span.classList.add('tashkeel');
+      } else if (wr.error_type === 'tashkeel' || wr.error_type === 'diacritic') {
+        span.classList.add(wr.error_type === 'diacritic' ? 'diacritic' : 'tashkeel');
         tashkeelCount++;
       } else {
         span.classList.add('wrong');
       }
       errorCount++;
+    }
 
-      const tip = document.createElement('div');
-      tip.className = 'tooltip';
-      tip.textContent = formatErrorDetail(wr);
-      span.appendChild(tip);
+    // Tooltip on all scored words — show what was read
+    const tip = document.createElement('div');
+    tip.className = 'tooltip';
+    if (wr.status === 'error') {
+      const detail = formatErrorDetail(wr);
+      tip.textContent = wr.greedy ? `${detail} | سُمِع: ${wr.greedy}` : detail;
+    } else {
+      tip.textContent = wr.greedy ? `سُمِع: ${wr.greedy}` : '✓';
+    }
+    span.appendChild(tip);
+
+    // Debug score overlay (hover in debug mode)
+    if (wr.debug) {
+      const oldDbg = span.querySelector('.debug-scores');
+      if (oldDbg) oldDbg.remove();
+      const dbg = document.createElement('div');
+      dbg.className = 'debug-scores';
+      const d = wr.debug;
+      let lines = [`eff: ${d.eff}`];
+      if (d.i3rab_delta != null) lines.push(`i3r: ${d.i3rab_delta > 0 ? '+' : ''}${d.i3rab_delta} (${d.i3rab_name})`);
+      if (d.tash_delta != null) lines.push(`tsh: ${d.tash_delta > 0 ? '+' : ''}${d.tash_delta} (${d.tash_name})`);
+      if (d.sukoon_delta != null) lines.push(`skn: ${d.sukoon_delta > 0 ? '+' : ''}${d.sukoon_delta} (${d.sukoon_name})`);
+      if (d.pc != null) lines.push(`pc:  ${d.pc}`);
+      if (d.shadda_delta != null) lines.push(`shd: ${d.shadda_delta > 0 ? '+' : ''}${d.shadda_delta}`);
+      if (d.gdm > 0) lines.push(`gdm: ${d.gdm}`);
+      if (d.gfm) lines.push(`gfm: true`);
+      lines.push(`con: ${d.consonant_match}  frm: ${d.frame_count}`);
+      dbg.textContent = lines.join('\n');
+      span.appendChild(dbg);
     }
   });
 
-  // Auto-scroll to last scored word
-  if (result.words.length > 0) {
-    const lastWr = result.words[result.words.length - 1];
-    const lastSpan = wordSpans[lastWr.idx];
-    if (lastSpan) {
-      lastSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Mark next unscored words as "current" (reading position indicator)
+  if (!isFinal && maxIdx >= 0) {
+    // Clear all current markers first
+    wordSpans.forEach(s => s.classList.remove('current'));
+    // Mark 1-2 words ahead of the last scored word
+    for (let i = maxIdx + 1; i <= Math.min(maxIdx + 2, wordSpans.length - 1); i++) {
+      if (!wordSpans[i].classList.contains('correct') &&
+          !wordSpans[i].classList.contains('i3rab') &&
+          !wordSpans[i].classList.contains('tashkeel') &&
+          !wordSpans[i].classList.contains('diacritic') &&
+          !wordSpans[i].classList.contains('wrong') &&
+          !wordSpans[i].classList.contains('skipped')) {
+        wordSpans[i].classList.add('current');
+      }
     }
   }
 
-  // Update summary
-  const summary = document.getElementById('summary');
-  const correct = scoredCount - errorCount;
-  if (errorCount === 0 && scoredCount > 0) {
-    summary.className = 'summary good';
-    summary.textContent = `${scoredCount} words — all correct`;
-  } else if (errorCount > 0) {
-    const parts = [];
-    if (i3rabCount) parts.push(`${i3rabCount} i3rab`);
-    if (tashkeelCount) parts.push(`${tashkeelCount} tashkeel`);
-    summary.className = errorCount <= 2 ? 'summary issues' : 'summary bad';
-    summary.textContent = `${correct}/${scoredCount} correct — ${parts.join(', ')} error${errorCount > 1 ? 's' : ''}`;
+  if (maxIdx > lastMaxScoredIdx) lastMaxScoredIdx = maxIdx;
+
+  // Auto-scroll to first newly scored word (not the last)
+  const scrollTarget = firstNewIdx >= 0 ? firstNewIdx : (maxIdx >= 0 ? maxIdx : -1);
+  if (scrollTarget >= 0 && wordSpans[scrollTarget]) {
+    wordSpans[scrollTarget].scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  // Only show summary on final scoring (not during streaming)
+  if (isFinal) {
+    // Clear current markers
+    wordSpans.forEach(s => s.classList.remove('current'));
+
+    const summary = document.getElementById('summary');
+    const correct = scoredCount - errorCount;
+    if (errorCount === 0 && scoredCount > 0) {
+      summary.className = 'summary good';
+      summary.textContent = `${scoredCount} words — all correct`;
+    } else if (errorCount > 0) {
+      const parts = [];
+      if (i3rabCount) parts.push(`${i3rabCount} i3rab`);
+      if (tashkeelCount) parts.push(`${tashkeelCount} tashkeel`);
+      summary.className = errorCount <= 2 ? 'summary issues' : 'summary bad';
+      summary.textContent = `${correct}/${scoredCount} correct — ${parts.join(', ')} error${errorCount > 1 ? 's' : ''}`;
+    }
   }
 }
 
@@ -464,21 +561,35 @@ function formatErrorDetail(wr) {
   const detail = wr.error_detail;
 
   const i3rabNames = {
-    'raf3': 'رفع (damma)',
-    'nasb': 'نصب (fatha)',
-    'jarr': 'جر (kasra)',
+    'raf3': 'رفع (ضمة)',
+    'nasb': 'نصب (فتحة)',
+    'jarr': 'جر (كسرة)',
     'raf3_tanween': 'رفع + تنوين',
     'nasb_tanween': 'نصب + تنوين',
     'jarr_tanween': 'جر + تنوين',
   };
 
+  const diacNames = {
+    'fatha': 'فتحة', 'damma': 'ضمة', 'kasra': 'كسرة',
+    'fathatan': 'تنوين فتح', 'dammatan': 'تنوين ضم', 'kasratan': 'تنوين كسر',
+  };
+
   if (wr.error_type === 'i3rab' && i3rabNames[detail]) {
-    return `Detected: ${i3rabNames[detail]}`;
+    return `المسموع: ${i3rabNames[detail]}`;
   }
   if (wr.error_type === 'tashkeel' && detail.startsWith('tashkeel_')) {
     const parts = detail.replace('tashkeel_', '').split('_on_');
     if (parts.length === 2) {
-      return `Detected: ${parts[0]} on ${parts[1]}`;
+      const vowelName = diacNames[parts[0]] || parts[0];
+      return `المسموع: ${vowelName} على ${parts[1]}`;
+    }
+  }
+  if (wr.error_type === 'diacritic' && detail.startsWith('pc_')) {
+    const parts = detail.replace('pc_', '').split('_');
+    if (parts.length === 2) {
+      const expected = diacNames[parts[0]] || parts[0];
+      const heard = diacNames[parts[1]] || parts[1];
+      return `المتوقع: ${expected} — المسموع: ${heard}`;
     }
   }
   return detail;

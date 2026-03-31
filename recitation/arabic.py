@@ -144,13 +144,15 @@ def generate_tashkeel_alternatives(word):
     if last_cons == -1:
         return {}
 
-    # Collect internal short-vowel positions
+    # Collect internal short-vowel and sukoon positions
+    TASHKEEL_MARKS = SHORT_VOWELS | frozenset({SUKOON})
     vowel_positions = []
     for i, c in enumerate(chars):
-        if c in SHORT_VOWELS and i < last_cons:
+        if c in TASHKEEL_MARKS and i < last_cons:
             vowel_positions.append(i)
 
-    VOWEL_NAMES = {FATHA: 'fatha', DAMMA: 'damma', KASRA: 'kasra'}
+    VOWEL_NAMES = {FATHA: 'fatha', DAMMA: 'damma', KASRA: 'kasra',
+                   SUKOON: 'sukoon'}
     alts = {}
     for pos in vowel_positions:
         original = chars[pos]
@@ -161,9 +163,8 @@ def generate_tashkeel_alternatives(word):
         cons_char = chars[cons_idx] if cons_idx >= 0 else '?'
 
         # Skip vowels on shadda'd consonants — the gemination makes
-        # vowel quality acoustically ambiguous and causes false positives.
-        # Check for shadda in the entire diacritics cluster after the consonant
-        # (covers both consonant+shadda+vowel and consonant+vowel+shadda orderings)
+        # vowel quality acoustically ambiguous and causes false positives
+        # in CTC hypothesis scoring. Per-char analysis still covers these.
         cluster_end = cons_idx + 1
         while cluster_end < len(chars) and chars[cluster_end] in HARAKAT:
             cluster_end += 1
@@ -172,12 +173,15 @@ def generate_tashkeel_alternatives(word):
         if has_shadda:
             continue
 
-        for replacement in SHORT_VOWELS:
+        for replacement in TASHKEEL_MARKS:
             if replacement == original:
                 continue
             new_chars = chars.copy()
             new_chars[pos] = replacement
             name = f"tashkeel_{VOWEL_NAMES[replacement]}_on_{cons_char}"
+            # Tag sukoon-related swaps (either direction) for separate thresholding
+            if original == SUKOON or replacement == SUKOON:
+                name += "_sukoon"
             # Deduplicate if same consonant letter appears multiple times
             if name in alts:
                 name = f"{name}_{pos}"

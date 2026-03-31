@@ -9,6 +9,7 @@ BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
 
 from engine import RecitationEngine
+from arabic import strip_diacritics
 
 MODEL_PATH = BASE / "models" / "ssl_xls_r_v5"
 PASSAGES_FILE = BASE / "passage.json"
@@ -72,9 +73,9 @@ def classify_recording(notes):
         part = part.strip()
         if not part:
             continue
-        if "sukoon" in part and not any(x in part for x in
-                ("kasra", "fatha", "dhamma", "damma")):
-            pass  # sukoon-only clause
+        if "sukoon" in part and "no tanween" not in part and not any(
+                x in part for x in ("kasra", "fatha", "dhamma", "damma")):
+            pass  # sukoon-only clause (includes "sukoon on tanween" = waqf)
         elif "kasra" in part or "fatha" in part or "dhamma" in part or "damma" in part:
             is_sukoon_only = False
             errors.append(part)
@@ -140,32 +141,83 @@ def run_evaluation(engine, phrases, manifest, verbose=False):
                 i3_delta = wr["effective_score"] - wr["best_alt_score"] if wr["best_alt_score"] > -900 else 999
                 tash_score = wr.get("best_tashkeel_score", -999.0)
                 tash_delta = wr["effective_score"] - tash_score if tash_score > -900 else 999
+                pc = wr.get("pc_worst_delta", 999.0)
                 print(f"        {wr['word']:>25s}  eff={wr['effective_score']:+.3f}  "
                       f"i3rab={wr['best_alt_score']:+.3f}({wr['best_alt_name'] or '-':>12s}) d={i3_delta:+.3f}  "
-                      f"tash={tash_score:+.3f}({wr.get('best_tashkeel_name') or '-':>20s}) d={tash_delta:+.3f}")
+                      f"tash={tash_score:+.3f}({wr.get('best_tashkeel_name') or '-':>20s}) d={tash_delta:+.3f}  "
+                      f"pc={pc:+.2f}")
 
     return all_results
 
 
-def word_is_flagged(wr, threshold, tashkeel_threshold=None):
-    """Check if a word result is flagged as an error (i3rab or tashkeel).
-    Uses separate thresholds: threshold for i3rab, tashkeel_threshold for tashkeel.
+def word_is_flagged(wr, threshold, tashkeel_threshold=None,
+                    pc_tier1_delta=-4.5, pc_tier1_eff=-0.7,
+                    pc_tier2_delta=-2.5, pc_tier2_eff=-0.3):
+    """Check if a word result is flagged as an error.
+
+    Three signals (OR): CTC i3rab, CTC tashkeel, per-char diacritic confidence.
     """
     if tashkeel_threshold is None:
         tashkeel_threshold = threshold
     eff = wr["effective_score"]
+    # Signal 0: Wrong word
+    consonant_match = wr.get("greedy_consonant_match", 1.0)
+    frame_count = wr.get("frame_count", 999)
+    word_text = wr.get("word", "")
+    word_consonants = strip_diacritics(word_text)
+    greedy_seg = wr.get("greedy_segment", "")
+    # frame_count > 50 = ~1s for one word = likely misaligned, skip
+    if (len(word_consonants) >= 3 and eff > -1.0
+            and consonant_match < 0.4 and len(greedy_seg) > 0
+            and frame_count <= 50):
+        return True, "wrong", greedy_seg, 1.0 - consonant_match
+    # Signal -1: Skipped word (very few frames + very poor score + not a short word)
+    if frame_count < 3 and eff < -3.5 and len(word_consonants) >= 3:
+        return True, "skipped", None, 0
     # i3rab flag
     alt = wr["best_alt_score"]
     if alt > -900 and alt > eff + threshold:
         return True, "i3rab", wr["best_alt_name"], alt - eff
-    # tashkeel flag
+    # tashkeel flag (vowel-swap)
     tash = wr.get("best_tashkeel_score", -999.0)
     if tash > -900 and tash > eff + tashkeel_threshold:
         return True, "tashkeel", wr.get("best_tashkeel_name"), tash - eff
+    # tashkeel flag (sukoon — higher threshold due to CTC length bias)
+    sukoon_alt = wr.get("best_sukoon_score", -999.0)
+    if sukoon_alt > -900 and sukoon_alt > eff + tashkeel_threshold + 0.10:
+        return True, "tashkeel", wr.get("best_sukoon_name"), sukoon_alt - eff
+    # per-char diacritic confidence (two-tier)
+    pc = wr.get("pc_worst_delta", 999.0)
+    if (pc < pc_tier1_delta and eff > pc_tier1_eff) or \
+       (pc < pc_tier2_delta and eff > pc_tier2_eff):
+        return True, "diacritic", f"pc={pc:.2f}", -pc
+    # shadda-position diacritic scoring
+    shadda = wr.get("best_shadda_score", -999.0)
+    if shadda > -900 and shadda > eff + 0.20:
+        return True, "tashkeel", wr.get("best_shadda_name", "shadda"), shadda - eff
+    # greedy internal diacritic mismatch (tashkeel) — requires CTC or pc confirmation
+    gdm = wr.get("greedy_diac_mismatches", 0)
+    if gdm >= 1 and eff > -0.5:
+        tash = wr.get("best_tashkeel_score", -999.0)
+        pc = wr.get("pc_worst_delta", 999.0)
+        if (tash > -900 and tash > eff + 0.03) or pc < -2.0:
+            return True, "tashkeel", f"greedy_tash", gdm
+    # Signal 5b: Confirmed greedy — greedy mismatch + CTC/pc agreement
+    gdm = wr.get("greedy_diac_mismatches", 0)
+    if gdm >= 1 and -1.5 < eff <= -1.0:
+        tash = wr.get("best_tashkeel_score", -999.0)
+        pc = wr.get("pc_worst_delta", 999.0)
+        if (tash > -900 and tash > eff + 0.03) or pc < -3.0:
+            return True, "tashkeel", "confirmed_greedy", gdm
+    # greedy final diacritic mismatch (i3rab) + per-char confirmation
+    gfm = wr.get("greedy_final_mismatch", False)
+    pc = wr.get("pc_worst_delta", 999.0)
+    if gfm and pc < -2.0 and eff > -1.0:
+        return True, "i3rab", f"greedy_final", 0
     return False, None, None, 0.0
 
 
-def analyze_results(all_results, threshold=0.08, tashkeel_threshold=0.15):
+def analyze_results(all_results, threshold=0.08, tashkeel_threshold=0.12):
     """Analyze results and report accuracy metrics."""
 
     print(f"\n{'='*80}")
@@ -289,7 +341,7 @@ def main():
 
     verbose = "--verbose" in sys.argv or "-v" in sys.argv
     threshold = 0.08
-    tashkeel_threshold = 0.15
+    tashkeel_threshold = 0.12
     for arg in sys.argv[1:]:
         if arg.startswith("--threshold="):
             threshold = float(arg.split("=")[1])

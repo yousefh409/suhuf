@@ -16,8 +16,11 @@ from fastapi.staticfiles import StaticFiles
 BASE_DIR = Path(__file__).parent
 sys.path.insert(0, str(BASE_DIR))
 
+from arabic import strip_diacritics
+
 TEST_DIR = BASE_DIR / "test_data" / "recordings"
 MANIFEST = BASE_DIR / "test_data" / "manifest.jsonl"
+SESSION_LOG_DIR = BASE_DIR / "test_data" / "sessions"
 MODEL_PATH = BASE_DIR / "models" / "ssl_xls_r_v5"
 PASSAGES_FILE = BASE_DIR / "passage.json"
 
@@ -99,12 +102,35 @@ async def score_audio(
     }
 
 
-I3RAB_THRESHOLD = 0.08
-TASHKEEL_THRESHOLD = 0.15
+# Batch thresholds (full recording, "done" signal)
+BATCH_I3RAB = 0.08
+BATCH_TASHKEEL = 0.12
+BATCH_PC_TIER1_DELTA = -4.5
+BATCH_PC_TIER1_EFF = -0.7
+BATCH_PC_TIER2_DELTA = -2.5
+BATCH_PC_TIER2_EFF = -0.3
+
+# Streaming thresholds (partial audio, more conservative)
+STREAM_I3RAB = 0.15
+STREAM_TASHKEEL = 0.20
+STREAM_PC_TIER1_DELTA = -6.0
+STREAM_PC_TIER1_EFF = -0.7
+STREAM_PC_TIER2_DELTA = -3.5
+STREAM_PC_TIER2_EFF = -0.3
 
 
-def classify_words(word_results, all_words):
+def classify_words(word_results, all_words, streaming=False):
     """Turn raw engine results into classified word dicts."""
+    # Select thresholds based on mode
+    if streaming:
+        i3rab_t, tash_t = STREAM_I3RAB, STREAM_TASHKEEL
+        pc1_d, pc1_e = STREAM_PC_TIER1_DELTA, STREAM_PC_TIER1_EFF
+        pc2_d, pc2_e = STREAM_PC_TIER2_DELTA, STREAM_PC_TIER2_EFF
+    else:
+        i3rab_t, tash_t = BATCH_I3RAB, BATCH_TASHKEEL
+        pc1_d, pc1_e = BATCH_PC_TIER1_DELTA, BATCH_PC_TIER1_EFF
+        pc2_d, pc2_e = BATCH_PC_TIER2_DELTA, BATCH_PC_TIER2_EFF
+
     scored = []
     for wr in word_results:
         wi = wr["word_idx"]
@@ -113,18 +139,107 @@ def classify_words(word_results, all_words):
         error_type = None
         error_detail = None
 
-        alt = wr["best_alt_score"]
-        if alt > -900 and alt > eff + I3RAB_THRESHOLD:
+        # Signal 0: Wrong word (completely different consonant structure)
+        consonant_match = wr.get("greedy_consonant_match", 1.0)
+        frame_count = wr.get("frame_count", 999)
+        word_text = wr.get("word", "")
+        word_consonants = strip_diacritics(word_text)
+        greedy_seg = wr.get("greedy_segment", "")
+        # frame_count > 50 = ~1s for one word = likely misaligned, skip
+        if (len(word_consonants) >= 3 and eff > -1.0
+                and consonant_match < 0.4 and len(greedy_seg) > 0
+                and frame_count <= 50):
             status = "error"
-            error_type = "i3rab"
-            error_detail = wr["best_alt_name"]
+            error_type = "wrong"
+            error_detail = greedy_seg
 
+        # Signal -1: Skipped word (very few frames + very poor score + not a short word)
+        if (status == "correct" and frame_count < 3 and eff < -3.5
+                and len(word_consonants) >= 3):
+            status = "error"
+            error_type = "skipped"
+            error_detail = None
+
+        # Signal 1: CTC hypothesis scoring (i3rab)
+        if status == "correct":
+            alt = wr["best_alt_score"]
+            if alt > -900 and alt > eff + i3rab_t:
+                status = "error"
+                error_type = "i3rab"
+                error_detail = wr["best_alt_name"]
+
+        # Signal 2: CTC hypothesis scoring (tashkeel — vowel swap)
         if status == "correct":
             tash = wr.get("best_tashkeel_score", -999.0)
-            if tash > -900 and tash > eff + TASHKEEL_THRESHOLD:
+            if tash > -900 and tash > eff + tash_t:
                 status = "error"
                 error_type = "tashkeel"
                 error_detail = wr.get("best_tashkeel_name")
+
+        # Signal 2b: CTC hypothesis scoring (sukoon — higher threshold, CTC length bias)
+        if status == "correct":
+            sukoon_alt = wr.get("best_sukoon_score", -999.0)
+            if sukoon_alt > -900 and sukoon_alt > eff + tash_t + 0.10:
+                status = "error"
+                error_type = "tashkeel"
+                error_detail = wr.get("best_sukoon_name")
+
+        # Signal 3: Per-char diacritic confidence (two-tier quality gate)
+        if status == "correct":
+            pc = wr.get("pc_worst_delta", 999.0)
+            if (pc < pc1_d and eff > pc1_e) or \
+               (pc < pc2_d and eff > pc2_e):
+                status = "error"
+                error_type = "diacritic"
+                expected = wr.get("pc_expected_diac", "?")
+                heard = wr.get("pc_heard_diac", "?")
+                error_detail = f"pc_{expected}_{heard}"
+
+        # Signal 4: Shadda-position diacritic scoring (higher threshold)
+        if status == "correct":
+            shadda_score = wr.get("best_shadda_score", -999.0)
+            shadda_thresh = 0.30 if streaming else 0.20
+            if shadda_score > -900 and shadda_score > eff + shadda_thresh:
+                status = "error"
+                error_type = "tashkeel"
+                error_detail = wr.get("best_shadda_name")
+
+        # Signal 5: Greedy internal diacritic mismatch (tashkeel)
+        # Requires CTC or per-char confirmation to avoid greedy decode noise
+        greedy_eff_gate = -0.5 if not streaming else -1.5
+        if status == "correct":
+            gdm_count = wr.get("greedy_diac_mismatches", 0)
+            if gdm_count >= 1 and eff > greedy_eff_gate:
+                tash = wr.get("best_tashkeel_score", -999.0)
+                pc = wr.get("pc_worst_delta", 999.0)
+                if (tash > -900 and tash > eff + 0.03) or pc < -2.0:
+                    status = "error"
+                    error_type = "tashkeel"
+                    expected = wr.get("greedy_diac_expected", "?")
+                    heard = wr.get("greedy_diac_heard", "?")
+                    error_detail = f"greedy_{expected}_{heard}"
+
+        # Signal 5b: Confirmed greedy (batch only) — greedy mismatch + CTC/pc agreement
+        if status == "correct" and not streaming:
+            gdm_count = wr.get("greedy_diac_mismatches", 0)
+            if gdm_count >= 1 and -1.5 < eff <= -1.0:
+                tash = wr.get("best_tashkeel_score", -999.0)
+                pc = wr.get("pc_worst_delta", 999.0)
+                if (tash > -900 and tash > eff + 0.03) or pc < -3.0:
+                    status = "error"
+                    error_type = "tashkeel"
+                    expected = wr.get("greedy_diac_expected", "?")
+                    heard = wr.get("greedy_diac_heard", "?")
+                    error_detail = f"confirmed_greedy_{expected}_{heard}"
+
+        # Signal 6: Greedy final diacritic mismatch (i3rab) + per-char confirmation
+        if status == "correct":
+            gfm = wr.get("greedy_final_mismatch", False)
+            pc = wr.get("pc_worst_delta", 999.0)
+            if gfm and pc < -2.0 and eff > -1.0:
+                status = "error"
+                error_type = "i3rab"
+                error_detail = "greedy_final"
 
         scored.append({
             "idx": wi,
@@ -133,6 +248,23 @@ def classify_words(word_results, all_words):
             "error_type": error_type,
             "error_detail": error_detail,
             "expected_word": wr.get("best_alt_word") or wr.get("best_tashkeel_word"),
+            "greedy": wr.get("greedy_segment", ""),
+            # Raw scores for debug overlay
+            "debug": {
+                "eff": round(eff, 3),
+                "i3rab_delta": round(wr["best_alt_score"] - eff, 3) if wr["best_alt_score"] > -900 else None,
+                "i3rab_name": wr.get("best_alt_name"),
+                "tash_delta": round(wr.get("best_tashkeel_score", -999) - eff, 3) if wr.get("best_tashkeel_score", -999) > -900 else None,
+                "tash_name": wr.get("best_tashkeel_name"),
+                "sukoon_delta": round(wr.get("best_sukoon_score", -999) - eff, 3) if wr.get("best_sukoon_score", -999) > -900 else None,
+                "sukoon_name": wr.get("best_sukoon_name"),
+                "pc": round(wr.get("pc_worst_delta", 999), 2) if wr.get("pc_worst_delta", 999) < 900 else None,
+                "shadda_delta": round(wr.get("best_shadda_score", -999) - eff, 3) if wr.get("best_shadda_score", -999) > -900 else None,
+                "gdm": wr.get("greedy_diac_mismatches", 0),
+                "gfm": wr.get("greedy_final_mismatch", False),
+                "consonant_match": round(wr.get("greedy_consonant_match", 1.0), 2),
+                "frame_count": wr.get("frame_count", 0),
+            },
         })
     scored.sort(key=lambda x: x["idx"])
     return scored
@@ -166,9 +298,26 @@ async def ws_score(websocket: WebSocket):
     from engine import StreamingSession
     session = StreamingSession(engine, phrases)
 
+    # Session logging: save audio + scores for offline analysis
+    log_enabled = init.get("debug", False)
+    log_dir = None
+    audio_log = None
+    score_log = []
+    if log_enabled:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_dir = SESSION_LOG_DIR / f"{ts}_{passage_id}"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        audio_log = open(log_dir / "audio.raw", "wb")
+        # Save session metadata
+        (log_dir / "meta.json").write_text(json.dumps({
+            "passage_id": passage_id,
+            "phrases": phrases,
+            "timestamp": ts,
+        }, ensure_ascii=False, indent=2))
+
     last_scored_bytes = 0
     BYTES_PER_SEC = 16000 * 4  # float32 @ 16 kHz
-    MIN_NEW_SECS = 1.0
+    first_score_sent = False
     scoring_lock = asyncio.Lock()
 
     try:
@@ -180,29 +329,36 @@ async def ws_score(websocket: WebSocket):
             raw = msg.get("bytes")
             text = msg.get("text")
 
-            # "done" signal from client → final scoring
+            # "done" signal from client → final scoring with batch thresholds
             if text == "done":
                 loop = asyncio.get_event_loop()
-                scored = await loop.run_in_executor(None, session.score_cycle)
+                scored = await loop.run_in_executor(
+                    None, lambda: session.score_cycle(final=True))
                 if scored:
-                    words = classify_words(list(scored.values()), all_words)
-                    await websocket.send_json({
+                    words = classify_words(list(scored.values()), all_words,
+                                           streaming=False)
+                    resp = {
                         "words": words,
                         "matched_phrase_idx": session.cursor_phrase,
                         "final": True,
-                    })
+                    }
+                    await websocket.send_json(resp)
+                    if log_dir:
+                        score_log.append({"type": "final", "response": resp})
                 break
 
             if not raw:
                 continue
 
             session.append_audio(raw)
+            if audio_log:
+                audio_log.write(raw)
+
             new_bytes = session.total_audio_bytes - last_scored_bytes
 
-            if session.total_audio_secs < 2.0:
-                continue
-
-            if new_bytes < MIN_NEW_SECS * BYTES_PER_SEC:
+            # Throttle: faster for first score, slower after
+            min_new = 0.5 if not first_score_sent else 0.75
+            if new_bytes < min_new * BYTES_PER_SEC:
                 continue
 
             if scoring_lock.locked():
@@ -215,11 +371,20 @@ async def ws_score(websocket: WebSocket):
                 last_scored_bytes = snap
 
                 if scored:
-                    words = classify_words(list(scored.values()), all_words)
-                    await websocket.send_json({
+                    words = classify_words(list(scored.values()), all_words,
+                                           streaming=True)
+                    resp = {
                         "words": words,
                         "matched_phrase_idx": session.cursor_phrase,
-                    })
+                    }
+                    await websocket.send_json(resp)
+                    if log_dir:
+                        score_log.append({
+                            "type": "streaming",
+                            "audio_bytes": snap,
+                            "response": resp,
+                        })
+                    first_score_sent = True
 
     except WebSocketDisconnect:
         pass
@@ -228,6 +393,12 @@ async def ws_score(websocket: WebSocket):
             await websocket.send_json({"error": str(e)})
         except Exception:
             pass
+    finally:
+        if audio_log:
+            audio_log.close()
+        if log_dir and score_log:
+            (log_dir / "scores.json").write_text(
+                json.dumps(score_log, ensure_ascii=False, indent=2))
 
 
 
