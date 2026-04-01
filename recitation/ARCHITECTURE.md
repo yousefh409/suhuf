@@ -1,182 +1,243 @@
-# i3rab Architecture Overview
+# Recitation System Architecture
 
-## Core Idea
+## Overview
 
-i3rab turns Arabic diacritics detection from an open-ended recognition problem into a **constrained hypothesis test**. Since we know the book text, each word has only 3-8 possible diacritized forms. We encode the user's audio with XLS-R, compute CTC log-probabilities, and score each hypothesis via forced alignment.
+A live Arabic readalong system. A student reads diacritized Arabic text aloud; the system follows along word-by-word and flags errors in real time (wrong words, wrong i3rab/case endings, wrong internal tashkeel/vowels).
 
-## Production Model: XLS-R v5
+Two models work together:
+- **Whisper** (openai/whisper-small, 244M) — position tracking: "where in the text is the reader?"
+- **XLS-R CTC** (fine-tuned Wav2Vec2, 300M) — error scoring: "did they say the right diacritics?"
 
-**Architecture**: `facebook/wav2vec2-xls-r-300m` (300M parameter self-supervised speech model) with a CTC head over 58 Arabic character tokens (letters + diacritics + space + blank).
-
-**Training**:
-- Fine-tuned with frozen encoder, CTC head only
-- 39.5K training samples: ClArTTS (9.5K) + contrastive pairs (20K) + TTS (10K)
-- Online augmentation: speed perturbation (0.9-1.1x), additive noise (SNR 15-40dB), random gain (0.8-1.2x)
-- 15 epochs, lr=1e-4, batch=8, grad_accum=4
-- eval_loss: 0.1487
-
-**Why XLS-R over Whisper**: Whisper's encoder-decoder uses attention (non-monotonic), causing attention drift and unreliable log-probs for diacritical differences. CTC is monotonic and directly scores character sequences against audio frames — a much better fit for pronunciation assessment where we know the expected text.
-
-## Pipeline
+## File Map
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  User reads aloud                                               │
-│       ↓                                                         │
-│  Audio (16kHz float32)                                          │
-│       ↓                                                         │
-│  ┌──────────────┐                                               │
-│  │   XLS-R 300M  │──→ CTC log-probs (T × 58 tokens)            │
-│  │   Encoder     │                                              │
-│  │   + CTC Head  │──→ Greedy decode → free transcript           │
-│  └──────────────┘                                               │
-│       ↓                                                         │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │  Position Tracking + Forced Alignment                     │   │
-│  │  - Free transcript fuzzy-matched to book text             │   │
-│  │  - CTC forced alignment → per-word time boundaries        │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│       ↓                                                         │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │  Per-word Hypothesis Scoring                              │   │
-│  │  - For each word, generate all valid diacritized forms    │   │
-│  │  - Score each via CTC log-likelihood over word segment    │   │
-│  │  - Best score = what user pronounced                      │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│       ↓                                                         │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │  Post-processing                                          │   │
-│  │  - Low-confidence revert (gap < threshold → assume OK)    │   │
-│  │  - Pausal-bias re-verification                            │   │
-│  │  - Segment cross-check (MEDIUM confidence)                │   │
-│  │  - Proactive i3rab & tashkeel (segment-level scoring)     │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│       ↓                                                         │
-│  Compare detected vs. correct → WordDiff                        │
-│  (correct / wrong_irab / wrong_tashkeel / pausal_ok / wrong)   │
-└─────────────────────────────────────────────────────────────────┘
+recitation/
+├── engine.py            # Core: both models, scoring logic, StreamingSession
+├── arabic.py            # Arabic text utils: diacritics, i3rab/tashkeel alternatives
+├── server.py            # FastAPI server: REST + WebSocket, error classification
+├── evaluate.py          # Batch evaluation harness (78 recordings)
+├── test_streaming.py    # Automated streaming tests (TTS via edge-tts + WebSocket)
+├── measure_tashkeel.py  # TTS-based tashkeel detection measurement
+├── analyze_misses.py    # Diagnostic for missed tashkeel cases
+├── passage.json         # Diacritized passages (ajrumiyyah, daa-dawa, ihya)
+├── models/
+│   └── ssl_xls_r_v5/    # Fine-tuned XLS-R 300M CTC model (HuggingFace format)
+├── static/
+│   ├── index.html       # Live readalong UI (single-file, ~600 lines)
+│   └── record.html      # Test data recorder
+└── test_data/
+    ├── manifest.jsonl    # Recording metadata
+    ├── recordings/       # .webm test recordings
+    └── sessions/         # Saved streaming sessions (audio.raw + meta.json + scores.json)
 ```
 
-## Modules
+## engine.py — The Core
 
-### `ssl_transcriber.py` — XLS-R CTC Transcriber (Production)
+### RecitationEngine
 
-The production scoring engine. Loads a fine-tuned wav2vec2 model and provides:
+Singleton, loaded once at server startup. Holds both models.
 
-- **`encode(audio)`** → CTC log-probabilities (T × vocab) + greedy-decoded transcript
-- **`get_word_boundaries(log_probs, reference)`** → CTC forced alignment to find per-word audio segments
-- **`score_hypothesis(log_probs, start, end, text)`** → CTC log-likelihood for a specific diacritized form over a time range
+**CTC model** (always loaded):
+- `Wav2Vec2ForCTC` + `Wav2Vec2FeatureExtractor`, loaded from `models/ssl_xls_r_v5/`
+- 58 Arabic character tokens including all diacritics
+- 16 kHz input, runs on CPU (MPS disabled — flaky with wav2vec2)
+- Key methods:
+  - `get_log_probs(waveform)` → `(T, V)` log-probability matrix
+  - `forced_align(log_probs, tokens)` → Viterbi CTC alignment spans
+  - `word_boundaries_from_alignment(spans, tokens)` → per-word frame boundaries
+  - `assess_word(log_probs_segment, expected_word)` → hypothesis scoring dict
+  - `score_hypothesis(log_probs_segment, text)` → normalized CTC log-prob
+  - `per_char_worst_delta(log_probs, char_spans)` → per-character diacritic confidence
+  - `greedy_diacritic_mismatch(greedy_segment, expected_word)` → consonant-aligned vowel comparison
+  - `score_phrase(waveform, phrase_text)` → full phrase batch scoring
+  - `locate_and_score(waveform, full_text, phrases)` → find phrase + score (REST API)
 
-Key details:
-- Audio resampled to 16kHz (model's native sample rate)
-- Vocabulary: 58 tokens (Arabic letters, diacritics, space, blank)
-- Runs on MPS (Apple Silicon) or CUDA
+**Whisper model** (lazy-loaded on first streaming use):
+- `WhisperForConditionalGeneration` + `WhisperProcessor` from `openai/whisper-small`
+- Auto-downloads ~500MB on first use
+- Uses direct model API, NOT `pipeline()` (torchcodec import error with pipeline)
+- `whisper_transcribe(audio_np)` → list of undiacritized Arabic word strings
 
-### `book.py` — Book + Hypothesis Generation
+### StreamingSession
 
-Loads diacritized Arabic text and generates all valid diacritized forms per word.
+One instance per WebSocket connection. Manages the streaming reading session.
 
-- **Rule-based** (default): For last letter, tries damma/fatha/kasra (definite), dammatan/fathatan/kasratan (indefinite), sukun (jussive), and pausal (no ending). Preserves shadda.
-- **CAMeL Tools** (optional): NYU Abu Dhabi's morphological analyzer for linguistically-informed hypotheses.
-- **CATT** (optional): Auto-diacritizes undiacritized book text.
+**State:**
+- `audio_ring` — 8-second sliding window of raw PCM float32 @ 16kHz
+- `cursor_phrase` — which phrase index the reader is currently on
+- `scored_words` — `{global_word_idx: assessment_dict}`, accumulated across cycles
+- `_best_spoken` — `{phrase_idx: max_spoken_up_to}`, high-water mark per phrase
+- `_cached_whisper_words` — Whisper output cache (skip if <0.5s new audio)
 
-Typical word → 7-8 hypotheses. Particles/prepositions → 1 hypothesis (no i3rab).
+**score_cycle(final=False)** — the main loop, called every ~0.5-0.75s:
 
-### `pipeline.py` — Orchestrator
+```
+Phase 1: Position tracking (Whisper)
+  ├─ _get_whisper_words(audio_np) — transcribe last 5s, with silence check
+  ├─ _get_candidates() — [cursor-1, cursor, cursor+1, ..., cursor+5]
+  ├─ _match_phrase(whisper_words, candidates) — first above 0.25 threshold
+  └─ _spoken_word_count(whisper_words, phrase_words) — 3-pass fuzzy forward match
+     └─ Incremental continuation via _best_spoken high-water mark
 
-The main scoring pipeline (`evaluate_pcd_live`):
+Phase 2: CTC scoring
+  ├─ get_log_probs(audio) — run CTC model once
+  ├─ forced_align(log_probs, tokens) — Viterbi alignment on spoken portion only
+  └─ For each word: assess_word + per_char + greedy_diacritic_mismatch
+     └─ Score locking: after 3 consistent scores, word is locked
 
-1. **Encode** → XLS-R log_probs + free transcript
-2. **Position tracking** → fuzzy match free transcript to book text
-3. **Forced alignment** → CTC-based word boundaries
-4. **Per-word i3rab scoring** → full-sentence CTC hypothesis scoring
-5. **Low-confidence revert** → if score gap < `low_confidence_threshold` (1.5), assume correct
-6. **Pausal-bias re-verification** → context-aware margin for pausal forms
-7. **Segment cross-check** → re-score MEDIUM confidence words on isolated segments
-8. **Proactive i3rab** → segment-level decode-assisted error detection
-9. **Tashkeel scoring** → greedy decode + CTC-verified comparison
-10. **Proactive tashkeel** → segment-level alternative detection
+Phase 3: Cursor advance
+  ├─ Cap to +1 per cycle (prevents wild jumps from common-word overlaps)
+  └─ Only advance from nearly_done when best_idx == cursor_phrase
+```
 
-### `aligner.py` — CTC Forced Alignment
+**Key mechanisms that prevent cursor problems:**
 
-Implements CTC forced alignment using dynamic programming over log-probabilities. Maps each character in the reference text to a time frame, then aggregates to word-level boundaries.
+1. **5s Whisper window** — only last 5s sent to Whisper (not full 8s ring buffer), prevents old-phrase audio from contaminating transcription
+2. **Lookbehind** — candidates include `cursor-1`, so old audio in the ring buffer matches the previous phrase instead of falsely jumping to a distant future phrase
+3. **+1 cap** — cursor can only advance by 1 per cycle via `best_idx`, no matter how far ahead a phrase matches
+4. **best_idx == cursor guard** — the `nearly_done` / `next_started` check only fires when Whisper matched the current cursor phrase (prevents double-advance from stale data)
+5. **High-water mark** (`_best_spoken`) — remembers peak `spoken_up_to` per phrase; when the start of a phrase leaves the 5s window, the system still knows those words were spoken and can continue matching from that point forward
 
-### `tracker.py` — Position Tracking
+**Word matching functions (module-level):**
 
-Determines where in the book the user is reading. Uses the CTC free transcript (stripped of diacritics) and fuzzy-matches against the book's base words via `difflib.SequenceMatcher`.
+- `_word_match(a, b)` — exact for words <4 chars, fuzzy (LCS>0.6) for 4+ chars. Prevents false matches on common Arabic particles (و, في, من, أما, لله).
+- `_phrase_coverage(greedy_words, phrase_words)` — order-preserving LCS normalized by phrase length, uses `_word_match`
+- `_spoken_word_count(whisper_words, phrase_words)` — 3-pass forward matching with `_lcs_ratio > 0.5` (more permissive than `_phrase_coverage`). Pass 1: direct forward. Pass 2: skip first 1-3 Whisper words (previous phrase bleed). Pass 3: find first phrase word anywhere in output.
+- `_lcs_ratio(a, b)` — character-level LCS ratio: `2*LCS_len/(len_a+len_b)`
 
-Searches a window around the current position first (fast), falls back to full-book scan if match < 50%.
+## server.py — API & Classification
 
-### `scorer.py` — Whisper Hypothesis Scoring (Legacy)
+### Endpoints
 
-Original Whisper encoder-decoder scoring. Superseded by `ssl_transcriber.py` for production use. Kept for comparison/fallback.
+- `GET /` — live readalong UI
+- `GET /record` — test data recorder
+- `GET /api/passages` — all passages from passage.json
+- `POST /api/score` — batch score a single audio file against a passage
+- `POST /api/save` — save a test recording
+- `GET /api/recordings` — list saved recordings
+- `WS /ws/score` — streaming scoring
 
-### `pcd_transcriber.py` — NeMo PCD Transcriber (Legacy)
+### WebSocket Protocol
 
-NeMo FastConformer CTC adapter. Was the first CTC-based approach before XLS-R. The NeMo v4b model achieves 96.5% on user recordings but only ~84% ClArTTS recall.
+1. Client sends JSON: `{"passage_id": "ajrumiyyah", "debug": true}`
+2. Client streams raw PCM float32 @ 16kHz as binary frames
+3. Server responds with JSON: `{"words": [...], "matched_phrase_idx": N}`
+4. Client sends text `"done"` → server runs final score cycle with batch thresholds
+5. Server responds with `{"words": [...], "final": true}`
 
-### `models.py` — Data Types
+When `debug: true`, the server saves `audio.raw`, `meta.json`, and `scores.json` to `test_data/sessions/`.
 
-Core types: `BookWord`, `WordHypothesis`, `ScoredWord`, `WordDiff`, `HarakaDiff`, `Confidence`, `DiffKind`.
+### classify_words() — Error Classification
 
-### `config.py` — Settings
+Takes raw engine assessment dicts and applies threshold-based rules to classify each word. Uses **dual thresholds**: streaming (conservative) vs batch (tighter).
 
-Model paths, confidence thresholds, tracker window size, audio parameters, `low_confidence_threshold` (1.5).
+| Threshold | Batch | Streaming |
+|-----------|-------|-----------|
+| i3rab | 0.08 | 0.15 |
+| tashkeel | 0.20 | 0.20 |
+| shadda | 0.20 | 0.30 |
+| pc_tier1_delta | -4.5 | -6.0 |
+| pc_tier1_eff | -0.7 | -0.7 |
+| pc_tier2_delta | -2.5 | -3.5 |
+| pc_tier2_eff | -0.3 | -0.3 |
 
-### `arabic.py` — Arabic Text Utilities
+**Six detection signals** (evaluated in order, first match wins):
 
-Strip/compare/manipulate harakat, normalize Arabic text, detect last-letter position for i3rab operations.
+| # | Signal | What it detects | Key condition |
+|---|--------|----------------|---------------|
+| S0 | Wrong word | Different consonant structure | `consonant_match < 0.4` and `eff > -1.0` |
+| S-1 | Skipped word | Very few frames + poor score | `frame_count < 3` and `eff < -3.5` |
+| S1 | CTC i3rab | Wrong case ending | `alt_score > eff + i3rab_thresh` |
+| S2 | CTC tashkeel | Wrong internal vowel | `tash_score > eff + tash_thresh` |
+| S2b | CTC sukoon | Missing vowel | `sukoon_score > eff + tash_thresh + 0.10` |
+| S3 | Per-char | Frame-level diacritic | Two-tier: `(pc < -4.5 & eff > -0.7)` OR `(pc < -2.5 & eff > -0.3)` |
+| S4 | Shadda | Vowel on geminated consonant | `shadda_score > eff + shadda_thresh` |
+| S5 | Greedy internal | Greedy decode vowel mismatch | `gdm >= 1` + CTC or pc confirmation |
+| S5b | Confirmed greedy | Batch-only, lower eff gate | `gdm >= 1` and `-1.5 < eff <= -1.0` |
+| S6 | Greedy final | Greedy final mismatch | `gfm` and `pc < -2.0` and `eff > -1.0` |
 
-### `irab_agent.py` — Grammar Explanations
+## arabic.py — Text Utilities
 
-Uses GPT-4o to explain i3rab grammar rules for detected errors. Optional, requires OpenAI API key.
+- `strip_diacritics(text)` — remove all harakat
+- `get_final_diacritic(word)` → `(diacritics_string, last_consonant_index)`
+- `replace_final_diacritic(word, new_mark)` — swap case ending
+- `make_sukoon_variant(word)` — replace final diacritic with sukoon (pausal form)
+- `generate_i3rab_alternatives(word)` → dict of `{name: alt_word}` for all case endings
+- `generate_tashkeel_alternatives(word)` → dict of `{name: alt_word}` for internal vowel swaps (skips shadda'd consonants)
 
-### `cache.py` — Audio/Result Caching
+**Important Unicode detail**: Arabic diacritic order in the text is `consonant + vowel + shadda` (not `consonant + shadda + vowel`). The `generate_tashkeel_alternatives` function skips shadda'd consonants because CTC can't distinguish vowel quality through gemination.
 
-Caches transcription results to avoid re-processing the same audio.
+## static/index.html — Frontend
 
-### `pdf_extractor.py` — PDF Text Extraction
+Single-file HTML/CSS/JS (~600 lines). Key behaviors:
 
-Extracts diacritized Arabic text from PDF files for use as book input.
+- Passage selector dropdown → fetches from `/api/passages`
+- Record button → captures audio via `AudioWorklet` (or `ScriptProcessorNode` fallback)
+- Streams PCM float32 @ 16kHz over WebSocket to `/ws/score`
+- Merges incremental word results: new results override old, locked words persist
+- Color coding: green = correct, red = wrong word, blue = i3rab error, orange = tashkeel error
+- Tap a word to see debug overlay (effective score, deltas, greedy decode)
+- "Done" button sends final signal → batch thresholds applied
+- Debug toggle saves session data server-side
 
-## Interfaces
+## Current Metrics
 
-### CLI (`main.py`)
+### Batch (evaluate.py)
+- **FP rate: 1.8%** (12/652 words, target <2%)
+- **Detection: 76%** (4 NONE DETECTED: recordings 8, 11, 12, 13 — all subtle sukoon/tanween)
 
-Phrase-by-phrase reading with mic input. Shows colored terminal output. Optional GPT-4o i3rab explanations.
+### Streaming (test_streaming.py, 9/9 pass)
+- Correct readings: 0% FP
+- Error detection: i3rab and tashkeel errors caught
+- Latency: 1.2s to first scored response
+- No flicker (stable word states)
 
-### Web (`server.py` + `static/index.html`)
+### Session Replay (4 saved sessions)
+- Smooth cursor advancement, no wild jumps
+- Near-perfect phrase scoring (14/14, 13/13, 10/10, 11/11, etc.)
 
-FastAPI backend. Browser records audio via MediaRecorder, sends to `/api/transcribe`. Parchment-styled UI with word cards showing color-coded results and confidence badges.
+## How to Run
 
-## Training
+```bash
+cd recitation
+python -m uvicorn server:app --host 0.0.0.0 --port 8000
+# Open http://localhost:8000
+```
 
-Training scripts are in `recitation/training/`. The production model (XLS-R v5) was trained on RunPod (A100 80GB).
+Python: `/opt/homebrew/Caskroom/miniconda/base/bin/python3` (3.13)
 
-### Data Sources
+### Running Tests
 
-| Dataset | Samples | Description |
-|---------|---------|-------------|
-| ClArTTS | 9,500 | Professional diacritized Arabic speech (only dataset with full case endings) |
-| Contrastive | 20,000 | TTS-generated minimal pairs with diacritization differences |
-| TTS | 10,000 | edge-tts generated diacritized Arabic |
+```bash
+# Batch evaluation (CTC-only, no Whisper needed)
+python evaluate.py
 
-### Training Script
+# Streaming tests (requires running server on port 8000)
+python test_streaming.py
 
-`training/finetune_ssl_ctc.py` — Fine-tunes wav2vec2-xls-r-300m with:
-- Frozen feature encoder (only CTC head trained)
-- Online augmentation via custom `DataCollatorCTCWithAugmentation`
-- `SaveBestCallback` for reliable checkpoint saving
-- HuggingFace Trainer with `save_strategy="no"` (custom callback handles saves)
+# Tashkeel detection measurement
+python measure_tashkeel.py
+```
 
 ## Key Design Decisions
 
-1. **CTC over attention**: CTC's monotonic alignment is a natural fit for pronunciation assessment. Whisper's attention-based decoder caused drift and hallucinations on diacritical differences.
+1. **Conservative error detection**: false negatives >> false positives. A student flagged incorrectly destroys trust. Missing a subtle error is tolerable.
 
-2. **Hypothesis scoring over free transcription**: Rather than transcribing freely and diffing, we score known hypotheses. This is more accurate because we're asking "which of these 3-8 options did they say?" rather than "what did they say?"
+2. **Dual thresholds**: streaming uses wider margins (more conservative) because partial audio is noisier. When the client sends "done", final scoring uses tighter batch thresholds.
 
-3. **Full-sentence scoring**: Each word is scored in the context of the full sentence's CTC log-probs (not isolated). This captures coarticulation effects that influence how case endings are pronounced.
+3. **Sukoon always acceptable**: the final letter with sukoon (pausal/waqf form) is never flagged as an error. `make_sukoon_variant()` is scored alongside the expected form; `effective_score = max(expected, sukoon)`.
 
-4. **Low-confidence revert**: When the score gap between hypotheses is small (< 1.5), we assume the user is correct. This dramatically reduces false positives with minimal impact on recall.
+4. **Whisper for position, CTC for scoring**: Whisper is good at recognizing what was said (position tracking) but doesn't have diacritized tokens. CTC has 58 diacritized character tokens and can distinguish فَ from فُ from فِ, but its greedy decode is unreliable for position tracking. The dual-model split plays to each model's strength.
 
-5. **Multi-stage verification**: The pipeline has several post-processing stages (pausal bias, segment cross-check, proactive scoring) that catch errors missed by the initial scoring pass.
+5. **Score locking**: after 3 consistent scoring cycles, a word's assessment is locked. This prevents late-arriving audio from degrading earlier scores. `final=True` overrides all locks.
+
+6. **High-water mark for position**: the `_best_spoken` dict remembers the max `spoken_up_to` per phrase. When the reader progresses and earlier words leave the 5s Whisper window, the system remembers them and can continue counting from where it left off.
+
+## Common Pitfalls
+
+- **Don't use `pipeline("automatic-speech-recognition")`** — it imports `torchcodec` which has FFmpeg version conflicts. Use `WhisperForConditionalGeneration` + `WhisperProcessor` directly.
+- **Don't use MPS for wav2vec2** — produces incorrect results on Apple Silicon. Force CPU.
+- **Don't use exact word matching for phrase coverage** — Whisper garbles Arabic words (هريرة→هيرايروت, فقد ثبت→فقلتابت). Fuzzy matching with `_word_match` is required.
+- **Don't allow cursor jumps > 1** — common Arabic words (في, من, الله, صحيح, حديث) appear across many phrases. Without the +1 cap, the cursor can jump to a distant phrase that shares these words.
+- **Don't run nearly_done on wrong phrase data** — if `best_idx != cursor_phrase`, the `spoken_up_to` is for a different phrase. Applying `nearly_done` would cause the cursor to advance based on stale data.
+- **Test recordings may have small errors** — occasional background noise, slight mispronunciations not noted. Treat as real-world data, not lab-perfect ground truth.

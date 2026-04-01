@@ -36,6 +36,14 @@ Thumbs.db
 # Models & large files (entire directory — multi-GB weights)
 recitation/models/
 
+# TTS synthesis cache (600MB+)
+recitation/.tts_cache/
+
+# Audio recordings & session data
+recitation/test_data/recordings/
+recitation/test_data/sessions/
+recitation/test_data/tts_cache/
+
 # Recitation runtime data
 recitation/uploads/
 recitation/cache/

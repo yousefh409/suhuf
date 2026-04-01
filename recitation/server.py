@@ -103,7 +103,7 @@ async def score_audio(
 
 
 # Batch thresholds (full recording, "done" signal)
-BATCH_I3RAB = 0.08
+BATCH_I3RAB = 0.10
 BATCH_TASHKEEL = 0.12
 BATCH_PC_TIER1_DELTA = -4.5
 BATCH_PC_TIER1_EFF = -0.7
@@ -118,6 +118,18 @@ STREAM_PC_TIER1_EFF = -0.7
 STREAM_PC_TIER2_DELTA = -3.5
 STREAM_PC_TIER2_EFF = -0.3
 
+# Per-char tier 3 (wider eff gate for very negative pc values)
+BATCH_PC_TIER3_DELTA = -3.5
+BATCH_PC_TIER3_EFF = -0.7
+STREAM_PC_TIER3_DELTA = -5.0
+STREAM_PC_TIER3_EFF = -0.7
+
+# SF-GOP thresholds (standalone — confirmation below)
+BATCH_SF_GOP_DELTA = -6.0
+BATCH_MG_MARGIN = -8.0
+STREAM_SF_GOP_DELTA = -8.0
+STREAM_MG_MARGIN = -10.0
+
 
 def classify_words(word_results, all_words, streaming=False):
     """Turn raw engine results into classified word dicts."""
@@ -126,10 +138,14 @@ def classify_words(word_results, all_words, streaming=False):
         i3rab_t, tash_t = STREAM_I3RAB, STREAM_TASHKEEL
         pc1_d, pc1_e = STREAM_PC_TIER1_DELTA, STREAM_PC_TIER1_EFF
         pc2_d, pc2_e = STREAM_PC_TIER2_DELTA, STREAM_PC_TIER2_EFF
+        pc3_d, pc3_e = STREAM_PC_TIER3_DELTA, STREAM_PC_TIER3_EFF
+        sf_t, mg_t = STREAM_SF_GOP_DELTA, STREAM_MG_MARGIN
     else:
         i3rab_t, tash_t = BATCH_I3RAB, BATCH_TASHKEEL
         pc1_d, pc1_e = BATCH_PC_TIER1_DELTA, BATCH_PC_TIER1_EFF
         pc2_d, pc2_e = BATCH_PC_TIER2_DELTA, BATCH_PC_TIER2_EFF
+        pc3_d, pc3_e = BATCH_PC_TIER3_DELTA, BATCH_PC_TIER3_EFF
+        sf_t, mg_t = BATCH_SF_GOP_DELTA, BATCH_MG_MARGIN
 
     scored = []
     for wr in word_results:
@@ -145,13 +161,24 @@ def classify_words(word_results, all_words, streaming=False):
         word_text = wr.get("word", "")
         word_consonants = strip_diacritics(word_text)
         greedy_seg = wr.get("greedy_segment", "")
-        # frame_count > 50 = ~1s for one word = likely misaligned, skip
+        # Tier 1: decent eff but consonants don't match
         if (len(word_consonants) >= 3 and eff > -1.0
                 and consonant_match < 0.4 and len(greedy_seg) > 0
                 and frame_count <= 50):
             status = "error"
             error_type = "wrong"
             error_detail = greedy_seg
+        # Tier 2: Whisper + CTC wrong word detection.
+        # Whisper alone is too noisy (especially on short clips), so require
+        # CTC confirmation: word not heard by Whisper AND poor CTC score.
+        whisper_match = wr.get("whisper_match", True)
+        if (status == "correct" and not whisper_match
+                and eff < -1.5
+                and len(word_consonants) >= 2
+                and frame_count >= 5):
+            status = "error"
+            error_type = "wrong"
+            error_detail = "whisper_mismatch"
 
         # Signal -1: Skipped word (very few frames + very poor score + not a short word)
         if (status == "correct" and frame_count < 3 and eff < -3.5
@@ -184,11 +211,12 @@ def classify_words(word_results, all_words, streaming=False):
                 error_type = "tashkeel"
                 error_detail = wr.get("best_sukoon_name")
 
-        # Signal 3: Per-char diacritic confidence (two-tier quality gate)
+        # Signal 3: Per-char diacritic confidence (three-tier quality gate)
         if status == "correct":
             pc = wr.get("pc_worst_delta", 999.0)
             if (pc < pc1_d and eff > pc1_e) or \
-               (pc < pc2_d and eff > pc2_e):
+               (pc < pc2_d and eff > pc2_e) or \
+               (pc < pc3_d and eff > pc3_e):
                 status = "error"
                 error_type = "diacritic"
                 expected = wr.get("pc_expected_diac", "?")
@@ -198,7 +226,7 @@ def classify_words(word_results, all_words, streaming=False):
         # Signal 4: Shadda-position diacritic scoring (higher threshold)
         if status == "correct":
             shadda_score = wr.get("best_shadda_score", -999.0)
-            shadda_thresh = 0.30 if streaming else 0.20
+            shadda_thresh = 0.25 if streaming else 0.20
             if shadda_score > -900 and shadda_score > eff + shadda_thresh:
                 status = "error"
                 error_type = "tashkeel"
@@ -206,20 +234,22 @@ def classify_words(word_results, all_words, streaming=False):
 
         # Signal 5: Greedy internal diacritic mismatch (tashkeel)
         # Requires CTC or per-char confirmation to avoid greedy decode noise
-        greedy_eff_gate = -0.5 if not streaming else -1.5
+        # Streaming uses same gate as batch — greedy is unreliable on partial audio
+        greedy_eff_gate = -0.5
+        greedy_confirm = 0.05 if not streaming else 0.10
         if status == "correct":
             gdm_count = wr.get("greedy_diac_mismatches", 0)
             if gdm_count >= 1 and eff > greedy_eff_gate:
                 tash = wr.get("best_tashkeel_score", -999.0)
                 pc = wr.get("pc_worst_delta", 999.0)
-                if (tash > -900 and tash > eff + 0.03) or pc < -2.0:
+                if (tash > -900 and tash > eff + greedy_confirm) or pc < -2.0:
                     status = "error"
                     error_type = "tashkeel"
                     expected = wr.get("greedy_diac_expected", "?")
                     heard = wr.get("greedy_diac_heard", "?")
                     error_detail = f"greedy_{expected}_{heard}"
 
-        # Signal 5b: Confirmed greedy (batch only) — greedy mismatch + CTC/pc agreement
+        # Signal 5b: Confirmed greedy (batch only) — greedy mismatch + stricter
         if status == "correct" and not streaming:
             gdm_count = wr.get("greedy_diac_mismatches", 0)
             if gdm_count >= 1 and -1.5 < eff <= -1.0:
@@ -236,10 +266,33 @@ def classify_words(word_results, all_words, streaming=False):
         if status == "correct":
             gfm = wr.get("greedy_final_mismatch", False)
             pc = wr.get("pc_worst_delta", 999.0)
-            if gfm and pc < -2.0 and eff > -1.0:
+            if gfm and pc < -2.0 and eff > -1.6:
                 status = "error"
                 error_type = "i3rab"
                 error_detail = "greedy_final"
+
+        # Signal 7: Segmentation-Free GOP standalone (very conservative)
+        if status == "correct":
+            sf_delta = wr.get("sf_worst_delta", 999.0)
+            if sf_delta < sf_t and eff > -1.6:
+                status = "error"
+                error_type = "tashkeel"
+                error_detail = f"sf_gop_{wr.get('sf_worst_expected', '?')}_{wr.get('sf_worst_heard', '?')}"
+
+        # Signal 7c: Confirmed tashkeel — CTC near-threshold + SF-GOP agrees
+        # CTC tashkeel alt is close to threshold; SF-GOP strongly negative
+        if status == "correct" and eff > -0.5:
+            tash = wr.get("best_tashkeel_score", -999.0)
+            sf_delta = wr.get("sf_worst_delta", 999.0)
+            half_t = tash_t / 2
+            if (tash > -900 and tash > eff + half_t and sf_delta < -3.5):
+                status = "error"
+                error_type = "tashkeel"
+                error_detail = f"confirmed_sf_{wr.get('best_tashkeel_name', '?')}"
+
+        # Signal 8: MixGoP — disabled (GMMs need more training data;
+        # 23% of correct words have negative margin, too noisy for use).
+        # Infrastructure kept in engine.py for future use.
 
         scored.append({
             "idx": wi,
@@ -264,6 +317,8 @@ def classify_words(word_results, all_words, streaming=False):
                 "gfm": wr.get("greedy_final_mismatch", False),
                 "consonant_match": round(wr.get("greedy_consonant_match", 1.0), 2),
                 "frame_count": wr.get("frame_count", 0),
+                "sf_gop": round(wr.get("sf_worst_delta", 999), 3) if wr.get("sf_worst_delta", 999) < 900 else None,
+                "mg": round(wr.get("mg_worst_margin", 999), 2) if wr.get("mg_worst_margin", 999) < 900 else None,
             },
         })
     scored.sort(key=lambda x: x["idx"])

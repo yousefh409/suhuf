@@ -105,6 +105,17 @@ class RecitationEngine:
         self.model.to(self.device)
         print(f"Model loaded on {self.device}")
 
+        # Lazy-load MixGoP scorer if GMMs exist
+        self._mixgop_scorer = None
+        gmm_dir = model_path.parent / "gmm"
+        if gmm_dir.exists() and (gmm_dir / "gmms.pkl").exists():
+            try:
+                from scorer import MixGoPScorer
+                self._mixgop_scorer = MixGoPScorer(gmm_dir)
+                print(f"MixGoP GMMs loaded from {gmm_dir}")
+            except Exception as e:
+                print(f"Warning: could not load MixGoP GMMs: {e}")
+
         # Whisper (lazy-loaded on first streaming session)
         self._whisper_model = None
         self._whisper_processor = None
@@ -180,17 +191,37 @@ class RecitationEngine:
     # ------------------------------------------------------------------
     # Model inference
     # ------------------------------------------------------------------
-    def get_log_probs(self, waveform):
-        """Run model -> (T, V) log-probabilities."""
+    def get_model_outputs(self, waveform, output_hidden_states=False):
+        """Run model -> dict with log_probs, logits, and optionally hidden_states.
+
+        Returns dict with keys:
+          'log_probs': (T, V) tensor — log-softmax probabilities
+          'logits': (T, V) tensor — raw logits before softmax
+          'hidden_states': tuple of (T, H) tensors per layer (only if requested)
+        """
         inputs = self.feature_extractor(
             waveform.numpy(), sampling_rate=16000,
             return_tensors="pt", padding=True,
         )
         input_values = inputs.input_values.to(self.device)
         with torch.no_grad():
-            logits = self.model(input_values).logits
+            outputs = self.model(
+                input_values,
+                output_hidden_states=output_hidden_states,
+            )
+        logits = outputs.logits.squeeze(0).cpu()  # (T, V)
         log_probs = F.log_softmax(logits, dim=-1)
-        return log_probs.squeeze(0).cpu()  # (T, V)
+
+        result = {'log_probs': log_probs, 'logits': logits}
+        if output_hidden_states and outputs.hidden_states is not None:
+            result['hidden_states'] = tuple(
+                h.squeeze(0).cpu() for h in outputs.hidden_states
+            )
+        return result
+
+    def get_log_probs(self, waveform):
+        """Run model -> (T, V) log-probabilities."""
+        return self.get_model_outputs(waveform)['log_probs']
 
     # ------------------------------------------------------------------
     # Tokenisation
@@ -414,6 +445,13 @@ class RecitationEngine:
         if final_mark == SUKOON:
             skip_i3rab = True
 
+        # Skip when reader appears to have paused (waqf): sukoon form
+        # scored better than the canonical form. Per design rules, sukoon
+        # on the final letter is always acceptable, so we can't determine
+        # the reader's intended case ending from a paused reading.
+        if sukoon_score > expected_score:
+            skip_i3rab = True
+
         # Skip for very short words (1-2 consonants) — too noisy
         if len(consonants_only) <= 2:
             skip_i3rab = True
@@ -616,6 +654,131 @@ class RecitationEngine:
 
         return {"delta": worst, "expected": worst_expected, "heard": worst_heard}
 
+    def sf_gop_diacritics(self, log_probs_segment, expected_word):
+        """Segmentation-Free GOP: per-diacritic CTC loss perturbation.
+
+        For each internal diacritic, replaces it with each alternative and
+        computes the CTC loss difference.  Considers ALL possible alignments
+        (no forced alignment needed).
+
+        Returns dict:
+          sf_worst_delta: most negative delta (999.0 = no diacritics)
+          sf_worst_expected: diacritic name at worst position
+          sf_worst_heard: best alternative diacritic name
+        """
+        tokens = self.text_to_tokens(expected_word)
+        if not tokens:
+            return {"sf_worst_delta": 999.0, "sf_worst_expected": None,
+                    "sf_worst_heard": None}
+
+        T = log_probs_segment.shape[0]
+        if T < len(tokens):
+            return {"sf_worst_delta": 999.0, "sf_worst_expected": None,
+                    "sf_worst_heard": None}
+
+        canonical_score = self.ctc_log_prob(log_probs_segment, tokens)
+
+        worst_delta = 999.0
+        worst_expected = None
+        worst_heard = None
+
+        for ti, tok in enumerate(tokens):
+            char = self.id2char.get(tok, '')
+            if char not in _DIAC_SET:
+                continue
+
+            # Determine comparison group
+            if char in _SHORT_VOWELS:
+                group = _SHORT_VOWELS
+            elif char in _TANWEEN:
+                group = _TANWEEN
+            else:
+                continue
+
+            best_alt_delta = 999.0
+            best_alt_char = None
+
+            for alt_ch in group:
+                if alt_ch == char:
+                    continue
+                alt_id = self.vocab.get(alt_ch)
+                if alt_id is None:
+                    continue
+                perturbed = list(tokens)
+                perturbed[ti] = alt_id
+                if T < len(perturbed):
+                    continue
+                perturbed_score = self.ctc_log_prob(log_probs_segment, perturbed)
+                delta = canonical_score - perturbed_score
+                if delta < best_alt_delta:
+                    best_alt_delta = delta
+                    best_alt_char = alt_ch
+
+            # Also compare tanween vs corresponding short vowel
+            if char in _TANWEEN_TO_SHORT:
+                short_ch = _TANWEEN_TO_SHORT[char]
+                short_id = self.vocab.get(short_ch)
+                if short_id is not None:
+                    perturbed = list(tokens)
+                    perturbed[ti] = short_id
+                    if T >= len(perturbed):
+                        perturbed_score = self.ctc_log_prob(log_probs_segment, perturbed)
+                        delta = canonical_score - perturbed_score
+                        if delta < best_alt_delta:
+                            best_alt_delta = delta
+                            best_alt_char = short_ch
+
+            if best_alt_delta < worst_delta:
+                worst_delta = best_alt_delta
+                worst_expected = _DIAC_NAMES.get(char)
+                worst_heard = _DIAC_NAMES.get(best_alt_char)
+
+        return {"sf_worst_delta": worst_delta, "sf_worst_expected": worst_expected,
+                "sf_worst_heard": worst_heard}
+
+    def mixgop_diacritics(self, hidden_states, char_spans):
+        """MixGoP scoring: GMM log-likelihood margin for each diacritic.
+
+        Uses pre-trained per-diacritic GMMs on intermediate SSL layer features.
+        Returns dict:
+          mg_worst_margin: most negative margin (999.0 = no diacritics / no GMMs)
+          mg_worst_expected: diacritic name at worst position
+          mg_worst_heard: best alternative diacritic name
+        """
+        default = {"mg_worst_margin": 999.0, "mg_worst_expected": None,
+                    "mg_worst_heard": None}
+
+        if self._mixgop_scorer is None or not self._mixgop_scorer.gmms:
+            return default
+
+        from scorer import MixGoPScorer
+
+        worst = 999.0
+        worst_expected = None
+        worst_heard = None
+
+        for _target_idx, token_id, sf, ef in char_spans:
+            char = self.id2char.get(token_id, '')
+            if char not in _DIAC_SET:
+                continue
+
+            feat = MixGoPScorer.extract_feature(hidden_states, (sf, ef))
+            if feat is None:
+                continue
+
+            result = self._mixgop_scorer.score_all_alternatives(feat, char)
+            if result is None:
+                continue
+
+            margin = result["margin"]
+            if margin < worst:
+                worst = margin
+                worst_expected = _DIAC_NAMES.get(char)
+                worst_heard = _DIAC_NAMES.get(result["best_alt_char"])
+
+        return {"mg_worst_margin": worst, "mg_worst_expected": worst_expected,
+                "mg_worst_heard": worst_heard}
+
     def greedy_diacritic_mismatch(self, greedy_segment, expected_word):
         """Compare internal diacritics between greedy decode and expected word.
 
@@ -704,6 +867,7 @@ class RecitationEngine:
         count = 0
         first_exp = None
         first_heard = None
+        checked = 0  # track how many vowel positions we've compared
         for ei, gi in matched:
             _cons, exp_vowel, exp_shadda = exp_internal[ei]
             _gcons, gre_vowel, _gshadda = gre_pairs[gi]
@@ -714,6 +878,13 @@ class RecitationEngine:
                 continue
             if gre_vowel is None:
                 continue  # greedy didn't produce a vowel here — skip
+
+            checked += 1
+            # Skip first vowel position — greedy decode is unreliable there
+            # due to connected speech context from previous word (wasla, etc.)
+            if checked == 1:
+                continue
+
             if exp_vowel == gre_vowel:
                 continue
 
@@ -740,6 +911,40 @@ class RecitationEngine:
     # ------------------------------------------------------------------
     # Full phrase scoring
     # ------------------------------------------------------------------
+    def _enrich_assessment(self, assessment, word, log_probs,
+                           char_spans, sf, ef, T, hidden_states=None):
+        """Add all per-word scoring signals to an assessment dict."""
+        segment_lp = log_probs[max(0, sf - 2): min(T, ef + 3)]
+
+        # Per-char worst delta (existing)
+        pc = self.per_char_worst_delta(log_probs, char_spans)
+        assessment["pc_worst_delta"] = pc["delta"]
+        assessment["pc_expected_diac"] = pc["expected"]
+        assessment["pc_heard_diac"] = pc["heard"]
+
+        # Greedy decode + diacritic mismatch (existing)
+        greedy_seg = self.greedy_decode(log_probs[sf:ef + 1])
+        assessment["greedy_segment"] = greedy_seg
+        gdm = self.greedy_diacritic_mismatch(greedy_seg, word)
+        assessment["greedy_diac_mismatches"] = gdm["count"]
+        assessment["greedy_diac_expected"] = gdm["expected"]
+        assessment["greedy_diac_heard"] = gdm["heard"]
+        assessment["greedy_final_mismatch"] = gdm["final_mismatch"]
+        assessment["greedy_consonant_match"] = gdm["consonant_match"]
+
+        # Segmentation-Free GOP (new)
+        sf_gop = self.sf_gop_diacritics(segment_lp, word)
+        assessment["sf_worst_delta"] = sf_gop["sf_worst_delta"]
+        assessment["sf_worst_expected"] = sf_gop["sf_worst_expected"]
+        assessment["sf_worst_heard"] = sf_gop["sf_worst_heard"]
+
+        # MixGoP (new — only if hidden states available)
+        if hidden_states is not None:
+            mg = self.mixgop_diacritics(hidden_states, char_spans)
+            assessment["mg_worst_margin"] = mg["mg_worst_margin"]
+            assessment["mg_worst_expected"] = mg["mg_worst_expected"]
+            assessment["mg_worst_heard"] = mg["mg_worst_heard"]
+
     def score_phrase(self, waveform, phrase_text):
         """Score an entire phrase.
 
@@ -748,7 +953,9 @@ class RecitationEngine:
             greedy: greedy decoded text
             alignment_score: overall forced-alignment score (normalised)
         """
-        log_probs = self.get_log_probs(waveform)
+        model_out = self.get_model_outputs(waveform, output_hidden_states=True)
+        log_probs = model_out['log_probs']
+        hidden_states = model_out.get('hidden_states')
         greedy = self.greedy_decode(log_probs)
 
         words = phrase_text.split()
@@ -769,25 +976,15 @@ class RecitationEngine:
             if wi >= len(words):
                 continue
             sf, ef = wb["start_frame"], wb["end_frame"]
-            # Add small margin around the word for context
             margin = 2
             sf_m = max(0, sf - margin)
             ef_m = min(T - 1, ef + margin)
             segment = log_probs[sf_m : ef_m + 1]
 
             assessment = self.assess_word(segment, words[wi])
-            pc = self.per_char_worst_delta(log_probs, wb["char_spans"])
-            assessment["pc_worst_delta"] = pc["delta"]
-            assessment["pc_expected_diac"] = pc["expected"]
-            assessment["pc_heard_diac"] = pc["heard"]
-            greedy_seg = self.greedy_decode(log_probs[sf:ef + 1])
-            assessment["greedy_segment"] = greedy_seg
-            gdm = self.greedy_diacritic_mismatch(greedy_seg, words[wi])
-            assessment["greedy_diac_mismatches"] = gdm["count"]
-            assessment["greedy_diac_expected"] = gdm["expected"]
-            assessment["greedy_diac_heard"] = gdm["heard"]
-            assessment["greedy_final_mismatch"] = gdm["final_mismatch"]
-            assessment["greedy_consonant_match"] = gdm["consonant_match"]
+            self._enrich_assessment(
+                assessment, words[wi], log_probs,
+                wb["char_spans"], sf, ef, T, hidden_states)
             assessment["word_idx"] = wi
             assessment["word"] = words[wi]
             assessment["start_frame"] = sf
@@ -817,7 +1014,9 @@ class RecitationEngine:
             matched_phrase_idx: which phrase was matched
             full_score: CTC score of matched phrase
         """
-        log_probs = self.get_log_probs(waveform)
+        model_out = self.get_model_outputs(waveform, output_hidden_states=True)
+        log_probs = model_out['log_probs']
+        hidden_states = model_out.get('hidden_states')
         greedy = self.greedy_decode(log_probs)
         T = log_probs.shape[0]
 
@@ -867,18 +1066,9 @@ class RecitationEngine:
                 segment = log_probs[sf_m : ef_m + 1]
 
                 assessment = self.assess_word(segment, words[wi])
-                pc = self.per_char_worst_delta(log_probs, wb["char_spans"])
-                assessment["pc_worst_delta"] = pc["delta"]
-                assessment["pc_expected_diac"] = pc["expected"]
-                assessment["pc_heard_diac"] = pc["heard"]
-                greedy_seg = self.greedy_decode(log_probs[sf:ef + 1])
-                assessment["greedy_segment"] = greedy_seg
-                gdm = self.greedy_diacritic_mismatch(greedy_seg, words[wi])
-                assessment["greedy_diac_mismatches"] = gdm["count"]
-                assessment["greedy_diac_expected"] = gdm["expected"]
-                assessment["greedy_diac_heard"] = gdm["heard"]
-                assessment["greedy_final_mismatch"] = gdm["final_mismatch"]
-                assessment["greedy_consonant_match"] = gdm["consonant_match"]
+                self._enrich_assessment(
+                    assessment, words[wi], log_probs,
+                    wb["char_spans"], sf, ef, T, hidden_states)
                 assessment["word_idx"] = matched_offset + wi  # global index
                 assessment["word"] = words[wi]
                 assessment["start_frame"] = sf
@@ -1017,7 +1207,10 @@ class StreamingSession:
 
         # --- Phase 2: CTC scoring ---
         waveform = torch.from_numpy(audio_np)
-        log_probs = self.engine.get_log_probs(waveform)
+        model_out = self.engine.get_model_outputs(
+            waveform, output_hidden_states=final)
+        log_probs = model_out['log_probs']
+        hidden_states = model_out.get('hidden_states') if final else None
         T = log_probs.shape[0]
 
         partial_words = words[:spoken_up_to]
@@ -1044,18 +1237,9 @@ class StreamingSession:
             segment = log_probs[max(0, sf - margin): min(T, ef + margin + 1)]
 
             assessment = self.engine.assess_word(segment, partial_words[wi])
-            pc = self.engine.per_char_worst_delta(log_probs, wb["char_spans"])
-            assessment["pc_worst_delta"] = pc["delta"]
-            assessment["pc_expected_diac"] = pc["expected"]
-            assessment["pc_heard_diac"] = pc["heard"]
-            greedy_seg = self.engine.greedy_decode(log_probs[sf:ef + 1])
-            assessment["greedy_segment"] = greedy_seg
-            gdm = self.engine.greedy_diacritic_mismatch(greedy_seg, partial_words[wi])
-            assessment["greedy_diac_mismatches"] = gdm["count"]
-            assessment["greedy_diac_expected"] = gdm["expected"]
-            assessment["greedy_diac_heard"] = gdm["heard"]
-            assessment["greedy_final_mismatch"] = gdm["final_mismatch"]
-            assessment["greedy_consonant_match"] = gdm["consonant_match"]
+            self.engine._enrich_assessment(
+                assessment, partial_words[wi], log_probs,
+                wb["char_spans"], sf, ef, T, hidden_states)
             assessment["frame_count"] = ef - sf + 1
             gw = global_offset + wi
             assessment["word_idx"] = gw
@@ -1078,6 +1262,14 @@ class StreamingSession:
                 if count >= 3:
                     self.scored_words[gw]["_locked"] = True
 
+        # --- Phase 2b: Whisper per-word match ---
+        if whisper_words and partial_words:
+            wmatch = self._whisper_word_matches(whisper_words, partial_words)
+            for wi in range(len(partial_words)):
+                gw = global_offset + wi
+                if gw in self.scored_words:
+                    self.scored_words[gw]["whisper_match"] = wmatch[wi] if wi < len(wmatch) else True
+
         # --- Phase 3: Cursor advance (trust Whisper) ---
         # Cap to +1 per cycle to prevent wild jumps from common-word matches
         if best_idx > self.cursor_phrase:
@@ -1099,6 +1291,37 @@ class StreamingSession:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def inject_whisper_cache(self, whisper_words):
+        """Set pre-computed Whisper words (avoids re-running on same audio)."""
+        self._cached_whisper_words = whisper_words
+        self._last_whisper_bytes = float('inf')
+
+    @property
+    def last_whisper_words(self):
+        """Return the most recent Whisper transcription."""
+        return self._cached_whisper_words
+
+    @staticmethod
+    def _whisper_word_matches(whisper_words, phrase_words):
+        """Check which phrase words appear in the Whisper output.
+
+        Returns list[bool], one per phrase word. Uses unordered matching
+        with fuzzy comparison (LCS ratio > 0.6). Single-char words are
+        always marked as matched (too common for reliable detection).
+        """
+        matches = []
+        for pw in phrase_words:
+            pw_stripped = strip_diacritics(pw)
+            if len(pw_stripped) <= 1:
+                matches.append(True)
+                continue
+            found = any(
+                ww == pw_stripped or _lcs_ratio(list(ww), list(pw_stripped)) > 0.6
+                for ww in whisper_words
+            )
+            matches.append(found)
+        return matches
 
     def _get_whisper_words(self, audio_np):
         """Get Whisper transcription, with caching and silence check."""
