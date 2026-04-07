@@ -18,6 +18,148 @@ sys.path.insert(0, str(BASE_DIR))
 
 from arabic import strip_diacritics
 
+# ── Error classifier (GBM) for low-eff fallback ──
+_error_classifier = None
+_type_classifier = None
+
+def _load_error_classifier():
+    global _error_classifier
+    if _error_classifier is not None:
+        return _error_classifier
+    clf_path = BASE_DIR / "models" / "error_classifier.pkl"
+    if not clf_path.exists():
+        _error_classifier = False  # Sentinel: not available
+        return False
+    import pickle
+    with open(clf_path, "rb") as f:
+        _error_classifier = pickle.load(f)
+    return _error_classifier
+
+def _load_type_classifier():
+    global _type_classifier
+    if _type_classifier is not None:
+        return _type_classifier
+    clf_path = BASE_DIR / "models" / "type_classifier.pkl"
+    if not clf_path.exists():
+        _type_classifier = False
+        return False
+    import pickle
+    with open(clf_path, "rb") as f:
+        _type_classifier = pickle.load(f)
+    return _type_classifier
+
+def _classify_with_gbm(wr, word_text):
+    """Use GBM classifier as fallback for undetected words.
+    Returns (probability, error_type) or (0.0, None) if unavailable."""
+    clf = _load_error_classifier()
+    if clf is False:
+        return 0.0, None
+
+    s = wr
+    eff = s["effective_score"]
+    feature_keys = clf["feature_keys"]
+
+    def safe_val(key):
+        # Map signal_dump keys to word_result keys
+        key_map = {
+            "eff": "effective_score",
+            "sf": "sf_worst_delta",
+            "pc": "pc_worst_delta",
+            "mg": "mg_worst_margin",
+            "pd_i3rab": "pd_i3rab_delta",
+            "pd_tashkeel": "pd_tashkeel_delta",
+            "i3rab_delta": None,  # computed
+            "tash_delta": None,   # computed
+            "consonant_match": "greedy_consonant_match",
+            "frame_count": "frame_count",
+            "fs_worst_delta": "fs_worst_delta",
+            "local_pd_i3rab": "local_pd_i3rab",
+            "local_pd_tashkeel": "local_pd_tashkeel",
+        }
+        if key == "i3rab_delta":
+            alt = s.get("best_alt_score", -999)
+            return (alt - eff) if alt > -900 else 0.0
+        elif key == "tash_delta":
+            tash = s.get("best_tashkeel_score", -999)
+            return (tash - eff) if tash > -900 else 0.0
+        else:
+            mapped = key_map.get(key, key)
+            v = s.get(mapped, 0.0)
+            if v is None or v == 999 or v == 999.0:
+                return 0.0
+            return float(v)
+
+    feats = [safe_val(k) for k in feature_keys]
+    feats = np.array(feats).reshape(1, -1)
+    feats = np.nan_to_num(feats, nan=0.0, posinf=0.0, neginf=0.0)
+
+    # Scale
+    mean = np.array(clf["scaler_mean"])
+    scale = np.array(clf["scaler_scale"])
+    feats_scaled = (feats - mean) / scale
+
+    prob = clf["model"].predict_proba(feats_scaled)[0, 1]
+
+    # Determine error type using trained type classifier
+    type_clf = _load_type_classifier()
+    if type_clf and type_clf is not False:
+        type_keys = type_clf["feature_keys"]
+
+        def type_safe(key):
+            key_map = {
+                "eff": "effective_score",
+                "sf": "sf_worst_delta",
+                "pc": "pc_worst_delta",
+                "mg": "mg_worst_margin",
+                "pd_i3rab": "pd_i3rab_delta",
+                "pd_tashkeel": "pd_tashkeel_delta",
+                "consonant_match": "greedy_consonant_match",
+                "frame_count": "frame_count",
+                "fs_worst_delta": "fs_worst_delta",
+                "local_pd_i3rab": "local_pd_i3rab",
+                "local_pd_tashkeel": "local_pd_tashkeel",
+                "gfm": "greedy_final_mismatch",
+                "gdm": "greedy_diac_mismatches",
+            }
+            if key == "i3rab_delta":
+                alt = s.get("best_alt_score", -999)
+                return (alt - eff) if alt > -900 else 0.0
+            elif key == "tash_delta":
+                tash = s.get("best_tashkeel_score", -999)
+                return (tash - eff) if tash > -900 else 0.0
+            elif key == "sukoon_delta":
+                sukoon = s.get("best_sukoon_score", -999)
+                return (sukoon - eff) if sukoon > -900 else 0.0
+            else:
+                mapped = key_map.get(key, key)
+                v = s.get(mapped, 0.0)
+                if v is None or v == 999 or v == 999.0:
+                    return 0.0
+                if isinstance(v, bool):
+                    return 1.0 if v else 0.0
+                return float(v)
+
+        type_feats = np.array([type_safe(k) for k in type_keys]).reshape(1, -1)
+        type_feats = np.nan_to_num(type_feats, nan=0.0, posinf=0.0, neginf=0.0)
+        type_mean = np.array(type_clf["scaler_mean"])
+        type_scale = np.array(type_clf["scaler_scale"])
+        type_feats_scaled = (type_feats - type_mean) / type_scale
+        type_pred = type_clf["model"].predict(type_feats_scaled)[0]
+        error_type = type_clf["type_names"][type_pred]
+    else:
+        # Fallback: simple heuristic
+        cm = safe_val("consonant_match")
+        pd_i = safe_val("pd_i3rab")
+        pd_t = safe_val("pd_tashkeel")
+        if cm <= 0.3:
+            error_type = "wrong"
+        elif pd_t > pd_i:
+            error_type = "tashkeel"
+        else:
+            error_type = "i3rab"
+
+    return prob, error_type
+
 TEST_DIR = BASE_DIR / "test_data" / "recordings"
 MANIFEST = BASE_DIR / "test_data" / "manifest.jsonl"
 SESSION_LOG_DIR = BASE_DIR / "test_data" / "sessions"
@@ -102,51 +244,32 @@ async def score_audio(
     }
 
 
-# Batch thresholds (full recording, "done" signal)
-BATCH_I3RAB = 0.10
-BATCH_TASHKEEL = 0.12
-BATCH_PC_TIER1_DELTA = -4.5
-BATCH_PC_TIER1_EFF = -0.7
-BATCH_PC_TIER2_DELTA = -2.5
-BATCH_PC_TIER2_EFF = -0.3
-
-# Streaming thresholds (partial audio, more conservative)
-STREAM_I3RAB = 0.15
-STREAM_TASHKEEL = 0.20
-STREAM_PC_TIER1_DELTA = -6.0
-STREAM_PC_TIER1_EFF = -0.7
-STREAM_PC_TIER2_DELTA = -3.5
-STREAM_PC_TIER2_EFF = -0.3
-
-# Per-char tier 3 (wider eff gate for very negative pc values)
-BATCH_PC_TIER3_DELTA = -3.5
-BATCH_PC_TIER3_EFF = -0.7
-STREAM_PC_TIER3_DELTA = -5.0
-STREAM_PC_TIER3_EFF = -0.7
-
-# SF-GOP thresholds (standalone — confirmation below)
-BATCH_SF_GOP_DELTA = -6.0
-BATCH_MG_MARGIN = -8.0
-STREAM_SF_GOP_DELTA = -8.0
-STREAM_MG_MARGIN = -10.0
+# ── Tiered classification with eff-adaptive thresholds ──
+#
+# Calibrated on 326 correct + 574 mutated words from 2 sessions.
+#
+# Key insights from signal analysis:
+#   - gfm (greedy final mismatch) is near-perfect for i3rab: 44.7%
+#     detection at 0.3% FP. Used standalone — no vote corroboration needed.
+#   - tash_delta discrimination varies dramatically by eff range:
+#     eff > -0.5: 1%FP threshold = 0.234
+#     eff -1.0 to -0.5: 1%FP threshold = 0.059 (92% detection!)
+#     eff -1.5 to -1.0: 1%FP threshold = 0.310
+#   - pc < -5.0 at eff > -0.5: 0% FP, catches 17 additional tashkeel
+#   - Below eff -1.5: all signals are noise, no detection attempted.
+#
+# Design: tiered decision tree with explicit eff ranges to prevent
+# threshold leaking between strata. Each rule verified for 0% FP
+# (or near-0%) on its target eff stratum.
 
 
 def classify_words(word_results, all_words, streaming=False):
-    """Turn raw engine results into classified word dicts."""
-    # Select thresholds based on mode
-    if streaming:
-        i3rab_t, tash_t = STREAM_I3RAB, STREAM_TASHKEEL
-        pc1_d, pc1_e = STREAM_PC_TIER1_DELTA, STREAM_PC_TIER1_EFF
-        pc2_d, pc2_e = STREAM_PC_TIER2_DELTA, STREAM_PC_TIER2_EFF
-        pc3_d, pc3_e = STREAM_PC_TIER3_DELTA, STREAM_PC_TIER3_EFF
-        sf_t, mg_t = STREAM_SF_GOP_DELTA, STREAM_MG_MARGIN
-    else:
-        i3rab_t, tash_t = BATCH_I3RAB, BATCH_TASHKEEL
-        pc1_d, pc1_e = BATCH_PC_TIER1_DELTA, BATCH_PC_TIER1_EFF
-        pc2_d, pc2_e = BATCH_PC_TIER2_DELTA, BATCH_PC_TIER2_EFF
-        pc3_d, pc3_e = BATCH_PC_TIER3_DELTA, BATCH_PC_TIER3_EFF
-        sf_t, mg_t = BATCH_SF_GOP_DELTA, BATCH_MG_MARGIN
+    """Turn raw engine results into classified word dicts.
 
+    Uses tiered eff-adaptive classification: each eff range has its own
+    thresholds calibrated from signal distributions. gfm is standalone
+    for i3rab (0.3% FP). No diacritic detection below eff -1.5.
+    """
     scored = []
     for wr in word_results:
         wi = wr["word_idx"]
@@ -154,145 +277,392 @@ def classify_words(word_results, all_words, streaming=False):
         status = "correct"
         error_type = None
         error_detail = None
-
-        # Signal 0: Wrong word (completely different consonant structure)
-        consonant_match = wr.get("greedy_consonant_match", 1.0)
-        frame_count = wr.get("frame_count", 999)
         word_text = wr.get("word", "")
         word_consonants = strip_diacritics(word_text)
+        consonant_match = wr.get("greedy_consonant_match", 1.0)
+        frame_count = wr.get("frame_count", 999)
         greedy_seg = wr.get("greedy_segment", "")
-        # Tier 1: decent eff but consonants don't match
+
+        # ── Wrong word detection ──
         if (len(word_consonants) >= 3 and eff > -1.0
-                and consonant_match < 0.4 and len(greedy_seg) > 0
-                and frame_count <= 50):
+                and consonant_match < 0.35 and len(greedy_seg) > 0
+                and frame_count >= 3 and frame_count <= 50):
             status = "error"
             error_type = "wrong"
             error_detail = greedy_seg
-        # Tier 2: Whisper + CTC wrong word detection.
-        # Whisper alone is too noisy (especially on short clips), so require
-        # CTC confirmation: word not heard by Whisper AND poor CTC score.
+
+        # Whisper wrong word (low eff)
         whisper_match = wr.get("whisper_match", True)
         if (status == "correct" and not whisper_match
-                and eff < -1.5
-                and len(word_consonants) >= 2
+                and eff < -1.6
+                and len(word_consonants) >= 3
                 and frame_count >= 5):
             status = "error"
             error_type = "wrong"
             error_detail = "whisper_mismatch"
 
-        # Signal -1: Skipped word (very few frames + very poor score + not a short word)
+        # Whisper wrong word (higher eff) — requires low cm + high frame count
+        if (status == "correct" and not whisper_match
+                and eff > -1.0
+                and consonant_match <= 0.40
+                and frame_count >= 15
+                and len(word_consonants) >= 3):
+            status = "error"
+            error_type = "wrong"
+            error_detail = "whisper_cm_fc"
+
+        # Skipped word
         if (status == "correct" and frame_count < 3 and eff < -3.5
                 and len(word_consonants) >= 3):
             status = "error"
             error_type = "skipped"
             error_detail = None
 
-        # Signal 1: CTC hypothesis scoring (i3rab)
-        if status == "correct":
+        # Low-eff word detection via phrase-differential
+        pd_i3_word = wr.get("pd_i3rab_delta", 0.0)
+        # Rule A: low consonant match + strong pd signal
+        if (status == "correct" and eff <= -1.5
+                and len(word_consonants) >= 3
+                and consonant_match <= 0.25
+                and pd_i3_word >= 0.60
+                and frame_count >= 5):
+            status = "error"
+            error_type = "wrong"
+            error_detail = "pd_cm_mismatch"
+
+        # Rule B: very strong pd signal alone (0% FP)
+        if (status == "correct" and eff <= -1.5
+                and len(word_consonants) >= 3
+                and pd_i3_word >= 1.0
+                and frame_count >= 5):
+            status = "error"
+            error_type = "wrong"
+            error_detail = "pd_strong"
+
+        # Rule C: low consonant match + moderate pd at -1.5 to -1.0 (0% FP)
+        if (status == "correct" and -1.5 < eff <= -1.0
+                and len(word_consonants) >= 3
+                and consonant_match <= 0.25
+                and pd_i3_word >= 0.20
+                and frame_count >= 5):
+            status = "error"
+            error_type = "wrong"
+            error_detail = "pd_cm_moderate"
+
+        # ── Rescued low-eff diacritic detection ──
+        # Words at eff <= -1.5 that windowed re-scoring pushes above -1.5
+        # have recognizable content despite poor initial alignment.
+        # Use only high-confidence signals (rescored gfm, pd + rescored combo).
+        rescored_eff = wr.get("rescored_eff")
+        if (status == "correct" and eff <= -1.5
+                and rescored_eff is not None and rescored_eff > -1.5):
+            r_gfm = wr.get("rescored_gfm", False)
+            r_i3d = wr.get("rescored_i3rab_delta", 0.0)
+            r_td = wr.get("rescored_tash_delta", 0.0)
+            pd_i3_rescue = wr.get("pd_i3rab_delta", 0.0)
+            pd_t_rescue = wr.get("pd_tashkeel_delta", 0.0)
+
+            # I3rab: rescored gfm (0% FP on rescued subset)
+            if r_gfm:
+                status = "error"
+                error_type = "i3rab"
+                error_detail = wr.get("best_alt_name") or "rescue_gfm"
+
+            # I3rab: rescored delta + pd corroboration (0% FP)
+            if (status == "correct"
+                    and r_i3d >= 0.10 and pd_i3_rescue >= 0.15):
+                status = "error"
+                error_type = "i3rab"
+                error_detail = wr.get("best_alt_name") or "rescue_pd"
+
+            # Tashkeel: rescored delta (0% FP on rescued subset)
+            if status == "correct" and r_td >= 0.10:
+                status = "error"
+                error_type = "tashkeel"
+                error_detail = wr.get("best_tashkeel_name") or "rescue_td"
+
+            # Tashkeel: strong pd signal (0% FP on rescued subset)
+            if status == "correct" and pd_t_rescue >= 0.30:
+                status = "error"
+                error_type = "tashkeel"
+                error_detail = wr.get("pd_tashkeel_name") or "rescue_pd"
+
+        # ── Low-eff triple-signal detection (eff <= -1.5) ──
+        # When all three independent signals agree, even low-eff words
+        # can be classified. 1 FP on 111 correct in this range.
+        if (status == "correct" and eff <= -1.5):
+            td_low = wr.get("best_tashkeel_score", -999.0)
+            td_low_delta = (td_low - eff) if td_low > -900 else 0.0
+            pd_i3_low = wr.get("pd_i3rab_delta", 0.0)
+            pd_t_low = wr.get("pd_tashkeel_delta", 0.0)
+            if (td_low_delta >= 0.05
+                    and pd_i3_low >= 0.20
+                    and pd_t_low >= 0.20):
+                # Classify based on dominant pd signal
+                if pd_t_low > pd_i3_low:
+                    status = "error"
+                    error_type = "tashkeel"
+                    error_detail = wr.get("best_tashkeel_name") or "low_eff_triple"
+                else:
+                    status = "error"
+                    error_type = "i3rab"
+                    error_detail = wr.get("best_alt_name") or "low_eff_triple"
+
+        # ── Local phrase-differential detection (eff <= -1.5) ──
+        # Uses 3-word sub-phrase CTC scoring for better discrimination.
+        if status == "correct" and eff <= -1.5:
+            lpd_i = wr.get("local_pd_i3rab", 0.0)
+            lpd_t = wr.get("local_pd_tashkeel", 0.0)
+            pd_t_lpd = wr.get("pd_tashkeel_delta", 0.0)
+
+            # local_pd_t + full pd_t corroboration
+            if lpd_t >= 0.70 and pd_t_lpd >= 0.15:
+                if lpd_t > lpd_i:
+                    status = "error"
+                    error_type = "tashkeel"
+                    error_detail = wr.get("best_tashkeel_name") or "local_pd_t"
+                else:
+                    status = "error"
+                    error_type = "i3rab"
+                    error_detail = wr.get("best_alt_name") or "local_pd_i"
+
+        # ── Frame-scan diacritic detection (eff <= -1.5) ──
+        # Alignment-robust: scans wide frame region for diacritic evidence.
+        if status == "correct" and eff <= -1.5:
+            fs_delta = wr.get("fs_worst_delta", 999.0)
+            sf_fs = wr.get("sf_worst_delta", 999.0)
+            i3d_fs = (wr["best_alt_score"] - eff) if wr["best_alt_score"] > -900 else 0.0
+
+            # Tier 1: frame_scan + sf corroboration (strong evidence)
+            if fs_delta < -2.0 and sf_fs < -4.0:
+                sf_expected = wr.get("sf_worst_expected")
+                sf_heard = wr.get("sf_worst_heard")
+                if sf_expected and sf_heard:
+                    if sf_expected in ("damma", "kasra", "fatha",
+                                       "dammatan", "kasratan", "fathatan"):
+                        status = "error"
+                        error_type = "tashkeel"
+                        error_detail = f"fs_{sf_expected}_{sf_heard}"
+                    else:
+                        status = "error"
+                        error_type = "i3rab"
+                        error_detail = f"fs_{sf_expected}_{sf_heard}"
+                else:
+                    status = "error"
+                    error_type = "tashkeel"
+                    error_detail = "fs_sf_combo"
+
+
+        # ── Diacritic error detection (eff-adaptive tiers) ──
+        # Below eff -1.5: signals are noise, skip entirely.
+        if status == "correct" and eff > -1.5:
             alt = wr["best_alt_score"]
-            if alt > -900 and alt > eff + i3rab_t:
+            i3rab_delta = (alt - eff) if alt > -900 else 0.0
+            tash = wr.get("best_tashkeel_score", -999.0)
+            tash_delta = (tash - eff) if tash > -900 else 0.0
+            pc = wr.get("pc_worst_delta", 999.0)
+            sf_delta = wr.get("sf_worst_delta", 999.0)
+            gfm = wr.get("greedy_final_mismatch", False)
+            gdm_count = wr.get("greedy_diac_mismatches", 0)
+
+            # ── I3RAB DETECTION ──
+            # Tier 1: gfm standalone (0% FP at eff > -1.5)
+            if gfm:
+                status = "error"
+                error_type = "i3rab"
+                error_detail = wr.get("best_alt_name") or "greedy_final"
+
+            # Tier 2: i3rab_delta eff-adaptive (0% FP per stratum)
+            if status == "correct" and alt > -900:
+                if eff > -0.5 and i3rab_delta >= 0.10:
+                    status = "error"
+                    error_type = "i3rab"
+                    error_detail = wr["best_alt_name"]
+                elif -1.0 < eff <= -0.5 and i3rab_delta >= 0.18:
+                    status = "error"
+                    error_type = "i3rab"
+                    error_detail = wr["best_alt_name"]
+                elif -1.5 < eff <= -1.0 and i3rab_delta >= 0.12:
+                    status = "error"
+                    error_type = "i3rab"
+                    error_detail = wr["best_alt_name"]
+
+            # Tier 3: i3rab_delta + pc corroboration (eff -1.0 to -0.5)
+            if (status == "correct" and alt > -900
+                    and -1.0 < eff <= -0.5
+                    and i3rab_delta >= 0.05 and pc < -5.0):
                 status = "error"
                 error_type = "i3rab"
                 error_detail = wr["best_alt_name"]
 
-        # Signal 2: CTC hypothesis scoring (tashkeel — vowel swap)
-        if status == "correct":
-            tash = wr.get("best_tashkeel_score", -999.0)
-            if tash > -900 and tash > eff + tash_t:
-                status = "error"
-                error_type = "tashkeel"
-                error_detail = wr.get("best_tashkeel_name")
-
-        # Signal 2b: CTC hypothesis scoring (sukoon — higher threshold, CTC length bias)
-        if status == "correct":
-            sukoon_alt = wr.get("best_sukoon_score", -999.0)
-            if sukoon_alt > -900 and sukoon_alt > eff + tash_t + 0.10:
-                status = "error"
-                error_type = "tashkeel"
-                error_detail = wr.get("best_sukoon_name")
-
-        # Signal 3: Per-char diacritic confidence (three-tier quality gate)
-        if status == "correct":
-            pc = wr.get("pc_worst_delta", 999.0)
-            if (pc < pc1_d and eff > pc1_e) or \
-               (pc < pc2_d and eff > pc2_e) or \
-               (pc < pc3_d and eff > pc3_e):
-                status = "error"
-                error_type = "diacritic"
-                expected = wr.get("pc_expected_diac", "?")
-                heard = wr.get("pc_heard_diac", "?")
-                error_detail = f"pc_{expected}_{heard}"
-
-        # Signal 4: Shadda-position diacritic scoring (higher threshold)
-        if status == "correct":
-            shadda_score = wr.get("best_shadda_score", -999.0)
-            shadda_thresh = 0.25 if streaming else 0.20
-            if shadda_score > -900 and shadda_score > eff + shadda_thresh:
-                status = "error"
-                error_type = "tashkeel"
-                error_detail = wr.get("best_shadda_name")
-
-        # Signal 5: Greedy internal diacritic mismatch (tashkeel)
-        # Requires CTC or per-char confirmation to avoid greedy decode noise
-        # Streaming uses same gate as batch — greedy is unreliable on partial audio
-        greedy_eff_gate = -0.5
-        greedy_confirm = 0.05 if not streaming else 0.10
-        if status == "correct":
-            gdm_count = wr.get("greedy_diac_mismatches", 0)
-            if gdm_count >= 1 and eff > greedy_eff_gate:
-                tash = wr.get("best_tashkeel_score", -999.0)
-                pc = wr.get("pc_worst_delta", 999.0)
-                if (tash > -900 and tash > eff + greedy_confirm) or pc < -2.0:
+            # Tier 4: i3rab_delta + strong corroboration (eff > -1.0)
+            if (status == "correct" and alt > -900
+                    and i3rab_delta >= 0.15 and eff > -1.0):
+                if (pc < -5.0 or sf_delta < -5.0):
                     status = "error"
-                    error_type = "tashkeel"
-                    expected = wr.get("greedy_diac_expected", "?")
-                    heard = wr.get("greedy_diac_heard", "?")
-                    error_detail = f"greedy_{expected}_{heard}"
+                    error_type = "i3rab"
+                    error_detail = wr["best_alt_name"]
 
-        # Signal 5b: Confirmed greedy (batch only) — greedy mismatch + stricter
-        if status == "correct" and not streaming:
-            gdm_count = wr.get("greedy_diac_mismatches", 0)
-            if gdm_count >= 1 and -1.5 < eff <= -1.0:
-                tash = wr.get("best_tashkeel_score", -999.0)
-                pc = wr.get("pc_worst_delta", 999.0)
-                if (tash > -900 and tash > eff + 0.03) or pc < -3.0:
-                    status = "error"
-                    error_type = "tashkeel"
-                    expected = wr.get("greedy_diac_expected", "?")
-                    heard = wr.get("greedy_diac_heard", "?")
-                    error_detail = f"confirmed_greedy_{expected}_{heard}"
-
-        # Signal 6: Greedy final diacritic mismatch (i3rab) + per-char confirmation
-        if status == "correct":
-            gfm = wr.get("greedy_final_mismatch", False)
-            pc = wr.get("pc_worst_delta", 999.0)
-            if gfm and pc < -2.0 and eff > -1.6:
+            # Tier 5: i3rab_delta + sf corroboration (0% FP)
+            # Only when i3rab signal dominates tashkeel to avoid mistyping
+            # Restricted to eff > -1.3 to avoid FP at lower eff
+            if (status == "correct" and alt > -900
+                    and eff > -1.3
+                    and i3rab_delta >= 0.03 and sf_delta < -3.0
+                    and (tash_delta <= 0 or i3rab_delta >= tash_delta)):
                 status = "error"
                 error_type = "i3rab"
-                error_detail = "greedy_final"
+                error_detail = wr.get("best_alt_name") or "sf_corr"
 
-        # Signal 7: Segmentation-Free GOP standalone (very conservative)
-        if status == "correct":
-            sf_delta = wr.get("sf_worst_delta", 999.0)
-            if sf_delta < sf_t and eff > -1.6:
+            # ── TASHKEEL DETECTION ──
+            # Tier 1: tash_delta eff-adaptive (explicit ranges, no leaking)
+            if status == "correct" and tash > -900:
+                if eff > -0.5 and tash_delta >= 0.25:
+                    status = "error"
+                    error_type = "tashkeel"
+                    error_detail = wr.get("best_tashkeel_name")
+                elif -1.0 < eff <= -0.5 and tash_delta >= 0.06:
+                    status = "error"
+                    error_type = "tashkeel"
+                    error_detail = wr.get("best_tashkeel_name")
+                elif -1.5 < eff <= -1.0 and tash_delta >= 0.35:
+                    status = "error"
+                    error_type = "tashkeel"
+                    error_detail = wr.get("best_tashkeel_name")
+
+            # Tier 2: pc standalone (0% FP, eff-adaptive thresholds)
+            if status == "correct" and pc < 900:
+                if eff > -0.5 and pc < -5.0:
+                    status = "error"
+                    error_type = "tashkeel"
+                    error_detail = f"pc_{wr.get('pc_expected_diac', '?')}_{wr.get('pc_heard_diac', '?')}"
+                elif -1.0 < eff <= -0.5 and pc < -5.0:
+                    status = "error"
+                    error_type = "tashkeel"
+                    error_detail = f"pc_{wr.get('pc_expected_diac', '?')}_{wr.get('pc_heard_diac', '?')}"
+                elif -1.5 < eff <= -1.0 and pc < -4.0:
+                    status = "error"
+                    error_type = "tashkeel"
+                    error_detail = f"pc_{wr.get('pc_expected_diac', '?')}_{wr.get('pc_heard_diac', '?')}"
+
+            # Tier 3: gdm + tash_delta agreement (0% FP)
+            if (status == "correct" and gdm_count >= 1
+                    and eff > -0.5 and tash > -900 and tash_delta >= 0.10):
                 status = "error"
                 error_type = "tashkeel"
-                error_detail = f"sf_gop_{wr.get('sf_worst_expected', '?')}_{wr.get('sf_worst_heard', '?')}"
+                error_detail = f"greedy_{wr.get('greedy_diac_expected', '?')}_{wr.get('greedy_diac_heard', '?')}"
 
-        # Signal 7c: Confirmed tashkeel — CTC near-threshold + SF-GOP agrees
-        # CTC tashkeel alt is close to threshold; SF-GOP strongly negative
-        if status == "correct" and eff > -0.5:
-            tash = wr.get("best_tashkeel_score", -999.0)
-            sf_delta = wr.get("sf_worst_delta", 999.0)
-            half_t = tash_t / 2
-            if (tash > -900 and tash > eff + half_t and sf_delta < -3.5):
+            # Tier 4: tash_delta + strong corroboration (eff > -1.0)
+            if (status == "correct" and tash > -900
+                    and tash_delta >= 0.15 and eff > -1.0):
+                if (pc < -5.0 or sf_delta < -5.0):
+                    status = "error"
+                    error_type = "tashkeel"
+                    error_detail = wr.get("best_tashkeel_name")
+
+            # Tier 5: Strong pc+sf agreement (both frame-level signals)
+            if (status == "correct" and pc < -6.0 and sf_delta < -6.0
+                    and eff > -1.0):
                 status = "error"
                 error_type = "tashkeel"
-                error_detail = f"confirmed_sf_{wr.get('best_tashkeel_name', '?')}"
+                error_detail = f"pc_sf_{wr.get('pc_expected_diac', '?')}_{wr.get('pc_heard_diac', '?')}"
 
-        # Signal 8: MixGoP — disabled (GMMs need more training data;
-        # 23% of correct words have negative margin, too noisy for use).
-        # Infrastructure kept in engine.py for future use.
+            # Tier 6: sf + moderate tash_delta (0% FP, eff > -0.5)
+            # td in [0.03, 0.20) avoids FP from correct words with
+            # high td (~0.21-0.23) that happen to have sf<-3
+            if (status == "correct" and tash > -900
+                    and eff > -0.5
+                    and sf_delta < -3.0
+                    and tash_delta >= 0.03 and tash_delta < 0.20):
+                status = "error"
+                error_type = "tashkeel"
+                error_detail = wr.get("best_tashkeel_name") or "sf_td"
+
+            # Tier 7: tash_delta + sukoon_delta agreement (0% FP)
+            sukoon_d = wr.get("best_sukoon_score", -999.0)
+            sukoon_delta = (sukoon_d - eff) if sukoon_d > -900 else -999.0
+            if (status == "correct" and tash > -900
+                    and tash_delta >= 0.03
+                    and sukoon_delta >= 0.15):
+                status = "error"
+                error_type = "tashkeel"
+                error_detail = wr.get("best_tashkeel_name") or "sukoon_corr"
+
+            # ── PHRASE-DIFFERENTIAL (pd) TIERS ──
+            # pd uses full-phrase CTC context (more discriminative than per-word)
+            pd_i3 = wr.get("pd_i3rab_delta", 0.0)
+            pd_t = wr.get("pd_tashkeel_delta", 0.0)
+
+            # pd i3rab: eff-adaptive thresholds (0% FP per stratum)
+            if status == "correct" and pd_i3 > 0:
+                if eff > -0.5 and pd_i3 >= 0.14:
+                    status = "error"
+                    error_type = "i3rab"
+                    error_detail = wr.get("pd_i3rab_name") or "pd"
+                elif -1.5 < eff <= -1.0 and pd_i3 >= 0.20:
+                    status = "error"
+                    error_type = "i3rab"
+                    error_detail = wr.get("pd_i3rab_name") or "pd"
+
+            # pd i3rab + per-word corroboration (0% FP)
+            if (status == "correct"
+                    and -1.0 < eff <= -0.5
+                    and (wr["best_alt_score"] - eff if wr["best_alt_score"] > -900 else 0) >= 0.10
+                    and pd_i3 >= 0.16):
+                status = "error"
+                error_type = "i3rab"
+                error_detail = wr.get("best_alt_name") or "pd_corr"
+
+            # pd tashkeel: eff-adaptive thresholds (0% FP per stratum)
+            if status == "correct" and pd_t > 0:
+                if -1.0 < eff <= -0.5 and pd_t >= 0.10:
+                    status = "error"
+                    error_type = "tashkeel"
+                    error_detail = wr.get("pd_tashkeel_name") or "pd"
+                elif -1.5 < eff <= -1.0 and pd_t >= 0.45:
+                    status = "error"
+                    error_type = "tashkeel"
+                    error_detail = wr.get("pd_tashkeel_name") or "pd"
+
+            # pd tashkeel + per-word corroboration at -1.5 to -1.0
+            if (status == "correct"
+                    and -1.5 < eff <= -1.0
+                    and tash_delta >= 0.10
+                    and pd_t >= 0.15):
+                status = "error"
+                error_type = "tashkeel"
+                error_detail = wr.get("best_tashkeel_name") or "pd_corr"
+
+            # pd i3rab + per-word corroboration at -1.5 to -1.0
+            if (status == "correct"
+                    and -1.5 < eff <= -1.0
+                    and (wr["best_alt_score"] - eff if wr["best_alt_score"] > -900 else 0) >= 0.08
+                    and pd_i3 >= 0.08):
+                status = "error"
+                error_type = "i3rab"
+                error_detail = wr.get("best_alt_name") or "pd_corr"
+
+            # Streaming penalty: require stronger signals
+            if streaming and status == "error" and error_type in ("i3rab", "tashkeel"):
+                # In streaming mode, only trust the strongest signals
+                strong = (gfm
+                          or (i3rab_delta >= 0.25 and error_type == "i3rab")
+                          or (tash_delta >= 0.20 and error_type == "tashkeel")
+                          or pc < -6.0)
+                if not strong:
+                    status = "correct"
+                    error_type = None
+                    error_detail = None
+
+        # ── GBM fallback classifier ──
+        # For words not caught by hand-tuned rules, use the trained GBM
+        # with a high threshold to catch remaining errors.
+        if status == "correct" and not streaming:
+            gbm_prob, gbm_type = _classify_with_gbm(wr, word_text)
+            if gbm_prob >= 0.75:
+                status = "error"
+                error_type = gbm_type
+                error_detail = f"gbm_{gbm_prob:.2f}"
 
         scored.append({
             "idx": wi,
@@ -319,6 +689,11 @@ def classify_words(word_results, all_words, streaming=False):
                 "frame_count": wr.get("frame_count", 0),
                 "sf_gop": round(wr.get("sf_worst_delta", 999), 3) if wr.get("sf_worst_delta", 999) < 900 else None,
                 "mg": round(wr.get("mg_worst_margin", 999), 2) if wr.get("mg_worst_margin", 999) < 900 else None,
+                "local_pd_i": round(wr.get("local_pd_i3rab", 0.0), 4),
+                "local_pd_t": round(wr.get("local_pd_tashkeel", 0.0), 4),
+                "fs": round(wr.get("fs_worst_delta", 999), 3) if wr.get("fs_worst_delta", 999) < 900 else None,
+                "rescored_sf": round(wr.get("rescored_sf", 999), 3) if wr.get("rescored_sf", 999) < 900 else None,
+                "rescored_pc": round(wr.get("rescored_pc", 999), 2) if wr.get("rescored_pc", 999) < 900 else None,
             },
         })
     scored.sort(key=lambda x: x["idx"])

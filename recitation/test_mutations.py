@@ -238,7 +238,8 @@ def run_session(engine, passage_id, session_info):
     # Step 1: Score full audio against full text to get CTC alignment boundaries
     print(f"  Scoring full text ({len(all_words)} words, {len(audio)/SAMPLE_RATE:.1f}s)...")
     waveform = torch.from_numpy(audio)
-    word_results, greedy, full_score = engine.score_phrase(waveform, full_text)
+    word_results, greedy, full_score = engine.score_phrase(waveform, full_text,
+                                                              compute_pd=False)
 
     # Step 2: Extract per-phrase audio segments from CTC boundaries
     segments = _extract_phrase_segments(word_results, phrases, audio)

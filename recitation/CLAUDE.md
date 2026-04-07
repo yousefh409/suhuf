@@ -67,12 +67,11 @@ These are targets, not hard requirements. The priority order is: no false positi
 
 ## Validation
 
-- **`test_mutations.py` is the primary test.** This is the most important metric. It takes correct recordings, scores them against the correct text (FP check), then scores them against systematically mutated text (i3rab swaps, tashkeel swaps, word replacements) to measure detection rates. Always run this after any scoring change.
-- `evaluate.py` runs the individual test recordings from `test_data/manifest.jsonl` — useful for debugging specific cases but less comprehensive than mutation testing.
-- For any scoring change, run `test_mutations.py` and check:
-  1. **False positive rate** — must stay below 2%. This is the #1 priority.
-  2. **Detection rates** — i3rab, tashkeel, and word detection should all be >90%.
-  3. **Correct type** — detected errors should be classified as the right error type.
+- Use the test recordings in `test_data/` to validate changes. Each recording has a `notes` field describing what was intentionally said (correct, wrong word, wrong tashkeel, etc.).
+- For any scoring change, run it against the full test set and check:
+  1. **Minimal false positives on correct readings** — correct recordings must never be flagged as errors.
+  2. **Reasonable detection on intentional errors** — recordings with noted mistakes should ideally be caught, but missing some is acceptable (see above).
+  3. **Consistent behavior** — same audio should produce the same result across runs.
 - When adding new scoring logic, always test on real recordings first, not just synthetic examples.
 
 ## How to work

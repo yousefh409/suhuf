@@ -445,20 +445,20 @@ class RecitationEngine:
         if final_mark == SUKOON:
             skip_i3rab = True
 
-        # Skip when reader appears to have paused (waqf): sukoon form
-        # scored better than the canonical form. Per design rules, sukoon
-        # on the final letter is always acceptable, so we can't determine
-        # the reader's intended case ending from a paused reading.
-        if sukoon_score > expected_score:
+        # Skip when reader clearly paused (waqf): sukoon form scored
+        # *significantly* better than canonical. Require a margin to
+        # overcome CTC's systematic sukoon length bias (~0.05-0.30).
+        if sukoon_score > expected_score + 0.25:
             skip_i3rab = True
 
         # Skip for very short words (1-2 consonants) — too noisy
         if len(consonants_only) <= 2:
             skip_i3rab = True
 
-        # Quality gate: skip if alignment quality is poor
-        # (very low scores indicate bad alignment, not real errors)
-        if effective_score < -2.0:
+        # Quality gate: skip only for very poor alignment
+        # (relaxed from -2.0 — the model discriminates diacritics well
+        # even at moderate eff; per-frame signals handle quality internally)
+        if effective_score < -5.0:
             skip_i3rab = True
 
         best_alt_name = None
@@ -487,7 +487,7 @@ class RecitationEngine:
         # Same gates as i3rab
         if len(consonants_only) <= 2:
             skip_tashkeel = True
-        if effective_score < -2.0:
+        if effective_score < -5.0:
             skip_tashkeel = True
 
         if not skip_tashkeel:
@@ -582,13 +582,16 @@ class RecitationEngine:
             "best_shadda_score": best_shadda_score,
         }
 
-    def per_char_worst_delta(self, log_probs, char_spans):
+    def per_char_worst_delta(self, log_probs, char_spans, logits=None):
         """Per-character diacritic confidence: worst delta across a word.
+
+        Uses peak-frame selection (CTC models are peaky — discriminative
+        info is concentrated in 1-2 frames). Combines peak-frame and
+        averaged margins for robustness.
 
         For each diacritic in the forced-aligned char_spans, compares the
         model's log-prob for the expected diacritic vs the best alternative
         in the same group ({fatha,damma,kasra} or {fathatan,dammatan,kasratan}).
-        Also compares tanween vs its corresponding short vowel (missing-tanween).
 
         Returns dict:
           delta: most negative delta (999.0 = no diacritics found)
@@ -605,7 +608,7 @@ class RecitationEngine:
             if char not in _DIAC_SET:
                 continue
 
-            # Determine comparison group
+            # Determine comparison group + all IDs to check
             if char in _SHORT_VOWELS:
                 group = _SHORT_VOWELS
             elif char in _TANWEEN:
@@ -613,56 +616,191 @@ class RecitationEngine:
             else:
                 continue
 
-            # Widen window: include 2 context frames on each side (weighted)
-            context = 2
-            frame_indices = list(range(max(0, sf - context), min(ef + 1 + context, T)))
-            if not frame_indices:
+            group_ids = []
+            for g_ch in group:
+                gid = self.vocab.get(g_ch)
+                if gid is not None:
+                    group_ids.append((g_ch, gid))
+
+            # Also include tanween<->short vowel comparison
+            extra_ids = []
+            if char in _TANWEEN_TO_SHORT:
+                short_ch = _TANWEEN_TO_SHORT[char]
+                sid = self.vocab.get(short_ch)
+                if sid is not None:
+                    extra_ids.append((short_ch, sid))
+
+            all_compare = [(ch, gid) for ch, gid in group_ids if ch != char] + extra_ids
+            if not all_compare:
                 continue
 
+            # Widen window: 2 context frames on each side
+            context = 2
+            frame_start = max(0, sf - context)
+            frame_end = min(ef + 1 + context, T)
+            if frame_start >= frame_end:
+                continue
+
+            # Peak-frame selection: find the frame with maximum total
+            # diacritic energy (sum of log-probs for all diacritics in group).
+            # CTC models are "peaky" — the discriminative information is
+            # concentrated in 1-2 frames rather than spread evenly.
+            all_ids = [gid for _, gid in group_ids] + [gid for _, gid in extra_ids]
+            frame_range = range(frame_start, frame_end)
+            peak_frame = max(
+                frame_range,
+                key=lambda t: sum(float(log_probs[t, gid]) for gid in all_ids)
+            )
+
+            # Also compute weighted average as secondary signal
+            frame_indices = list(frame_range)
             weights = np.array([
                 1.0 if sf <= f <= ef else 0.5
                 for f in frame_indices
             ])
             weights /= weights.sum()
-            avg = (log_probs[frame_indices].numpy() * weights[:, None]).sum(axis=0)  # (V,)
-            exp_lp = float(avg[token_id])
+            avg = (log_probs[frame_indices].numpy() * weights[:, None]).sum(axis=0)
 
-            best_alt = -999.0
-            best_alt_char = None
-            for alt_ch in group:
-                if alt_ch == char:
-                    continue
-                aid = self.vocab.get(alt_ch)
-                if aid is not None and float(avg[aid]) > best_alt:
-                    best_alt = float(avg[aid])
-                    best_alt_char = alt_ch
+            # Use the BETTER of peak-frame margin and averaged margin
+            # Peak is more sensitive, average is more stable
+            exp_peak = float(log_probs[peak_frame, token_id])
+            exp_avg = float(avg[token_id])
 
-            # Tanween vs corresponding short vowel (detects missing tanween)
-            if char in _TANWEEN_TO_SHORT:
-                short_ch = _TANWEEN_TO_SHORT[char]
-                sid = self.vocab.get(short_ch)
-                if sid is not None and float(avg[sid]) > best_alt:
-                    best_alt = float(avg[sid])
-                    best_alt_char = short_ch
+            best_alt_peak = -999.0
+            best_alt_avg = -999.0
+            best_alt_char_peak = None
+            best_alt_char_avg = None
 
-            if best_alt > -900:
-                d = exp_lp - best_alt  # negative = alt is more likely
-                if d < worst:
-                    worst = d
-                    worst_expected = _DIAC_NAMES.get(char)
-                    worst_heard = _DIAC_NAMES.get(best_alt_char)
+            for alt_ch, aid in all_compare:
+                alt_peak = float(log_probs[peak_frame, aid])
+                alt_avg_val = float(avg[aid])
+                if alt_peak > best_alt_peak:
+                    best_alt_peak = alt_peak
+                    best_alt_char_peak = alt_ch
+                if alt_avg_val > best_alt_avg:
+                    best_alt_avg = alt_avg_val
+                    best_alt_char_avg = alt_ch
+
+            # Compute both deltas and use the more negative one (worst case)
+            d_peak = exp_peak - best_alt_peak if best_alt_peak > -900 else 999.0
+            d_avg = exp_avg - best_alt_avg if best_alt_avg > -900 else 999.0
+            d = min(d_peak, d_avg)
+            best_alt_char = best_alt_char_peak if d_peak <= d_avg else best_alt_char_avg
+
+            if d < worst:
+                worst = d
+                worst_expected = _DIAC_NAMES.get(char)
+                worst_heard = _DIAC_NAMES.get(best_alt_char)
 
         return {"delta": worst, "expected": worst_expected, "heard": worst_heard}
 
-    def sf_gop_diacritics(self, log_probs_segment, expected_word):
-        """Segmentation-Free GOP: per-diacritic CTC loss perturbation.
+    def frame_scan_diacritics(self, log_probs, word, sf, ef, T):
+        """Alignment-robust diacritic evidence scanning.
 
-        For each internal diacritic, replaces it with each alternative and
-        computes the CTC loss difference.  Considers ALL possible alignments
-        (no forced alignment needed).
+        Unlike per_char_worst_delta which relies on forced-aligned char_spans
+        (inaccurate at low eff), this scans a wide frame region for diacritic
+        evidence. For each diacritic in the word, finds the frame in the
+        region that most strongly supports (or contradicts) the expected
+        diacritic vs alternatives.
+
+        Returns dict with fs_worst_delta (most negative = most suspicious).
+        """
+        tokens = self.text_to_tokens(word)
+        if not tokens:
+            return {"fs_worst_delta": 999.0, "fs_expected": None, "fs_heard": None}
+
+        # Wide scan region: word frames ± 15 frames (~0.3s at 50fps)
+        margin = 15
+        scan_start = max(0, sf - margin)
+        scan_end = min(T, ef + margin + 1)
+
+        if scan_start >= scan_end:
+            return {"fs_worst_delta": 999.0, "fs_expected": None, "fs_heard": None}
+
+        worst_delta = 999.0
+        worst_expected = None
+        worst_heard = None
+
+        # Track which diacritic types we've seen to avoid double-counting
+        # the same diacritic type at multiple positions
+        seen_types = {}  # char -> best delta so far
+
+        for tok in tokens:
+            char = self.id2char.get(tok, '')
+            if char not in _DIAC_SET:
+                continue
+
+            if char in _SHORT_VOWELS:
+                group = _SHORT_VOWELS
+            elif char in _TANWEEN:
+                group = _TANWEEN
+            else:
+                continue
+
+            all_compare = []
+            for alt_ch in group:
+                if alt_ch == char:
+                    continue
+                alt_id = self.vocab.get(alt_ch)
+                if alt_id is not None:
+                    all_compare.append((alt_ch, alt_id))
+
+            if char in _TANWEEN_TO_SHORT:
+                short_ch = _TANWEEN_TO_SHORT[char]
+                sid = self.vocab.get(short_ch)
+                if sid is not None:
+                    all_compare.append((short_ch, sid))
+
+            if not all_compare:
+                continue
+
+            # Scan all frames: find the best evidence for correct diacritic
+            best_frame_delta = -999.0
+            best_frame_alt_char = None
+
+            for t in range(scan_start, scan_end):
+                exp_prob = float(log_probs[t, tok])
+                # Find best alternative at this frame
+                best_alt_prob = -999.0
+                best_alt_ch = None
+                for alt_ch, aid in all_compare:
+                    ap = float(log_probs[t, aid])
+                    if ap > best_alt_prob:
+                        best_alt_prob = ap
+                        best_alt_ch = alt_ch
+
+                delta = exp_prob - best_alt_prob
+                if delta > best_frame_delta:
+                    best_frame_delta = delta
+                    best_frame_alt_char = best_alt_ch
+
+            # For same diacritic type appearing multiple times, keep worst
+            if char in seen_types:
+                if best_frame_delta >= seen_types[char]:
+                    continue  # this position is better, keep the worse one
+            seen_types[char] = best_frame_delta
+
+            if best_frame_delta < worst_delta:
+                worst_delta = best_frame_delta
+                worst_expected = _DIAC_NAMES.get(char)
+                worst_heard = _DIAC_NAMES.get(best_frame_alt_char)
+
+        return {"fs_worst_delta": worst_delta,
+                "fs_expected": worst_expected, "fs_heard": worst_heard}
+
+    def sf_gop_diacritics(self, log_probs_segment, expected_word):
+        """Segmentation-Free GOP: per-diacritic posterior probability.
+
+        For each diacritic position, computes the proper posterior via
+        logsumexp over all alternatives: P(correct | audio) =
+        exp(CTC(correct)) / sum(exp(CTC(alt)) for all alt).
+
+        Uses the log-posterior as the score (closer to 0 = more confident,
+        closer to -inf = wrong diacritic). The worst (most negative)
+        posterior across all positions is reported.
 
         Returns dict:
-          sf_worst_delta: most negative delta (999.0 = no diacritics)
+          sf_worst_delta: worst log-posterior (999.0 = no diacritics)
           sf_worst_expected: diacritic name at worst position
           sf_worst_heard: best alternative diacritic name
         """
@@ -695,7 +833,10 @@ class RecitationEngine:
             else:
                 continue
 
-            best_alt_delta = 999.0
+            # Score all alternatives at this position
+            all_scores = [canonical_score]  # canonical is first
+            all_chars = [char]
+            best_alt_score = -1e9
             best_alt_char = None
 
             for alt_ch in group:
@@ -708,10 +849,11 @@ class RecitationEngine:
                 perturbed[ti] = alt_id
                 if T < len(perturbed):
                     continue
-                perturbed_score = self.ctc_log_prob(log_probs_segment, perturbed)
-                delta = canonical_score - perturbed_score
-                if delta < best_alt_delta:
-                    best_alt_delta = delta
+                s = self.ctc_log_prob(log_probs_segment, perturbed)
+                all_scores.append(s)
+                all_chars.append(alt_ch)
+                if s > best_alt_score:
+                    best_alt_score = s
                     best_alt_char = alt_ch
 
             # Also compare tanween vs corresponding short vowel
@@ -722,14 +864,32 @@ class RecitationEngine:
                     perturbed = list(tokens)
                     perturbed[ti] = short_id
                     if T >= len(perturbed):
-                        perturbed_score = self.ctc_log_prob(log_probs_segment, perturbed)
-                        delta = canonical_score - perturbed_score
-                        if delta < best_alt_delta:
-                            best_alt_delta = delta
+                        s = self.ctc_log_prob(log_probs_segment, perturbed)
+                        all_scores.append(s)
+                        all_chars.append(short_ch)
+                        if s > best_alt_score:
+                            best_alt_score = s
                             best_alt_char = short_ch
 
-            if best_alt_delta < worst_delta:
-                worst_delta = best_alt_delta
+            if len(all_scores) < 2:
+                continue
+
+            # Compute log-posterior: log(P(canonical | audio)) =
+            # canonical_score - logsumexp(all_scores)
+            # This is always <= 0; closer to 0 = more confident
+            log_denom = float(torch.logsumexp(
+                torch.tensor(all_scores, dtype=torch.float64), dim=0))
+            log_posterior = canonical_score - log_denom
+
+            # Also compute simple delta (canonical - best_alt) for
+            # backward compatibility with threshold logic
+            simple_delta = canonical_score - best_alt_score if best_alt_score > -1e8 else 999.0
+
+            # Use whichever is more informative (more negative = worse)
+            delta = min(simple_delta, log_posterior)
+
+            if delta < worst_delta:
+                worst_delta = delta
                 worst_expected = _DIAC_NAMES.get(char)
                 worst_heard = _DIAC_NAMES.get(best_alt_char)
 
@@ -912,12 +1072,13 @@ class RecitationEngine:
     # Full phrase scoring
     # ------------------------------------------------------------------
     def _enrich_assessment(self, assessment, word, log_probs,
-                           char_spans, sf, ef, T, hidden_states=None):
+                           char_spans, sf, ef, T,
+                           hidden_states=None, logits=None):
         """Add all per-word scoring signals to an assessment dict."""
         segment_lp = log_probs[max(0, sf - 2): min(T, ef + 3)]
 
-        # Per-char worst delta (existing)
-        pc = self.per_char_worst_delta(log_probs, char_spans)
+        # Per-char worst delta — use raw logits for better discrimination
+        pc = self.per_char_worst_delta(log_probs, char_spans, logits=logits)
         assessment["pc_worst_delta"] = pc["delta"]
         assessment["pc_expected_diac"] = pc["expected"]
         assessment["pc_heard_diac"] = pc["heard"]
@@ -945,8 +1106,316 @@ class RecitationEngine:
             assessment["mg_worst_expected"] = mg["mg_worst_expected"]
             assessment["mg_worst_heard"] = mg["mg_worst_heard"]
 
-    def score_phrase(self, waveform, phrase_text):
+        # Frame scan diacritics (alignment-robust)
+        fs = self.frame_scan_diacritics(log_probs, word, sf, ef, T)
+        assessment["fs_worst_delta"] = fs["fs_worst_delta"]
+        assessment["fs_expected"] = fs["fs_expected"]
+        assessment["fs_heard"] = fs["fs_heard"]
+
+    def _phrase_differential(self, log_probs, phrase_text, words, T,
+                              word_bounds=None):
+        """Score each word's alternatives at phrase level.
+
+        Instead of scoring alternatives against an isolated word segment,
+        this scores the FULL PHRASE with each word's alternative swapped in.
+        The raw CTC delta is normalized by the word's frame count (not the
+        phrase's frame count) so the signal is comparable to per-word scores.
+
+        Returns dict mapping word_idx -> {pd_i3rab_delta, pd_tashkeel_delta, ...}
+        """
+        phrase_tokens = self.text_to_tokens(phrase_text)
+        base_score = self.ctc_log_prob(log_probs, phrase_tokens)
+
+        # Build word_idx -> frame_count map for normalization
+        word_frames = {}
+        if word_bounds:
+            for wb in word_bounds:
+                wi = wb["word_idx"]
+                word_frames[wi] = max(1, wb["end_frame"] - wb["start_frame"] + 1)
+
+        results = {}
+        for wi, word in enumerate(words):
+            consonants = strip_diacritics(word)
+            pd = {
+                "pd_i3rab_delta": 0.0,
+                "pd_i3rab_name": None,
+                "pd_tashkeel_delta": 0.0,
+                "pd_tashkeel_name": None,
+            }
+
+            if len(consonants) <= 2:
+                results[wi] = pd
+                continue
+
+            # Normalize delta by word frame count (or T/n_words as fallback)
+            wf = word_frames.get(wi, max(1, T // max(1, len(words))))
+
+            # I3rab alternatives
+            final_mark, _ = get_final_diacritic(word)
+            if final_mark != SUKOON:
+                i3rab_alts = generate_i3rab_alternatives(word)
+                for name, alt_word in i3rab_alts.items():
+                    if name == "sukoon":
+                        continue
+                    alt_words = list(words)
+                    alt_words[wi] = alt_word
+                    alt_text = " ".join(alt_words)
+                    alt_tokens = self.text_to_tokens(alt_text)
+                    if T < len(alt_tokens):
+                        continue
+                    alt_s = self.ctc_log_prob(log_probs, alt_tokens)
+                    delta = (alt_s - base_score) / wf
+                    if delta > pd["pd_i3rab_delta"]:
+                        pd["pd_i3rab_delta"] = delta
+                        pd["pd_i3rab_name"] = name
+
+            # Tashkeel alternatives
+            tashkeel_alts = generate_tashkeel_alternatives(word)
+            for name, alt_word in tashkeel_alts.items():
+                if 'sukoon' in name:
+                    continue
+                alt_words = list(words)
+                alt_words[wi] = alt_word
+                alt_text = " ".join(alt_words)
+                alt_tokens = self.text_to_tokens(alt_text)
+                if T < len(alt_tokens):
+                    continue
+                alt_s = self.ctc_log_prob(log_probs, alt_tokens)
+                delta = (alt_s - base_score) / wf
+                if delta > pd["pd_tashkeel_delta"]:
+                    pd["pd_tashkeel_delta"] = delta
+                    pd["pd_tashkeel_name"] = name
+
+            results[wi] = pd
+
+        return results
+
+    def _local_pd(self, log_probs, words, word_bounds, T):
+        """Local phrase-differential for low-eff words.
+
+        For each word with eff < -1.5, builds a 3-word sub-phrase and
+        computes pd within that local context. The shorter CTC lattice
+        is more sensitive to diacritic changes than the full phrase.
+
+        Returns dict mapping word_idx -> {local_pd_i3rab, local_pd_tashkeel}
+        """
+        results = {}
+        n = len(word_bounds)
+        for i, wb in enumerate(word_bounds):
+            wi = wb["word_idx"]
+            if wi >= len(words):
+                continue
+
+            sf, ef = wb["start_frame"], wb["end_frame"]
+            seg = log_probs[max(0, sf - 2) : min(T, ef + 3)]
+            quick_eff = self.score_hypothesis(seg, words[wi])
+            if quick_eff > -1.5:
+                continue
+
+            consonants = strip_diacritics(words[wi])
+            if len(consonants) <= 2:
+                continue
+
+            # Build 3-word sub-phrase with generous audio window
+            prev_idx = i - 1 if i > 0 else None
+            next_idx = i + 1 if i < n - 1 else None
+
+            win_sf = sf
+            win_ef = ef
+            sub_words = []
+            target_idx_in_sub = 0
+
+            if prev_idx is not None:
+                win_sf = min(win_sf, word_bounds[prev_idx]["start_frame"])
+                sub_words.append(words[word_bounds[prev_idx]["word_idx"]])
+                target_idx_in_sub = 1
+
+            sub_words.append(words[wi])
+
+            if next_idx is not None:
+                win_ef = max(win_ef, word_bounds[next_idx]["end_frame"])
+                sub_words.append(words[word_bounds[next_idx]["word_idx"]])
+
+            margin = 15
+            win_sf = max(0, win_sf - margin)
+            win_ef = min(T - 1, win_ef + margin)
+
+            sub_text = " ".join(sub_words)
+            sub_tokens = self.text_to_tokens(sub_text)
+            win_lp = log_probs[win_sf : win_ef + 1]
+            T_win = win_lp.shape[0]
+
+            if T_win < len(sub_tokens) + 2:
+                continue
+
+            base_score = self.ctc_log_prob(win_lp, sub_tokens)
+            wf = max(1, ef - sf + 1)
+
+            lpd = {"local_pd_i3rab": 0.0, "local_pd_tashkeel": 0.0}
+
+            # I3rab alternatives
+            word = words[wi]
+            final_mark, _ = get_final_diacritic(word)
+            if final_mark != SUKOON:
+                from arabic import generate_i3rab_alternatives
+                for name, alt_word in generate_i3rab_alternatives(word).items():
+                    if name == "sukoon":
+                        continue
+                    alt_sub = list(sub_words)
+                    alt_sub[target_idx_in_sub] = alt_word
+                    alt_tokens = self.text_to_tokens(" ".join(alt_sub))
+                    if T_win < len(alt_tokens):
+                        continue
+                    alt_s = self.ctc_log_prob(win_lp, alt_tokens)
+                    delta = (alt_s - base_score) / wf
+                    if delta > lpd["local_pd_i3rab"]:
+                        lpd["local_pd_i3rab"] = delta
+
+            # Tashkeel alternatives
+            from arabic import generate_tashkeel_alternatives
+            for name, alt_word in generate_tashkeel_alternatives(word).items():
+                if 'sukoon' in name:
+                    continue
+                alt_sub = list(sub_words)
+                alt_sub[target_idx_in_sub] = alt_word
+                alt_tokens = self.text_to_tokens(" ".join(alt_sub))
+                if T_win < len(alt_tokens):
+                    continue
+                alt_s = self.ctc_log_prob(win_lp, alt_tokens)
+                delta = (alt_s - base_score) / wf
+                if delta > lpd["local_pd_tashkeel"]:
+                    lpd["local_pd_tashkeel"] = delta
+
+            results[wi] = lpd
+
+        return results
+
+    def _windowed_rescore(self, log_probs, words, word_bounds, T,
+                          hidden_states=None, logits=None):
+        """Re-score low-eff words using local 3-word context alignment.
+
+        For words with eff < -1.5, the full-phrase CTC alignment may assign
+        wrong frames. Re-aligning a local 3-word sub-phrase on a wider
+        window gives the CTC model a simpler lattice, often producing
+        better frame boundaries and hence better diacritic discrimination.
+
+        Returns dict mapping word_idx -> updated assessment (or None if
+        re-scoring didn't improve eff).
+        """
+        results = {}
+        n = len(word_bounds)
+        for i, wb in enumerate(word_bounds):
+            wi = wb["word_idx"]
+            if wi >= len(words):
+                continue
+
+            # Only re-score low-eff words
+            sf, ef = wb["start_frame"], wb["end_frame"]
+            seg = log_probs[max(0, sf - 2) : min(T, ef + 3)]
+            quick_eff = self.score_hypothesis(seg, words[wi])
+            if quick_eff > -1.5:
+                continue
+
+            # Build 3-word sub-phrase (prev, target, next)
+            prev_idx = i - 1 if i > 0 else None
+            next_idx = i + 1 if i < n - 1 else None
+
+            # Determine audio window from neighbor bounds with generous margin
+            win_sf = sf
+            win_ef = ef
+            sub_words = []
+            target_word_idx_in_sub = 0
+
+            if prev_idx is not None:
+                win_sf = min(win_sf, word_bounds[prev_idx]["start_frame"])
+                sub_words.append(words[word_bounds[prev_idx]["word_idx"]])
+                target_word_idx_in_sub = 1
+
+            sub_words.append(words[wi])
+
+            if next_idx is not None:
+                win_ef = max(win_ef, word_bounds[next_idx]["end_frame"])
+                sub_words.append(words[word_bounds[next_idx]["word_idx"]])
+
+            # Add generous margin (15 frames ~= 0.3s at 50fps)
+            margin = 15
+            win_sf = max(0, win_sf - margin)
+            win_ef = min(T - 1, win_ef + margin)
+
+            sub_text = " ".join(sub_words)
+            sub_tokens = self.text_to_tokens(sub_text)
+            win_lp = log_probs[win_sf : win_ef + 1]
+
+            if win_lp.shape[0] < len(sub_tokens) + 2:
+                continue
+
+            # Re-align the sub-phrase locally
+            local_spans = self.forced_align(win_lp, sub_tokens)
+            local_bounds = self.word_boundaries_from_alignment(
+                local_spans, sub_tokens)
+
+            # Find the target word in local bounds
+            target_wb = None
+            for lb in local_bounds:
+                if lb["word_idx"] == target_word_idx_in_sub:
+                    target_wb = lb
+                    break
+
+            if target_wb is None:
+                continue
+
+            # Extract the target word's locally-aligned segment
+            local_sf = target_wb["start_frame"]
+            local_ef = target_wb["end_frame"]
+            m2 = 2
+            seg_sf = max(0, local_sf - m2)
+            seg_ef = min(win_lp.shape[0] - 1, local_ef + m2)
+            local_seg = win_lp[seg_sf : seg_ef + 1]
+
+            if local_seg.shape[0] < 3:
+                continue
+
+            # Re-score
+            new_assessment = self.assess_word(local_seg, words[wi])
+
+            # Only use re-scored result if eff improved
+            if new_assessment["effective_score"] <= quick_eff:
+                continue
+
+            # Translate local frame indices back to global
+            global_sf = win_sf + local_sf
+            global_ef = win_sf + local_ef
+
+            # Translate local char_spans to global frame coordinates
+            global_char_spans = [
+                (tidx, tok_id, csf + win_sf, cef + win_sf)
+                for tidx, tok_id, csf, cef in target_wb["char_spans"]
+            ]
+
+            # Re-compute enrichment with global coords
+            self._enrich_assessment(
+                new_assessment, words[wi], log_probs,
+                global_char_spans, global_sf, global_ef, T,
+                hidden_states, logits=logits)
+            new_assessment["word_idx"] = wi
+            new_assessment["word"] = words[wi]
+            new_assessment["start_frame"] = global_sf
+            new_assessment["end_frame"] = global_ef
+            new_assessment["frame_count"] = global_ef - global_sf + 1
+            new_assessment["rescored"] = True
+
+            results[wi] = new_assessment
+
+        return results
+
+    def score_phrase(self, waveform, phrase_text, compute_pd=True):
         """Score an entire phrase.
+
+        Args:
+            waveform: audio tensor
+            phrase_text: diacritized Arabic text
+            compute_pd: whether to compute phrase-differential signals
+                (expensive for long texts, skip for alignment-only passes)
 
         Returns:
             results: list of per-word assessment dicts
@@ -955,6 +1424,7 @@ class RecitationEngine:
         """
         model_out = self.get_model_outputs(waveform, output_hidden_states=True)
         log_probs = model_out['log_probs']
+        logits = model_out['logits']
         hidden_states = model_out.get('hidden_states')
         greedy = self.greedy_decode(log_probs)
 
@@ -968,6 +1438,13 @@ class RecitationEngine:
         # Forced alignment
         spans = self.forced_align(log_probs, tokens)
         word_bounds = self.word_boundaries_from_alignment(spans, tokens)
+
+        # Phrase-differential scoring (full-phrase context)
+        # Skip for very long texts (alignment-only passes)
+        pd_results = None
+        if compute_pd and len(words) <= 30:
+            pd_results = self._phrase_differential(
+                log_probs, phrase_text, words, T, word_bounds)
 
         # Assess each word
         results = []
@@ -984,13 +1461,50 @@ class RecitationEngine:
             assessment = self.assess_word(segment, words[wi])
             self._enrich_assessment(
                 assessment, words[wi], log_probs,
-                wb["char_spans"], sf, ef, T, hidden_states)
+                wb["char_spans"], sf, ef, T,
+                hidden_states, logits=logits)
             assessment["word_idx"] = wi
             assessment["word"] = words[wi]
             assessment["start_frame"] = sf
             assessment["end_frame"] = ef
             assessment["frame_count"] = ef - sf + 1
+
+            # Add phrase-differential signals
+            if pd_results and wi in pd_results:
+                assessment.update(pd_results[wi])
+
             results.append(assessment)
+
+        # Windowed re-scoring for low-eff words:
+        # Don't replace assessments (re-scored diacritic signals have high FP).
+        # Instead, add rescored_eff as an additional signal — only used for
+        # gating in classify_words when the original eff is too low.
+        if compute_pd:
+            rescored = self._windowed_rescore(
+                log_probs, words, word_bounds, T,
+                hidden_states, logits)
+            for i, r in enumerate(results):
+                wi = r["word_idx"]
+                if wi in rescored:
+                    rs = rescored[wi]
+                    r["rescored_eff"] = rs["effective_score"]
+                    r["rescored_i3rab_delta"] = (
+                        rs["best_alt_score"] - rs["effective_score"]
+                        if rs["best_alt_score"] > -900 else 0.0)
+                    r["rescored_tash_delta"] = (
+                        rs["best_tashkeel_score"] - rs["effective_score"]
+                        if rs["best_tashkeel_score"] > -900 else 0.0)
+                    r["rescored_gfm"] = rs.get("greedy_final_mismatch", False)
+                    r["rescored_sf"] = rs.get("sf_worst_delta", 999.0)
+                    r["rescored_pc"] = rs.get("pc_worst_delta", 999.0)
+
+            # Local phrase-differential for low-eff words
+            local_pd = self._local_pd(log_probs, words, word_bounds, T)
+            for i, r in enumerate(results):
+                wi = r["word_idx"]
+                if wi in local_pd:
+                    r["local_pd_i3rab"] = local_pd[wi]["local_pd_i3rab"]
+                    r["local_pd_tashkeel"] = local_pd[wi]["local_pd_tashkeel"]
 
         return results, greedy, full_score
 
@@ -1016,6 +1530,7 @@ class RecitationEngine:
         """
         model_out = self.get_model_outputs(waveform, output_hidden_states=True)
         log_probs = model_out['log_probs']
+        logits = model_out['logits']
         hidden_states = model_out.get('hidden_states')
         greedy = self.greedy_decode(log_probs)
         T = log_probs.shape[0]
@@ -1068,7 +1583,8 @@ class RecitationEngine:
                 assessment = self.assess_word(segment, words[wi])
                 self._enrich_assessment(
                     assessment, words[wi], log_probs,
-                    wb["char_spans"], sf, ef, T, hidden_states)
+                    wb["char_spans"], sf, ef, T,
+                    hidden_states, logits=logits)
                 assessment["word_idx"] = matched_offset + wi  # global index
                 assessment["word"] = words[wi]
                 assessment["start_frame"] = sf
@@ -1210,6 +1726,7 @@ class StreamingSession:
         model_out = self.engine.get_model_outputs(
             waveform, output_hidden_states=final)
         log_probs = model_out['log_probs']
+        logits = model_out['logits']
         hidden_states = model_out.get('hidden_states') if final else None
         T = log_probs.shape[0]
 
@@ -1239,7 +1756,8 @@ class StreamingSession:
             assessment = self.engine.assess_word(segment, partial_words[wi])
             self.engine._enrich_assessment(
                 assessment, partial_words[wi], log_probs,
-                wb["char_spans"], sf, ef, T, hidden_states)
+                wb["char_spans"], sf, ef, T,
+                hidden_states, logits=logits)
             assessment["frame_count"] = ef - sf + 1
             gw = global_offset + wi
             assessment["word_idx"] = gw
