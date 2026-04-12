@@ -35,15 +35,33 @@ python -m uvicorn server:app --host 0.0.0.0 --port 8000
 
 ## Testing
 
+Full strategy in `.gsd/TESTING.md`. Quick reference:
+
 ```bash
+# Recitation engine (existing script-based)
 cd recitation
 python evaluate.py            # Batch eval on 78 recordings (FP rate + detection)
 python test_streaming.py      # Streaming tests via TTS + WebSocket (needs running server)
 python test_mutations.py      # Mutation testing for error detection
-python measure_tashkeel.py    # TTS-based tashkeel measurement
+
+# Recitation engine (pytest — to be added)
+cd recitation && python -m pytest tests/ -v
+
+# Reader app (Expo)
+cd reader && npx jest
+
+# Website
+cd website && npx vitest run
+
+# E2E browser
+npx playwright test
+
+# E2E mobile
+cd reader && maestro test flows/
 ```
 
-No formal test framework — uses script-based evaluation with printed results.
+- **CI:** GitHub Actions
+- **QA:** `/pipeline-qa`
 
 ## Conventions
 
