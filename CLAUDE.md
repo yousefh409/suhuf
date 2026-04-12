@@ -53,15 +53,16 @@ cd reader && npx jest
 # Website
 cd website && npx vitest run
 
-# E2E browser
-npx playwright test
-
-# E2E mobile
-cd reader && maestro test flows/
+# E2E (AI-powered via MCP browser)
+# /qa        — full QA sweep with AI analysis
+# /browse    — targeted page testing
+# /benchmark — Core Web Vitals baseline
+# /cso       — security audit
 ```
 
 - **CI:** GitHub Actions
 - **QA:** `/pipeline-qa`
+- **E2E philosophy:** AI-powered tests via MCP headless browser — no brittle selectors
 
 ## Conventions
 

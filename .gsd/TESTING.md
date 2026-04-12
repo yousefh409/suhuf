@@ -14,6 +14,7 @@ Three components under one repo:
 
 - **CI:** GitHub Actions
 - **Env vars:** None required — tests are self-contained
+- **Testing philosophy:** Prefer AI-powered testing (MCP headless browser, `/qa`, `/browse`) over traditional scripted tests. AI analysis catches more nuanced issues and adapts to UI changes without brittle selectors.
 
 ## Test Types
 
@@ -79,59 +80,78 @@ Three components under one repo:
   - Form submissions, email capture
   - Analytics event firing
 
-### E2E Browser Tests
+### E2E Tests — AI-Powered (MCP Browser)
 
-- **Tool:** Playwright
-- **Command:** `npx playwright test`
-- **Target URLs:**
-  - Recitation UI: `http://localhost:8000`
-  - Website: `http://localhost:3000`
-- **Covers:**
-  - Recitation: select passage → record audio → see scored results
-  - Recitation: WebSocket streaming session (record → live feedback → stop)
-  - Website: landing page → pricing → signup flow
-  - Website: responsive layout (desktop, tablet, mobile)
+All E2E testing uses the MCP headless browser via gstack skills. AI-driven tests provide better analysis than scripted selectors — they understand visual context, can catch layout regressions, and adapt to UI changes.
 
-### E2E Simulator Tests
+**Recitation UI**
+- **Tool:** `/qa` or `/browse` (MCP headless Chromium)
+- **Target:** `http://localhost:8000`
+- **Flows:**
+  - Select passage → record audio → see scored results
+  - WebSocket streaming session (record → live feedback → stop)
+  - Error states: no microphone, invalid passage, network disconnect
+  - Arabic text rendering and diacritic display correctness
 
-- **Tool:** Maestro
-- **Command:** `cd reader && maestro test flows/`
-- **Simulator:** iOS Simulator (iPad)
-- **Covers:**
+**Website**
+- **Tool:** `/qa` or `/browse` (MCP headless Chromium)
+- **Target:** `http://localhost:3000`
+- **Flows:**
+  - Landing page → pricing → signup flow
+  - Responsive layout checks (desktop 1440px, tablet 768px, mobile 390px)
+  - CTA interactions, form validation
+  - SEO: meta tags, OpenGraph, structured data
+
+**Reader App (Expo)**
+- **Tool:** `/qa` via Expo web preview + MCP browser
+- **Target:** Expo web dev server (for visual/layout testing)
+- **Flows:**
   - Onboarding → passage selection → recording → results
-  - Subscription purchase flow (sandbox)
-  - Offline mode → reconnect
-  - Audio permissions prompt handling
-  - Text display with diacritics rendering
+  - Subscription purchase flow
+  - Offline mode indicators
+  - Arabic text rendering with diacritics
+- **Note:** Native-specific flows (audio permissions, background audio, haptics) require manual testing on iOS Simulator
+
+### Performance
+
+- **Tool:** `/benchmark` (MCP browser — Core Web Vitals)
+- **Covers:** Page load, LCP, CLS, FID for website and recitation UI
+- **Baselines:** TBD — established on first run
+
+### Security
+
+- **Tool:** `/cso`
+- **Covers:** OWASP Top 10 + STRIDE + dependency audit + secrets archaeology
 
 ## QA Phase Behavior
 
-When `/pipeline-qa` runs, it reads this file and:
+When `/pipeline-qa` runs:
 1. Checks which components exist (have source files)
 2. Skips components not yet built
-3. Runs setup commands if needed
-4. Executes each test type with the exact commands above
-5. Reports by severity: critical, important, minor
-6. Offers to fix critical/important issues
+3. Runs unit/integration tests via CLI commands
+4. Runs AI-powered E2E via `/qa` on running dev servers
+5. AI analyzes screenshots, DOM state, console errors, network requests
+6. Reports by severity: critical, important, minor
+7. Offers to fix critical/important issues
 
 ## Test Matrix
 
-| Feature Area | Unit | Integration | Browser E2E | Simulator E2E |
-|-------------|------|-------------|-------------|---------------|
-| **Recitation Engine** | | | | |
-| Arabic diacritic utils | x | | | |
-| CTC scoring / alignment | x | x | | |
-| Classification rules | x | | | |
-| Audio upload + scoring | | x | x | |
-| WebSocket streaming | | x | x | |
-| Passage loading | x | x | | |
-| **Reader App** | | | | |
-| Audio recording | x | | | x |
-| WebSocket client | x | x | | x |
-| Text rendering | x | | | x |
-| Subscription flow | x | | | x |
-| Offline mode | x | x | | x |
-| **Website** | | | | |
-| Landing page | x | | x | |
-| Pricing / signup | x | x | x | |
-| Responsive layout | | | x | |
+| Feature Area | Unit | Integration | AI E2E | Perf | Security |
+|-------------|------|-------------|--------|------|----------|
+| **Recitation Engine** | | | | | |
+| Arabic diacritic utils | x | | | | |
+| CTC scoring / alignment | x | x | | | |
+| Classification rules | x | | | | |
+| Audio upload + scoring | | x | x | | |
+| WebSocket streaming | | x | x | | |
+| Passage loading | x | x | | | |
+| **Reader App** | | | | | |
+| Audio recording | x | | x | | |
+| WebSocket client | x | x | x | | |
+| Text rendering | x | | x | | |
+| Subscription flow | x | | x | | x |
+| Offline mode | x | x | | | |
+| **Website** | | | | | |
+| Landing page | x | | x | x | |
+| Pricing / signup | x | x | x | | x |
+| Responsive layout | | | x | | |
