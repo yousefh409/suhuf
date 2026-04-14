@@ -9,13 +9,28 @@ function getReferralFromCookie(): string | null {
   return match ? match[1] : null;
 }
 
+type WaitlistUser = {
+  id: string;
+  position: number;
+  referral_code: string;
+};
+
 export default function DarkCTA() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [referrerCode, setReferrerCode] = useState<string | null>(null);
+  const [existingUser, setExistingUser] = useState<WaitlistUser | null>(null);
+  const [checkingCookie, setCheckingCookie] = useState(true);
 
   useEffect(() => {
     setReferrerCode(getReferralFromCookie());
+    fetch("/api/waitlist/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.user) setExistingUser(data.user);
+      })
+      .catch(() => {})
+      .finally(() => setCheckingCookie(false));
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -54,30 +69,49 @@ export default function DarkCTA() {
         suhuf.
       </p>
 
-      <form
-        onSubmit={handleSubmit}
-        className="flex items-center relative z-10 rounded-full py-1.5 pr-1.5 pl-7 gap-3 bg-white/15 border border-white/20"
-      >
-        <input
-          type="email"
-          required
-          placeholder="Enter your email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="text-base text-[#FFF8F0] bg-transparent outline-none placeholder:text-[#FFF8F0]/50 w-[160px] md:w-[200px]"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-full px-6 py-3 bg-ink text-white text-sm font-medium hover:bg-ink/90 transition-colors disabled:opacity-70"
+      {!checkingCookie && existingUser ? (
+        <a
+          href={`/welcome?id=${existingUser.id}&position=${existingUser.position}&referralCode=${existingUser.referral_code}&existing=true`}
+          className="flex items-center gap-3 relative z-10 rounded-full py-3 pl-6 pr-4 bg-white/15 border border-white/20 hover:bg-white/20 transition-colors"
         >
-          {loading ? "Joining..." : "Get Early Access"}
-        </button>
-      </form>
+          <span className="text-sm text-[#FFF8F0]">
+            You&apos;re <span className="font-semibold text-white">#{existingUser.position}</span> on the waitlist
+          </span>
+          <span className="text-xs text-white/80 font-medium flex items-center gap-1">
+            View my spot
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M5.25 3.5L8.75 7L5.25 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </span>
+        </a>
+      ) : !checkingCookie ? (
+        <>
+          <form
+            onSubmit={handleSubmit}
+            className="flex items-center relative z-10 rounded-full py-1.5 pr-1.5 pl-7 gap-3 bg-white/15 border border-white/20"
+          >
+            <input
+              type="email"
+              required
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="text-base text-[#FFF8F0] bg-transparent outline-none placeholder:text-[#FFF8F0]/50 w-[160px] md:w-[200px]"
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-full px-6 py-3 bg-ink text-white text-sm font-medium hover:bg-ink/90 transition-colors disabled:opacity-70"
+            >
+              {loading ? "Joining..." : "Get Early Access"}
+            </button>
+          </form>
 
-      <p className="text-white/50 text-[13px] relative z-10 mt-1">
-        Free during beta &mdash; no credit card required.
-      </p>
+          <p className="text-white/50 text-[13px] relative z-10 mt-1">
+            Free during beta &mdash; no credit card required.
+          </p>
+        </>
+      ) : null}
     </section>
   );
 }

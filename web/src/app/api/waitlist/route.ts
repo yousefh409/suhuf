@@ -23,12 +23,20 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (existing) {
-      return NextResponse.json({
+      const res = NextResponse.json({
         id: existing.id,
         position: existing.position,
         referral_code: existing.referral_code,
         is_existing: true,
       });
+      res.cookies.set("suhuf_waitlist", existing.id, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 365,
+        path: "/",
+      });
+      return res;
     }
 
     // Resolve referrer
@@ -74,7 +82,17 @@ export async function POST(req: NextRequest) {
           .select("id, position, referral_code")
           .eq("email", normalizedEmail)
           .single();
-        return NextResponse.json({ ...raceUser, is_existing: true });
+        const raceRes = NextResponse.json({ ...raceUser, is_existing: true });
+        if (raceUser?.id) {
+          raceRes.cookies.set("suhuf_waitlist", raceUser.id, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            maxAge: 60 * 60 * 24 * 365,
+            path: "/",
+          });
+        }
+        return raceRes;
       }
       throw error;
     }
@@ -93,12 +111,20 @@ export async function POST(req: NextRequest) {
       referralCode: user.referral_code,
     }).catch(() => {});
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       id: user.id,
       position: user.position,
       referral_code: user.referral_code,
       is_existing: false,
     });
+    res.cookies.set("suhuf_waitlist", user.id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 365,
+      path: "/",
+    });
+    return res;
   } catch (err) {
     console.error("Waitlist error:", err);
     return NextResponse.json(

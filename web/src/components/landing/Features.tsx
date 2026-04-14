@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowUp, Mic, BookOpen, Languages, ChevronRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ArrowUp, Mic, BookOpen, Languages, ChevronRight, X } from "lucide-react";
 
 const upcomingFeatures = [
   {
@@ -11,7 +11,6 @@ const upcomingFeatures = [
     title: "Integrated lecture notes",
     description:
       "Read the sharh alongside the matn, with linked commentary.",
-    votes: 342,
   },
   {
     id: "memorization",
@@ -20,7 +19,6 @@ const upcomingFeatures = [
     title: "Memorization review",
     description:
       "Spaced repetition for hifz \u2014 review what you\u2019ve memorized.",
-    votes: 287,
   },
   {
     id: "hadith-chain",
@@ -28,7 +26,6 @@ const upcomingFeatures = [
     statusColor: "text-ink/50 bg-ink/5",
     title: "Hadith chain visualizer",
     description: "Interactive isnad explorer \u2014 trace narration chains.",
-    votes: 214,
   },
   {
     id: "learning-paths",
@@ -36,32 +33,46 @@ const upcomingFeatures = [
     statusColor: "text-gold bg-gold/10",
     title: "Structured learning paths",
     description: "Guided curricula from beginner to advanced.",
-    votes: 178,
   },
 ];
 
+function getReferralFromCookie(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/suhuf_ref=([^;]+)/);
+  return match ? match[1] : null;
+}
+
 export default function Features() {
   const [votedFeatures, setVotedFeatures] = useState<Set<string>>(new Set());
-  const [localVotes, setLocalVotes] = useState<Record<string, number>>({});
   const [showSuggest, setShowSuggest] = useState(false);
   const [suggestion, setSuggestion] = useState("");
 
+  // Email modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalEmail, setModalEmail] = useState("");
+  const [modalLoading, setModalLoading] = useState(false);
+  const [pendingFeatureId, setPendingFeatureId] = useState<string | null>(null);
+
+  // Close modal on Escape
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setModalOpen(false);
+    }
+    if (modalOpen) document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [modalOpen]);
+
   function handleVote(featureId: string) {
-    // Check if user is on the waitlist (has cookie/localStorage)
     const waitlistId = localStorage.getItem("suhuf_waitlist_id");
     if (!waitlistId) {
-      const el = document.getElementById("waitlist");
-      el?.scrollIntoView({ behavior: "smooth" });
+      setPendingFeatureId(featureId);
+      setModalOpen(true);
       return;
     }
 
     if (votedFeatures.has(featureId)) return;
 
     setVotedFeatures((prev) => new Set([...prev, featureId]));
-    setLocalVotes((prev) => ({
-      ...prev,
-      [featureId]: (prev[featureId] || 0) + 1,
-    }));
 
     fetch("/api/features/vote", {
       method: "POST",
@@ -73,13 +84,42 @@ export default function Features() {
     }).catch(() => {});
   }
 
+  async function handleModalSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!modalEmail) return;
+    setModalLoading(true);
+    try {
+      const referrerCode = getReferralFromCookie();
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: modalEmail,
+          signup_source: "feature_vote",
+          referral_code: referrerCode,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        // Find the feature they wanted to vote on and pre-fill it
+        const feature = upcomingFeatures.find((f) => f.id === pendingFeatureId);
+        const featureParam = feature
+          ? `&feature=${encodeURIComponent(feature.title + " — " + feature.description)}`
+          : "";
+        window.location.href = `/welcome?id=${data.id}&position=${data.position}&referralCode=${data.referral_code}${data.is_existing ? "&existing=true" : ""}${featureParam}`;
+      }
+    } finally {
+      setModalLoading(false);
+    }
+  }
+
   async function handleSuggest(e: React.FormEvent) {
     e.preventDefault();
     if (!suggestion.trim()) return;
     const waitlistId = localStorage.getItem("suhuf_waitlist_id");
     if (!waitlistId) {
-      const el = document.getElementById("waitlist");
-      el?.scrollIntoView({ behavior: "smooth" });
+      setPendingFeatureId(null);
+      setModalOpen(true);
       return;
     }
     await fetch("/api/features/suggest", {
@@ -290,7 +330,7 @@ export default function Features() {
               }`}
             >
               <ArrowUp className="w-3.5 h-3.5" />
-              {f.votes + (localVotes[f.id] || 0)}
+              {votedFeatures.has(f.id) ? "Voted" : "Upvote"}
             </button>
           </div>
         ))}
@@ -300,7 +340,15 @@ export default function Features() {
       <div className="flex flex-col items-center gap-3">
         {!showSuggest ? (
           <button
-            onClick={() => setShowSuggest(true)}
+            onClick={() => {
+              const waitlistId = localStorage.getItem("suhuf_waitlist_id");
+              if (!waitlistId) {
+                setPendingFeatureId(null);
+                setModalOpen(true);
+              } else {
+                setShowSuggest(true);
+              }
+            }}
             className="flex items-center gap-1 text-sm text-ink/40 hover:text-ink/60 transition-colors"
           >
             Suggest a feature <ChevronRight className="w-3.5 h-3.5" />
@@ -328,6 +376,62 @@ export default function Features() {
           </form>
         )}
       </div>
+
+      {/* Email modal for non-waitlisted users */}
+      {modalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-6"
+          onClick={() => setModalOpen(false)}
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-ink/40 backdrop-blur-sm" />
+
+          {/* Modal */}
+          <div
+            className="relative w-full max-w-[400px] rounded-2xl bg-white p-6 flex flex-col gap-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setModalOpen(false)}
+              className="absolute top-4 right-4 text-ink/30 hover:text-ink/60 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div>
+              <h3 className="font-serif text-[22px] text-ink leading-[1.2]">
+                Join the waitlist to vote
+              </h3>
+              <p className="text-sm text-ink/45 mt-1.5 leading-[1.5]">
+                Enter your email to get early access and have your voice heard.
+              </p>
+            </div>
+
+            <form onSubmit={handleModalSubmit} className="flex flex-col gap-3">
+              <input
+                autoFocus
+                type="email"
+                required
+                placeholder="Enter your email"
+                value={modalEmail}
+                onChange={(e) => setModalEmail(e.target.value)}
+                className="w-full text-sm px-4 py-3 rounded-xl border border-ink/10 bg-parchment outline-none placeholder:text-ink/30 focus:border-gold/40"
+              />
+              <button
+                type="submit"
+                disabled={modalLoading}
+                className="w-full rounded-xl py-3 bg-ink text-white text-sm font-medium hover:bg-ink/90 transition-colors disabled:opacity-70"
+              >
+                {modalLoading ? "Joining..." : "Get Early Access"}
+              </button>
+            </form>
+
+            <p className="text-[11px] text-ink/25 text-center">
+              Free during beta &middot; No credit card required
+            </p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
