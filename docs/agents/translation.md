@@ -1,6 +1,19 @@
 # Translation Agents
 
-On-demand Arabic-to-English translation powered by Claude via Supabase Edge Function. Users request translations while reading in the reader app; results are cached globally so repeated lookups across all users are instant. The design is structurally parallel to the I'irab agent -- same three-tier cache, same subscription gating, separate Edge Function and cache table.
+On-demand Arabic-to-English translation powered by Claude Sonnet via Supabase Edge Function. Users request translations while reading in the reader app; results are cached globally so repeated lookups across all users are instant. The translation agent lives in a tab alongside the i'rab agent in the same popover -- users switch between grammar analysis and translation without leaving the word context.
+
+---
+
+## How It Works
+
+Translation operates at **sentence level**. When a user taps a word and switches to the translation tab, the full sentence containing that word is translated. Word-level input loses syntactic context and produces poor translations. Page-level input is slow, expensive, and has low cache hit rates.
+
+The translation tab also shows:
+
+- **Root-derived vocabulary**: 4-6 words sharing the same root as the tapped word (e.g., for ك-ت-ب: كتاب, كاتب, مكتوب, مكتبة). Source: CAMeL Tools lexicon if available, Claude as fallback. This builds vocabulary through the Arabic root system.
+- **The sentence translation itself**: faithful English rendering of the full sentence.
+
+---
 
 ## Request Flow
 
@@ -13,65 +26,71 @@ sequenceDiagram
     participant L as Local SQLite
     participant F as Edge Function
     participant G as Supabase Postgres
-    participant C as Claude API
+    participant C as Claude Sonnet
 
-    U->>A: Request translation
+    U->>A: Tap word, switch to translation tab
     A->>L: Check translation_cache
     alt Local cache hit
         L-->>A: Return cached translation
     else Local cache miss
-        A->>F: POST with text segment + JWT
+        A->>F: POST with sentence + JWT
         F->>F: Verify JWT + subscription
         F->>G: Check translation_cache
         alt Global cache hit
             G-->>F: Return cached translation
         else Global cache miss
-            F->>C: Send text segment + prompt
+            F->>C: Send sentence + prompt
             C-->>F: Return English translation
             F->>G: Write to translation_cache
         end
         F-->>A: Return translation
         A->>L: Write to local translation_cache
     end
-    A-->>U: Display translation
+    A-->>U: Display translation + root vocabulary
 ```
 
-## Translation Scope
-
-**Granularity** is per-sentence or per-paragraph -- not individual words. Word-level analysis is I'irab territory. Translation operates on contiguous text segments selected from the current page.
-
-- **Input:** Arabic text segment from the active page (one sentence or one paragraph)
-- **Output:** English translation that preserves the meaning and register of classical Arabic prose
-- **Timing:** Generated on demand; not pre-computed during ingestion
-
-The sentence-level granularity is intentional. Word-level input loses syntactic context and produces poor translations. Page-level input is slow, expensive per call, and produces cache keys that are too coarse -- a single change anywhere on the page busts the entire page's cache entry.
+---
 
 ## Edge Function
 
-The translation Edge Function follows the same structure as the I'irab Edge Function. It handles one request per invocation.
+The translation Edge Function handles one request per invocation. It is separate from the i'rab Edge Function -- different prompt, different cache table, different input granularity.
 
-Processing order:
+**Request body:**
 
-1. Verify JWT (user must be authenticated)
-2. Check RevenueCat subscription status in Supabase (translation is a premium feature)
-3. Compute `text_hash` from the input segment
-4. Look up `(text_hash, model_version)` in the global `translation_cache` table
-5. On cache miss: call Claude with the translation prompt
-6. Write the result to `translation_cache`
-7. Return the translation to the app
+```json
+{
+  "sentence": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ"
+}
+```
 
-**Request format:** the Arabic text segment as a string, plus the JWT in the `Authorization` header.
+**Response body:**
 
-**Response format:** plain English text string.
+```json
+{
+  "translation": "In the name of God, the Most Gracious, the Most Merciful.",
+  "model_version": "sonnet-1",
+  "cached": false
+}
+```
 
-The translation Edge Function is separate from the I'irab Edge Function -- different prompt, different cache table, different input granularity.
+**Execution order:**
+
+1. Verify JWT -- reject unauthenticated requests with 401.
+2. Check RevenueCat subscription -- reject free-tier users with 402 (triggers paywall in app).
+3. Compute `text_hash` from the input sentence.
+4. Look up `(text_hash, model_version)` in the global `translation_cache` table.
+5. On cache miss: call Claude Sonnet with the translation prompt.
+6. Write the result to `translation_cache`.
+7. Return the translation to the app.
+
+---
 
 ## Cache Design
 
 **Cache key:** `(text_hash, model_version)`
 
-- `text_hash` -- a hash of the raw Arabic text segment. Identical text across any book, any user, any session produces the same cache key.
-- `model_version` -- a version string (e.g., `'claude-1'`) that tracks the prompt and model in use.
+- `text_hash` -- a hash of the raw Arabic sentence. Identical text across any book, any user, any session produces the same cache key.
+- `model_version` -- a version string (e.g., `'sonnet-1'`) that tracks the prompt and model in use.
 
 ### `translation_cache` Table
 
@@ -79,43 +98,49 @@ The translation Edge Function is separate from the I'irab Edge Function -- diffe
 translation_cache (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   text_hash TEXT NOT NULL,
-  model_version TEXT NOT NULL DEFAULT 'claude-1',
+  model_version TEXT NOT NULL DEFAULT 'sonnet-1',
   result_text TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(text_hash, model_version)
 );
 ```
 
-The global cache in Supabase Postgres is shared across all users. One user's translation lookup populates the cache for every subsequent user who requests the same segment. The local SQLite mirror on each device stores the translations the user has requested in the current session, enabling instant re-display without a network call.
+The global cache in Supabase Postgres is shared across all users. One user's translation lookup populates the cache for every subsequent user who requests the same sentence. The local SQLite mirror stores translations the user has requested, enabling instant re-display without a network call.
 
 ### Cache Invalidation
 
-Bump `model_version` when the prompt or the underlying Claude model changes. Old entries remain in the table but are never matched -- the unique constraint on `(text_hash, model_version)` means new requests populate fresh rows. Stale rows are dead weight but harmless and can be pruned in bulk if needed.
+Bump `model_version` when the prompt or the underlying Claude model changes. Old entries remain in the table but are never matched. Stale rows can be pruned in bulk if needed.
+
+---
 
 ## Prompt Design
 
-The translation prompt instructs Claude to produce a **faithful translation** -- one that carries over the register, tone, and meaning of the original classical Arabic prose without paraphrase or simplification.
+The translation prompt instructs Claude Sonnet to produce a **faithful translation** -- one that carries over the register, tone, and meaning of the original classical Arabic prose without paraphrase or simplification.
 
 Handling of untranslatable terms:
 
 | Term category | Strategy |
 |---------------|----------|
-| Hadith sciences terminology (e.g., _mursal_, _sahih_) | Transliterate + parenthetical gloss |
+| Hadith sciences terminology (e.g., mursal, sahih) | Transliterate + parenthetical gloss |
 | Islamic legal terms (fiqh vocabulary) | Transliterate + parenthetical gloss |
 | Proper names and honorifics | Transliterate; do not translate |
 | Quranic phrases | Translate with established English equivalents where they exist |
 
-The output is plain English text with no markup -- no brackets, no footnotes, no HTML. Glosses appear inline in parentheses.
+The output is plain English text with no markup. Glosses appear inline in parentheses.
+
+---
+
+## Model Choice
+
+**Claude Sonnet** for translation. Classical Arabic prose requires genuine understanding of context, register, and domain-specific vocabulary. Haiku risks flattening nuance. Since translation operates at sentence-level (far fewer calls than word-level i'rab), the per-call cost difference is acceptable.
+
+---
 
 ## Subscription Gating
 
-Translation is a **premium feature** gated by RevenueCat subscription status.
+Translation is a **premium feature** gated by RevenueCat subscription status. Same mechanism as i'rab: the Edge Function checks `subscription_status` from Supabase, rejects free users with HTTP 402, and the app presents the paywall.
 
-The Edge Function checks the `subscription_status` field on the Supabase user record before processing the request. It does not call the RevenueCat API directly -- RevenueCat webhooks keep the Supabase record current.
-
-Free users receive a paywall response from the Edge Function (no translation data). The app renders the RevenueCat paywall prompt on receipt of that response.
-
-The same pattern applies to I'irab analysis, cloud sync, and Apple Pencil annotations.
+---
 
 ## Key Files
 
@@ -125,18 +150,20 @@ The same pattern applies to I'irab analysis, cloud sync, and Apple Pencil annota
 | `translation_cache` table (planned) | Global Supabase Postgres cache keyed on `(text_hash, model_version)` |
 | Reader hook (planned) | Client-side hook managing the request lifecycle: local cache check, Edge Function call, result display |
 
+---
+
 ## Gotchas
 
-**Sentence-level granularity is the sweet spot.** Word-level loses context and produces incoherent output. Page-level is slow per call, expensive, and has a low cache hit rate because any variation on a page produces a new cache key. Sentence or short-paragraph segments balance translation quality against cache efficiency.
+**Sentence-level granularity is the sweet spot.** Word-level loses context and produces incoherent output. Page-level is slow per call, expensive, and has a low cache hit rate because any variation on a page produces a new cache key.
 
-**Classical Arabic domain vocabulary needs transliterate-plus-gloss, not force-translation.** Terms from fiqh, hadith sciences, and Sufi literature have no accurate English equivalents. Forcing a translation (e.g., rendering _isnad_ as "chain") discards meaning. The prompt must explicitly instruct Claude to handle these terms by transliterating and glossing.
+**Classical Arabic domain vocabulary needs transliterate-plus-gloss, not force-translation.** Terms from fiqh, hadith sciences, and Sufi literature have no accurate English equivalents. Forcing a translation (e.g., rendering isnad as "chain") discards meaning.
 
-**Cache key must use `text_hash`, not positional offset.** Character offsets within a page shift when a book is re-ingested with content edits. A position-based key would produce a cache miss on the same text after re-ingestion. Hashing the text itself keeps the cache valid across re-ingestion.
+**Cache key must use `text_hash`, not positional offset.** Character offsets shift when a book is re-ingested. Hashing the text keeps the cache valid across re-ingestion.
 
-**Cache hit rate depends on passage overlap across users.** Unlike I'irab (which caches per-word and benefits from high reuse of common words), translation caches per-text-segment. Hit rate is high for popular passages read by many users and lower for obscure sections. Do not expect the same near-zero cold-path rate that I'irab achieves at scale.
+**Cache hit rate depends on passage overlap across users.** Unlike i'rab (which caches per-word and benefits from high reuse of common words), translation caches per-sentence. Hit rate is high for popular passages and lower for obscure sections.
 
-**Edge Function cold start adds latency on the first call after idle.** A cold start adds roughly 1-2 seconds. Subsequent calls within the same warm window are fast. This is the same behavior as the I'irab Edge Function.
+**Edge Function cold start adds latency on the first call after idle.** ~200-500ms on top of Claude API latency.
 
 ---
 
-Related docs: [I'irab Agents](irab.md) -- [Reader App](../reader/app.md) -- [Book Format](../reader/book-format.md)
+Related docs: [I'rab + Sarf Agents](irab.md) -- [Reader App](../reader/app.md) -- [Book Format](../reader/book-format.md)

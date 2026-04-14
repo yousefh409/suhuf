@@ -55,18 +55,6 @@ def load_session(engine, session_dir):
     return meta, waveform
 
 
-def get_phrase_audio_segment(engine, log_probs, phrase_text):
-    """Force-align a phrase and return word boundaries."""
-    tokens = engine.text_to_tokens(phrase_text)
-    T = log_probs.shape[0]
-    if not tokens or T < len(tokens):
-        return None
-
-    spans = engine.forced_align(log_probs, tokens)
-    word_bounds = engine.word_boundaries_from_alignment(spans, tokens)
-    return word_bounds
-
-
 def analyze_ctc_score_deltas(engine, log_probs, phrase_text, word_bounds):
     """For each word, score correct vs i3rab-mutated and report delta."""
     words = phrase_text.split()
@@ -210,7 +198,6 @@ def analyze_frame_posteriors(engine, log_probs, phrase_text, word_bounds):
             continue
 
         avg_probs = probs[frame_range].mean(dim=0)  # (V,)
-        avg_log_probs = log_probs[frame_range].mean(dim=0)
 
         # Get posteriors for all diacritic tokens
         diac_posteriors = {}

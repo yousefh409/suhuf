@@ -1,0 +1,83 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import PaperShader from "@/components/PaperShader";
+
+function getReferralFromCookie(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/suhuf_ref=([^;]+)/);
+  return match ? match[1] : null;
+}
+
+export default function DarkCTA() {
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [referrerCode, setReferrerCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    setReferrerCode(getReferralFromCookie());
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          signup_source: "cta",
+          referral_code: referrerCode,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        window.location.href = `/welcome?id=${data.id}&position=${data.position}&referralCode=${data.referral_code}${data.is_existing ? "&existing=true" : ""}`;
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="relative w-full flex flex-col items-center px-6 md:px-[60px] pt-[120px] pb-[80px] gap-7 bg-gold overflow-hidden">
+      {/* Paper texture overlay */}
+      <PaperShader />
+
+      <h2 className="font-serif text-[40px] md:text-[56px] text-[#FFF8F0] text-center leading-[1.15] relative z-10">
+        Start reading with{"\n"}confidence today.
+      </h2>
+      <p className="text-[#FFF8F0]/65 text-base md:text-[18px] text-center leading-7 max-w-[415px] relative z-10">
+        Join hundreds of students already improving their classical Arabic with
+        suhuf.
+      </p>
+
+      <form
+        onSubmit={handleSubmit}
+        className="flex items-center relative z-10 rounded-full py-1.5 pr-1.5 pl-7 gap-3 bg-white/15 border border-white/20"
+      >
+        <input
+          type="email"
+          required
+          placeholder="Enter your email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="text-base text-[#FFF8F0] bg-transparent outline-none placeholder:text-[#FFF8F0]/50 w-[160px] md:w-[200px]"
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="rounded-full px-6 py-3 bg-ink text-white text-sm font-medium hover:bg-ink/90 transition-colors disabled:opacity-70"
+        >
+          {loading ? "Joining..." : "Get Early Access"}
+        </button>
+      </form>
+
+      <p className="text-white/50 text-[13px] relative z-10 mt-1">
+        Free during beta &mdash; no credit card required.
+      </p>
+    </section>
+  );
+}

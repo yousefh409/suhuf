@@ -77,13 +77,11 @@ def current_rules(s):
     lpd_t = safe(s.get("local_pd_tashkeel"))
     fs = safe(s.get("fs_worst_delta"), 999.0)
     rescored_eff = s.get("rescored_eff")
-    rescored_sf = safe(s.get("rescored_sf"), 999.0)
     rescored_gfm = s.get("rescored_gfm", False)
     rescored_i3d = safe(s.get("rescored_i3rab_delta"))
     rescored_td = safe(s.get("rescored_tash_delta"))
     skip_i3rab = s.get("skip_i3rab", False)
     skip_tashkeel = s.get("skip_tashkeel", False)
-    sukoon_delta = safe(s.get("sukoon_delta"))
 
     # Whisper mismatch at low eff
     if (not whisper_match and eff < -1.6

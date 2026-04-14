@@ -186,7 +186,7 @@ def main():
                 mut_words[wi] = mutated
                 mut_text = " ".join(mut_words)
                 _add_mutation_record(engine, seg, mut_text, wi, "i3rab", desc,
-                                     all_records, pid, pi, whisper_words, pw)
+                                     all_records, pid, pi, whisper_words)
 
             # tashkeel mutations
             for wi, word in enumerate(pw):
@@ -199,7 +199,7 @@ def main():
                 mut_words[wi] = mutated
                 mut_text = " ".join(mut_words)
                 _add_mutation_record(engine, seg, mut_text, wi, "tashkeel", desc,
-                                     all_records, pid, pi, whisper_words, pw)
+                                     all_records, pid, pi, whisper_words)
 
             # word replacements
             candidates = [i for i, w in enumerate(pw) if len(strip_diacritics(w)) >= 3]
@@ -209,7 +209,7 @@ def main():
                     mut_words_list, desc = mutate_word(pw, wi)
                     mut_text = " ".join(mut_words_list)
                     _add_mutation_record(engine, seg, mut_text, wi, "word", desc,
-                                         all_records, pid, pi, whisper_words, pw)
+                                         all_records, pid, pi, whisper_words)
 
         print(f"  Records so far: {len(all_records)}")
 
@@ -224,7 +224,7 @@ def main():
 
 
 def _add_mutation_record(engine, audio_segment, mutated_text, word_idx,
-                         mutation_type, desc, records, pid, pi, whisper_words, original_pw):
+                         mutation_type, desc, records, pid, pi, whisper_words):
     """Score mutated text and add signal record."""
     try:
         waveform = torch.from_numpy(audio_segment)

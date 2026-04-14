@@ -250,7 +250,7 @@ async def measure_passage(passage_id, phrases, engine, verbose=False):
         if word_results:
             for wr in word_results:
                 wi = wr["word_idx"]
-                flagged, err_type, err_detail = classify_word(wr)
+                flagged, err_type, _ = classify_word(wr)
                 total_correct_words += 1
                 if flagged:
                     total_fp += 1
@@ -293,7 +293,7 @@ async def measure_passage(passage_id, phrases, engine, verbose=False):
             if word_results:
                 for wr in word_results:
                     if wr["word_idx"] == target_global:
-                        flagged, err_type, err_detail = classify_word(wr)
+                        flagged, err_type, _ = classify_word(wr)
                         if flagged:
                             target_flagged = True
                         break

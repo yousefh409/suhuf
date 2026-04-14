@@ -101,7 +101,6 @@ def main():
             # Per eff range
             tp_low = sum(1 for p, e in zip(mutated_probs, mutated_effs) if p >= thresh and e < -1.5)
             total_low = sum(1 for e in mutated_effs if e < -1.5)
-            tp_high = tp - tp_low
 
             print(f"\n  FP<={100*max_fp_rate:.0f}%: thresh={thresh:.4f} FP={fp}  det={tp}/{n_mutated} ({100*tp/n_mutated:.1f}%)")
             for t in ["i3rab", "tashkeel", "word"]:

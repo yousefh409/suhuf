@@ -11,7 +11,6 @@ Usage:
 
 import asyncio
 import json
-import struct
 import subprocess
 import sys
 import tempfile
@@ -137,13 +136,6 @@ def count_errors(response: dict) -> int:
     if not response or "words" not in response:
         return 0
     return sum(1 for w in response["words"] if w["status"] == "error")
-
-
-def count_correct(response: dict) -> int:
-    """Count words scored as correct."""
-    if not response or "words" not in response:
-        return 0
-    return sum(1 for w in response["words"] if w["status"] == "correct")
 
 
 def get_error_words(response: dict) -> list[str]:

@@ -431,8 +431,6 @@ def classify_words(word_results, all_words, streaming=False):
         if status == "correct" and eff <= -1.5:
             fs_delta = wr.get("fs_worst_delta", 999.0)
             sf_fs = wr.get("sf_worst_delta", 999.0)
-            i3d_fs = (wr["best_alt_score"] - eff) if wr["best_alt_score"] > -900 else 0.0
-
             # Tier 1: frame_scan + sf corroboration (strong evidence)
             if fs_delta < -2.0 and sf_fs < -4.0:
                 sf_expected = wr.get("sf_worst_expected")

@@ -80,4 +80,5 @@ These are targets, not hard requirements. The priority order is: no false positi
 - **Iterate heavily.** Don't stop at the first thing that works. Try multiple approaches, measure, compare, and pick the best. If something isn't hitting the accuracy targets, keep going — dig deeper, research more, try something different.
 - **When stuck, research.** Search for papers, look at how other systems solve similar problems, read library docs. Don't guess — find out.
 - If you need more test data to debug a specific edge case, ask the user to record it.
+- **NEVER time out on a question.** When you ask the user a question, wait for their answer. Do not move on, assume a default, or skip the question if the user hasn't responded. Keep asking until you get an answer.
 

@@ -55,7 +55,7 @@ def main():
 
     from sklearn.ensemble import GradientBoostingClassifier
     from sklearn.tree import DecisionTreeClassifier, export_text
-    from sklearn.model_selection import LeaveOneGroupOut, cross_val_predict
+    from sklearn.model_selection import LeaveOneGroupOut
     from sklearn.preprocessing import StandardScaler
 
     # ---- Leave-One-Group-Out CV (split by passage) ----

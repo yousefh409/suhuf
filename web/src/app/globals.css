@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-parchment: #F5EEE4;
+  --color-parchment-light: #F8F0E6;
+  --color-parchment-warm: #FFFDF9;
+  --color-ink: #2A1F17;
+  --color-gold: #B47D3A;
+  --color-dark: #0A0806;
+  --color-cta-dark: #3D2E1E;
+
+  --font-serif: var(--font-instrument-serif), Georgia, serif;
+  --font-sans: var(--font-dm-sans), system-ui, sans-serif;
+  --font-arabic: var(--font-amiri), serif;
+}
+
+body {
+  position: relative;
+  z-index: 0;
+  background: var(--color-parchment);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Marquee animation */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  animation: marquee 40s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* FAQ accordion */
+.faq-answer {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease;
+}
+
+.faq-answer.open {
+  grid-template-rows: 1fr;
+}
+
+.faq-answer > div {
+  overflow: hidden;
+}

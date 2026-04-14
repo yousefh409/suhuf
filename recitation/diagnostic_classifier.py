@@ -159,7 +159,6 @@ def main():
         pred = lr.predict(X_scaled)
         fp = sum(pred[:len(X_correct)] == 1)
         tp = sum(pred[len(X_correct):] == 1)
-        fn = sum(pred[len(X_correct):] == 0)
         print(f"\nLogistic C={C}: FP={fp}/{len(X_correct)} ({100*fp/len(X_correct):.1f}%)  "
               f"detection={tp}/{len(X_mutated)} ({100*tp/len(X_mutated):.1f}%)")
 

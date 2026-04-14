@@ -7,7 +7,6 @@ to find the best FP/detection tradeoff.
 import json
 import sys
 from pathlib import Path
-from itertools import product
 from collections import defaultdict
 
 BASE = Path(__file__).parent

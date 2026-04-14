@@ -1,8 +1,8 @@
-# Suhoof Documentation Suite -- Design Spec
+# Suhuf Documentation Suite -- Design Spec
 
 ## Goal
 
-Produce 9 reference docs covering every major system in the Suhoof project. Each doc follows a uniform style and structure, cross-references related docs, and describes the system as it exists (or as designed, for systems not yet implemented).
+Produce 9 reference docs covering every major system in the Suhuf project. Each doc follows a uniform style and structure, cross-references related docs, and describes the system as it exists (or as designed, for systems not yet implemented).
 
 ## Doc Style
 

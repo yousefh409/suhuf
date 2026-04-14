@@ -1664,10 +1664,6 @@ class StreamingSession:
         if excess > 0:
             del self.audio_ring[:excess]
 
-    @property
-    def total_audio_secs(self):
-        return self.total_audio_bytes / (self.SAMPLE_RATE * self.BYTES_PER_SAMPLE)
-
     # ------------------------------------------------------------------
     # Scoring cycle
     # ------------------------------------------------------------------
@@ -1809,16 +1805,6 @@ class StreamingSession:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-
-    def inject_whisper_cache(self, whisper_words):
-        """Set pre-computed Whisper words (avoids re-running on same audio)."""
-        self._cached_whisper_words = whisper_words
-        self._last_whisper_bytes = float('inf')
-
-    @property
-    def last_whisper_words(self):
-        """Return the most recent Whisper transcription."""
-        return self._cached_whisper_words
 
     @staticmethod
     def _whisper_word_matches(whisper_words, phrase_words):

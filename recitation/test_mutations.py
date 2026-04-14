@@ -316,7 +316,7 @@ def run_session(engine, passage_id, session_info):
             mut_words = list(pw)
             mut_words[wi] = mutated
             mut_text = " ".join(mut_words)
-            _test_mutation(engine, seg, phrase, mut_text, wi, "i3rab", desc,
+            _test_mutation(engine, seg, mut_text, wi, "i3rab", desc,
                            stats, pi, word, mutated, whisper_words)
 
         # tashkeel mutations
@@ -329,7 +329,7 @@ def run_session(engine, passage_id, session_info):
             mut_words = list(pw)
             mut_words[wi] = mutated
             mut_text = " ".join(mut_words)
-            _test_mutation(engine, seg, phrase, mut_text, wi, "tashkeel", desc,
+            _test_mutation(engine, seg, mut_text, wi, "tashkeel", desc,
                            stats, pi, word, mutated, whisper_words)
 
         # word replacements (2 per phrase)
@@ -339,13 +339,13 @@ def run_session(engine, passage_id, session_info):
             for wi in test_idxs:
                 mut_words_list, desc = mutate_word(pw, wi)
                 mut_text = " ".join(mut_words_list)
-                _test_mutation(engine, seg, phrase, mut_text, wi, "word", desc,
+                _test_mutation(engine, seg, mut_text, wi, "word", desc,
                                stats, pi, pw[wi], mut_words_list[wi], whisper_words)
 
     return total_words, false_positives, fp_details, stats
 
 
-def _test_mutation(engine, audio_segment, original_phrase, mutated_text,
+def _test_mutation(engine, audio_segment, mutated_text,
                    word_idx, mutation_type, desc, stats, pi,
                    original_word, mutated_word, whisper_words):
     """Run a single mutation test and record results."""

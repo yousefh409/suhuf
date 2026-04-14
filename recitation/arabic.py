@@ -14,31 +14,11 @@ SUPERSCRIPT_ALIF = '\u0670'  # ٰ
 HARAKAT = frozenset({FATHA, DAMMA, KASRA, FATHATAN, DAMMATAN, KASRATAN, SUKOON, SHADDA, SUPERSCRIPT_ALIF})
 SHORT_VOWELS = frozenset({FATHA, DAMMA, KASRA})
 TANWEEN = frozenset({FATHATAN, DAMMATAN, KASRATAN})
-CASE_MARKS = SHORT_VOWELS | TANWEEN | frozenset({SUKOON})
 
 
 def strip_diacritics(text):
     """Remove all diacritics from Arabic text."""
     return ''.join(c for c in text if c not in HARAKAT)
-
-
-def strip_last_diacritic(word):
-    """Remove only the final-letter diacritics (i3rab) from a word."""
-    chars = list(word)
-    # Find last consonant
-    last_cons = -1
-    for i in range(len(chars) - 1, -1, -1):
-        if chars[i] not in HARAKAT:
-            last_cons = i
-            break
-    if last_cons == -1:
-        return word
-    # Remove diacritics after last consonant (but keep shadda)
-    result = chars[:last_cons + 1]
-    for i in range(last_cons + 1, len(chars)):
-        if chars[i] == SHADDA:
-            result.append(SHADDA)
-    return ''.join(result)
 
 
 def get_final_diacritic(word):
@@ -93,7 +73,6 @@ def generate_i3rab_alternatives(word):
     """Generate all plausible i3rab alternatives for a word.
     Returns dict {description: modified_word}.
     """
-    original_mark, _ = get_final_diacritic(word)
     alts = {}
     for mark, name in [
         (DAMMA, 'raf3'), (FATHA, 'nasb'), (KASRA, 'jarr'),
@@ -104,22 +83,6 @@ def generate_i3rab_alternatives(word):
         if variant != word:
             alts[name] = variant
     return alts
-
-
-def get_internal_diacritics(word):
-    """Get list of (char_index, diacritic) for non-final diacritics."""
-    chars = list(word)
-    last_cons = -1
-    for i in range(len(chars) - 1, -1, -1):
-        if chars[i] not in HARAKAT:
-            last_cons = i
-            break
-
-    result = []
-    for i, c in enumerate(chars):
-        if c in HARAKAT and i < last_cons:
-            result.append((i, c))
-    return result
 
 
 def generate_tashkeel_alternatives(word):
@@ -188,8 +151,3 @@ def generate_tashkeel_alternatives(word):
             alts[name] = ''.join(new_chars)
 
     return alts
-
-
-def is_diacritic(char):
-    """Check if a character is an Arabic diacritic."""
-    return char in HARAKAT

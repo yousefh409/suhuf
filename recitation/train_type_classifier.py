@@ -92,7 +92,6 @@ def main():
         print(f"  {name}: {correct_type}/{total_type} ({100*correct_type/total_type:.1f}%)")
 
     # Confusion matrix
-    from collections import Counter
     print("\nConfusion matrix (rows=true, cols=predicted):")
     print(f"{'':15s} {'i3rab':>8s} {'tashkeel':>8s} {'word':>8s}")
     for i, name in enumerate(TYPE_NAMES):

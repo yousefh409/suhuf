@@ -138,11 +138,9 @@ def extract_diac_features(engine, waveform, phrase_text):
                 break
 
         # Map each char position in the word to its token index in char_spans
-        char_idx = 0
         for _target_idx, token_id, sf, ef in wb["char_spans"]:
             char_at = engine.id2char.get(token_id, '')
             if char_at not in _ALL_DIACS:
-                char_idx += 1
                 continue
 
             # Skip final diacritics (i3rab — handled by other signals)
