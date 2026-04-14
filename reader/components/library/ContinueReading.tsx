@@ -34,11 +34,8 @@ function BookRow({
           {book.title_en}
         </Text>
         <Text style={styles.author} numberOfLines={1}>
-          {book.author_en ?? book.author_ar}
+          {book.author_en ?? book.author_ar} · {book.category}
         </Text>
-        <View style={styles.categoryTag}>
-          <Text style={styles.categoryText}>{book.category}</Text>
-        </View>
         <View style={styles.progressRow}>
           <ProgressBar progress={progress} />
           <Text style={styles.pct}>{pct}%</Text>
@@ -109,23 +106,13 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   bookTitle: {
-    ...typography.body,
-    fontWeight: '600',
+    fontFamily: 'DMSans-SemiBold',
+    fontSize: 16,
     color: colors.textPrimary,
+    lineHeight: 22,
   },
   author: {
     ...typography.caption,
-    color: colors.textSecondary,
-  },
-  categoryTag: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#F0EBE3',
-    borderRadius: borderRadius.full,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  categoryText: {
-    fontSize: 11,
     color: colors.textSecondary,
   },
   progressRow: {
