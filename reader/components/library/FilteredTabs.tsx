@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Icon } from '../ui/Icon';
 import type { Book, DownloadedBook } from '../../types';
 import { colors, spacing, borderRadius, typography } from '../../constants/theme';
 import { BookCard } from './BookCard';
@@ -59,7 +60,8 @@ export function FilteredTabs({ inProgress, saved, completed, progressMap }: Filt
           })}
         </ScrollView>
         <Pressable onPress={() => router.push('/discover')} style={styles.fullLibraryBtn}>
-          <Text style={styles.fullLibraryText}>Full Library →</Text>
+          <Text style={styles.fullLibraryText}>Full Library</Text>
+          <Icon name="arrow-right" size={14} color={colors.white} />
         </Pressable>
       </View>
 
@@ -101,40 +103,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    backgroundColor: '#EDE8E2',
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
-  pillActive: {
-    backgroundColor: colors.primary,
-  },
+  pillActive: {},
   dot: {
     width: 6,
     height: 6,
     borderRadius: 3,
   },
   pillText: {
-    ...typography.caption,
+    fontFamily: 'DMSans-Medium',
+    fontSize: 14,
     color: colors.textSecondary,
-    fontWeight: '500',
   },
   pillTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+    fontFamily: 'DMSans-Bold',
+    color: colors.textPrimary,
   },
   pillCount: {
-    fontSize: 11,
+    fontSize: 13,
+    fontFamily: 'DMSans',
     color: colors.textTertiary,
   },
   fullLibraryBtn: {
-    marginLeft: spacing.md,
+    marginLeft: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
   fullLibraryText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: colors.accent,
+    fontFamily: 'DMSans-SemiBold',
+    color: colors.white,
   },
   bookScroll: {
     paddingHorizontal: spacing.screenPadding,
