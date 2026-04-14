@@ -1,12 +1,12 @@
-// Colors extracted from Paper designs (artboard: Library Main 57Q-1)
+// Colors extracted from Paper designs (artboard: Library Main — Mobile DNC-0)
 export const colors = {
   background: '#F5F0EB',
   card: '#FFFFFF',
   cardBorder: '#E8E0D8',
-  primary: '#3D3526',        // Dark brown - buttons, headers
-  accent: '#B8860B',         // Gold/amber - progress bars, active states
-  textPrimary: '#2C2417',    // Near-black, warm
-  textSecondary: '#8A7D6B',  // Muted warm gray
+  primary: '#3D3526',        // Dark brown — buttons, headers
+  accent: '#B8860B',         // Gold/amber — progress bars, active states
+  textPrimary: '#1A1208',    // Near-black, warm (was #2C2417)
+  textSecondary: '#8B7355',  // Warm medium brown (was #8A7D6B)
   textTertiary: '#B5A898',   // Lighter muted
   success: '#6B8E4E',        // Completed indicator
   error: '#C45C4A',          // Error states
@@ -27,7 +27,7 @@ export const fonts = {
   },
   ui: {
     regular: 'DM Sans',
-    serif: 'Instrument Serif',
+    serif: 'Cormorant Garamond',
   },
 } as const;
 
@@ -39,20 +39,19 @@ export const spacing = {
   xl: 32,
   xxl: 48,
   sectionGap: 32,
-  screenPadding: 24,
+  screenPadding: 20,
 } as const;
 
 export const typography = {
-  // UI text (English)
-  h1: { fontSize: 28, fontWeight: '700' as const, lineHeight: 34 },
-  h2: { fontSize: 22, fontWeight: '600' as const, lineHeight: 28 },
-  h3: { fontSize: 18, fontWeight: '600' as const, lineHeight: 24 },
-  body: { fontSize: 16, fontWeight: '400' as const, lineHeight: 22 },
+  h1: { fontSize: 24, fontWeight: '700' as const, lineHeight: 30 },
+  h2: { fontSize: 18, fontWeight: '600' as const, lineHeight: 24 },
+  h3: { fontSize: 16, fontWeight: '600' as const, lineHeight: 22 },
+  body: { fontSize: 15, fontWeight: '400' as const, lineHeight: 22 },
   caption: { fontSize: 13, fontWeight: '400' as const, lineHeight: 18 },
   label: { fontSize: 11, fontWeight: '500' as const, lineHeight: 14, letterSpacing: 0.5, textTransform: 'uppercase' as const },
-  // Stat numbers
-  stat: { fontSize: 36, fontWeight: '700' as const, lineHeight: 42 },
-  statLabel: { fontSize: 11, fontWeight: '500' as const, lineHeight: 14, letterSpacing: 0.8, textTransform: 'uppercase' as const },
+  stat: { fontSize: 26, fontWeight: '700' as const, lineHeight: 32 },
+  statLabel: { fontSize: 10, fontWeight: '500' as const, lineHeight: 13, letterSpacing: 0.4, textTransform: 'uppercase' as const },
+  sectionTitle: { fontSize: 16, fontWeight: '600' as const, lineHeight: 22 },
 } as const;
 
 export const borderRadius = {
