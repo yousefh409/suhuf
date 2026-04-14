@@ -98,3 +98,16 @@ def test_diacritize_blocks_preserves_token_ids():
     result = diacritize_blocks([page], engine=MockEngine())
     assert result[0].content_blocks[0].tokens[0].id == "p5_b2_w0"
     assert result[0].content_blocks[0].tokens[1].id == "p5_b2_w1"
+
+def test_content_plain_updated_after_diacritize():
+    """content_plain should reflect diacritized text since it's a computed field."""
+    tokens = [Token(id="p1_b0_w0", text="حدثنا")]
+    block = Block(key="b0", type="prose", tokens=tokens)
+    page = Page(page_number=1, volume=1, content_blocks=[block])
+
+    class MockEngine:
+        def diacritize(self, text: str) -> str:
+            return "حَدَّثَنَا"
+
+    result = diacritize_blocks([page], engine=MockEngine())
+    assert "حَدَّثَنَا" in result[0].content_plain
