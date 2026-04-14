@@ -19,7 +19,7 @@ export default function Home() {
       <Features />
       <LibraryTeacher />
       <DarkCTA />
-      <Pricing />
+      {/* <Pricing /> */}
       <FAQ />
       <Footer />
     </main>

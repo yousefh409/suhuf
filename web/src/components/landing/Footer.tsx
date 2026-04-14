@@ -33,7 +33,7 @@ export default function Footer() {
           </div>
 
           {/* Link columns */}
-          <div className="flex gap-16">
+          <div className="flex gap-10 md:gap-16">
             {Object.entries(links).map(([heading, items]) => (
               <div key={heading} className="flex flex-col gap-4">
                 <span className="text-xs text-white/25 uppercase tracking-[0.1em] font-medium">

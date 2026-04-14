@@ -1,5 +1,14 @@
 "use client";
 
+import { useRef, useEffect, useCallback } from "react";
+import {
+  motion,
+  useMotionValue,
+  useSpring,
+  useTransform,
+  useScroll,
+} from "motion/react";
+
 /* ---------- iPad Screen: Library View ---------- */
 function IPadScreen() {
   return (
@@ -224,12 +233,178 @@ function IrabRow({
   );
 }
 
+/* ---------- 3D Tilt wrapper (desktop only) ---------- */
+function TiltDevice({
+  children,
+  className,
+  style,
+  parallaxY,
+  delay = 0,
+  idleSpeed = 0.7,
+  idleRadius = 0.5,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  parallaxY?: import("motion/react").MotionValue<number>;
+  delay?: number;
+  /** Speed of the idle orbit in radians/sec (default 0.4) */
+  idleSpeed?: number;
+  /** How far the idle orbit reaches, 0-0.5 (default 0.5) */
+  idleRadius?: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const hovering = useRef(false);
+  const rafId = useRef<number>(0);
+
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+
+  const tiltX = useSpring(useTransform(mouseY, [-0.5, 0.5], [6, -6]), {
+    stiffness: 200,
+    damping: 30,
+  });
+  const tiltY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-6, 6]), {
+    stiffness: 200,
+    damping: 30,
+  });
+
+  /* Idle orbit: gently rotate when cursor isn't on the device */
+  const startIdle = useCallback(() => {
+    let start: number | null = null;
+    function tick(ts: number) {
+      if (hovering.current) return;
+      if (start === null) start = ts;
+      const t = ((ts - start) / 1000) * idleSpeed;
+      mouseX.set(Math.sin(t) * idleRadius);
+      mouseY.set(Math.cos(t * 0.7) * idleRadius);
+      rafId.current = requestAnimationFrame(tick);
+    }
+    rafId.current = requestAnimationFrame(tick);
+  }, [idleSpeed, idleRadius, mouseX, mouseY]);
+
+  useEffect(() => {
+    startIdle();
+    return () => cancelAnimationFrame(rafId.current);
+  }, [startIdle]);
+
+  function handleMouse(e: React.MouseEvent) {
+    hovering.current = true;
+    cancelAnimationFrame(rafId.current);
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    mouseX.set((e.clientX - rect.left) / rect.width - 0.5);
+    mouseY.set((e.clientY - rect.top) / rect.height - 0.5);
+  }
+
+  function handleLeave() {
+    hovering.current = false;
+    startIdle();
+  }
+
+  /* Parallax drives y; entrance uses only opacity + scale so they don't fight */
+  return (
+    <motion.div
+      ref={ref}
+      onMouseMove={handleMouse}
+      onMouseLeave={handleLeave}
+      initial={{ opacity: 0, scale: 0.92 }}
+      whileInView={{ opacity: 1, scale: 1 }}
+      viewport={{ once: true, amount: 0.15 }}
+      transition={{ duration: 0.9, delay, ease: [0.22, 1, 0.36, 1] }}
+      className={className}
+      style={{
+        ...style,
+        rotateX: tiltX,
+        rotateY: tiltY,
+        y: parallaxY,
+        transformStyle: "preserve-3d",
+      }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/* ---------- Device Chrome: iPad Frame ---------- */
+function IPadFrame({ children, screenHeight }: { children: React.ReactNode; screenHeight: number }) {
+  return (
+    <div className="relative">
+      {/* Front camera */}
+      <div
+        className="absolute top-[6px] left-1/2 -translate-x-1/2 w-[6px] h-[6px] rounded-full z-10"
+        style={{ background: "radial-gradient(circle, #3a3a3c 30%, #1d1d1f 100%)" }}
+      />
+      {/* Screen with inner shadow */}
+      <div
+        className="rounded-[16px] overflow-hidden bg-white relative"
+        style={{ height: screenHeight }}
+      >
+        {children}
+        {/* Screen glare */}
+        <div
+          className="pointer-events-none absolute inset-0 rounded-[16px]"
+          style={{
+            background: "linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 50%)",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Device Chrome: iPhone Frame ---------- */
+function IPhoneFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative w-full h-full">
+      {/* Dynamic Island */}
+      <div
+        className="absolute top-[8px] left-1/2 -translate-x-1/2 w-[72px] h-[20px] rounded-full bg-black z-20"
+      />
+      {/* Screen */}
+      <div className="rounded-[32px] overflow-hidden bg-white w-full h-full relative">
+        {children}
+        {/* Screen glare */}
+        <div
+          className="pointer-events-none absolute inset-0 rounded-[32px]"
+          style={{
+            background: "linear-gradient(135deg, rgba(255,255,255,0.10) 0%, transparent 45%)",
+          }}
+        />
+      </div>
+      {/* Home indicator */}
+      <div className="absolute bottom-[6px] left-1/2 -translate-x-1/2 w-[100px] h-[4px] rounded-full bg-black/20 z-20" />
+    </div>
+  );
+}
+
 /* ---------- Main Component ---------- */
 export default function LibraryTeacher() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start end", "end start"],
+  });
+
+  // Devices float gently as user scrolls
+  const ipadY = useTransform(scrollYProgress, [0, 1], [60, -30]);
+  const iphoneY = useTransform(scrollYProgress, [0, 1], [90, -20]);
+
   return (
-    <section className="w-full flex flex-col items-center px-6 md:px-[60px] pt-[100px] pb-10 gap-14 overflow-hidden">
+    <section
+      ref={sectionRef}
+      className="w-full flex flex-col items-center px-6 md:px-[60px] pt-16 md:pt-[100px] pb-10 gap-10 md:gap-14 overflow-hidden"
+      style={{ perspective: 1200 }}
+    >
       {/* Text Area */}
-      <div className="flex flex-col items-center gap-4 max-w-[680px] text-center">
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.5 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        className="flex flex-col items-center gap-4 max-w-[680px] text-center"
+      >
         <span className="text-[13px] uppercase tracking-[0.12em] font-semibold text-gold">
           Suhuf
         </span>
@@ -240,42 +415,112 @@ export default function LibraryTeacher() {
           Dozens of classical texts. Real-time pronunciation feedback. Grammar
           explained in plain English. All in one app.
         </p>
-      </div>
+      </motion.div>
 
-      {/* Device Stack */}
-      <div className="relative w-full max-w-[900px] h-[500px] md:h-[740px] hidden md:block">
+      {/* Device Stack — Desktop */}
+      <div className="relative w-full max-w-[900px] h-[740px] hidden md:block" style={{ perspective: 1200 }}>
         {/* iPad Device */}
-        <div
-          className="absolute left-[40px] top-[20px] w-[620px] rounded-[24px] p-2"
+        <TiltDevice
+          parallaxY={ipadY}
+          className="absolute left-[40px] top-[20px] w-[620px] rounded-[24px] p-[10px]"
           style={{
-            backgroundImage: "linear-gradient(in oklab 145deg, oklab(45.3% -.0007 0.011) 0%, oklab(40.2% .0002 0.009) 100%)",
+            backgroundImage: "linear-gradient(in oklab 160deg, oklab(46% -.0007 0.011) 0%, oklab(38% .0002 0.009) 100%)",
             boxShadow:
-              "#FFFFFF14 0px 1px 0px inset, #00000033 0px 30px 80px, #0000001A 0px 8px 24px",
-            transform: "rotate(-6deg)",
-            transformOrigin: "0% 0%",
+              "inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.2), 0 30px 80px rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.15)",
+            rotate: "-6deg",
           }}
         >
-          <div className="rounded-[16px] overflow-hidden bg-white" style={{ height: 520 }}>
+          {/* Side button accents */}
+          <div className="absolute -right-[2px] top-[60px] w-[3px] h-[30px] rounded-r-sm bg-[#2a2a2c]" />
+          <div className="absolute -right-[2px] top-[100px] w-[3px] h-[30px] rounded-r-sm bg-[#2a2a2c]" />
+          <div className="absolute -left-[2px] top-[80px] w-[3px] h-[50px] rounded-l-sm bg-[#2a2a2c]" />
+          <IPadFrame screenHeight={520}>
             <IPadScreen />
-          </div>
-        </div>
+          </IPadFrame>
+        </TiltDevice>
 
         {/* iPhone Device */}
-        <div
-          className="absolute right-[30px] top-[50px] w-[290px] h-[600px] rounded-[40px] p-2"
+        <TiltDevice
+          parallaxY={iphoneY}
+          delay={0.15}
+          className="absolute right-[30px] top-[50px] w-[290px] h-[600px] rounded-[44px] p-[10px]"
           style={{
-            backgroundImage: "linear-gradient(in oklab 145deg, oklab(34.5% -.0001 0.005) 0%, oklab(29.7% .0004 0.004) 100%)",
+            backgroundImage: "linear-gradient(in oklab 160deg, oklab(32% -.0001 0.005) 0%, oklab(24% .0004 0.004) 100%)",
             boxShadow:
-              "#FFFFFF1A 0px 1px 0px inset, #00000059 0px 40px 100px, #00000033 0px 10px 30px",
-            transform: "rotate(6deg)",
+              "inset 0 1px 0 rgba(255,255,255,0.1), inset 0 -1px 0 rgba(0,0,0,0.3), 0 40px 100px rgba(0,0,0,0.4), 0 10px 30px rgba(0,0,0,0.25)",
+            rotate: "6deg",
+          }}
+        >
+          {/* Side buttons */}
+          <div className="absolute -right-[2px] top-[120px] w-[3px] h-[40px] rounded-r-sm bg-[#1a1a1c]" />
+          <div className="absolute -left-[2px] top-[90px] w-[3px] h-[24px] rounded-l-sm bg-[#1a1a1c]" />
+          <div className="absolute -left-[2px] top-[125px] w-[3px] h-[40px] rounded-l-sm bg-[#1a1a1c]" />
+          <div className="absolute -left-[2px] top-[175px] w-[3px] h-[40px] rounded-l-sm bg-[#1a1a1c]" />
+          <IPhoneFrame>
+            <IPhoneScreen />
+          </IPhoneFrame>
+        </TiltDevice>
+      </div>
+
+      {/* Device Stack — Mobile (overlapping like desktop) */}
+      <div className="relative w-full max-w-[400px] mx-auto md:hidden" style={{ height: 520, perspective: 1200 }}>
+        {/* iPad Device — back layer */}
+        <TiltDevice
+          className="absolute left-0 top-0 w-[300px] rounded-[18px] p-[6px]"
+          style={{
+            backgroundImage: "linear-gradient(in oklab 160deg, oklab(46% -.0007 0.011) 0%, oklab(38% .0002 0.009) 100%)",
+            boxShadow:
+              "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 48px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.1)",
+            rotate: "-4deg",
             transformOrigin: "0% 0%",
           }}
         >
-          <IPhoneScreen />
-        </div>
-      </div>
+          {/* Camera dot */}
+          <div
+            className="absolute top-[4px] left-1/2 -translate-x-1/2 w-[4px] h-[4px] rounded-full z-10"
+            style={{ background: "radial-gradient(circle, #3a3a3c 30%, #1d1d1f 100%)" }}
+          />
+          {/* Side buttons */}
+          <div className="absolute -right-[1.5px] top-[40px] w-[2px] h-[20px] rounded-r-sm bg-[#2a2a2c]" />
+          <div className="absolute -left-[1.5px] top-[50px] w-[2px] h-[32px] rounded-l-sm bg-[#2a2a2c]" />
+          <div className="rounded-[12px] overflow-hidden bg-white relative" style={{ height: 380 }}>
+            <IPadScreen />
+            <div
+              className="pointer-events-none absolute inset-0 rounded-[12px]"
+              style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%)" }}
+            />
+          </div>
+        </TiltDevice>
 
-      {/* Mobile fallback: show text only, devices hidden via hidden md:block above */}
+        {/* iPhone Device — front layer, overlapping */}
+        <TiltDevice
+          delay={0.12}
+          className="absolute right-0 top-[30px] w-[175px] h-[370px] rounded-[30px] p-[6px] z-10"
+          style={{
+            backgroundImage: "linear-gradient(in oklab 160deg, oklab(32% -.0001 0.005) 0%, oklab(24% .0004 0.004) 100%)",
+            boxShadow:
+              "inset 0 1px 0 rgba(255,255,255,0.1), 0 20px 60px rgba(0,0,0,0.35), 0 6px 18px rgba(0,0,0,0.2)",
+            rotate: "4deg",
+            transformOrigin: "0% 0%",
+          }}
+        >
+          {/* Dynamic Island */}
+          <div className="absolute top-[8px] left-1/2 -translate-x-1/2 w-[44px] h-[12px] rounded-full bg-black z-20" />
+          {/* Side buttons */}
+          <div className="absolute -right-[1.5px] top-[70px] w-[2px] h-[24px] rounded-r-sm bg-[#1a1a1c]" />
+          <div className="absolute -left-[1.5px] top-[55px] w-[2px] h-[16px] rounded-l-sm bg-[#1a1a1c]" />
+          <div className="absolute -left-[1.5px] top-[78px] w-[2px] h-[24px] rounded-l-sm bg-[#1a1a1c]" />
+          <div className="rounded-[24px] overflow-hidden bg-white w-full h-full relative">
+            <IPhoneScreen />
+            <div
+              className="pointer-events-none absolute inset-0 rounded-[24px]"
+              style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 45%)" }}
+            />
+          </div>
+          {/* Home indicator */}
+          <div className="absolute bottom-[4px] left-1/2 -translate-x-1/2 w-[60px] h-[3px] rounded-full bg-black/20 z-20" />
+        </TiltDevice>
+      </div>
     </section>
   );
 }

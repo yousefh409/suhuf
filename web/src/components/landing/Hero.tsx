@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-import { motion, AnimatePresence, useScroll, useTransform } from "motion/react";
+import { motion, AnimatePresence, useScroll, useTransform, useInView } from "motion/react";
 
 function getReferralFromCookie(): string | null {
   if (typeof document === "undefined") return null;
@@ -80,7 +80,7 @@ function BookPage({
 
       <div className="text-[16px] leading-[38px] text-ink text-center space-y-0">
         {/* First paragraph: read-along highlights + error on last word */}
-        <p>
+        <span className="block">
           {READ_ALONG_WORDS.map((word, i) => {
             const isLast = i === READ_ALONG_WORDS.length - 1;
             const isActive = readAlongIndex === i;
@@ -141,7 +141,7 @@ function BookPage({
               </React.Fragment>
             );
           })}
-        </p>
+        </span>
 
         <p>وأقسامُهُ ثلاثةٌ: اسمٌ، وفعلٌ، وحرفٌ جاءَ لمعنًى</p>
         <p>
@@ -239,7 +239,8 @@ function IPadMockup() {
     offset: ["start end", "end start"],
   });
 
-  const rotateX = useTransform(scrollYProgress, [0, 0.3, 1], [15, 0, 0]);
+  const rotateX = useTransform(scrollYProgress, [0, 0.45, 1], [55, 0, 0]);
+  const inView = useInView(containerRef, { amount: 0.3 });
 
   /* ─── Walkthrough state machine ───
    *  0: idle         (2s)
@@ -253,13 +254,15 @@ function IPadMockup() {
   const [step, setStep] = useState(0);
   const [readAlongIndex, setReadAlongIndex] = useState(-1);
 
+  // Only advance walkthrough when visible in viewport
   useEffect(() => {
-    const delays = [2000, 3500, 3000, 500, 800, 3000, 800];
+    if (!inView) return;
+    const delays = [2500, 4000, 4000, 600, 1000, 3500, 1000];
     const timer = setTimeout(() => {
       setStep((s) => (s + 1) % delays.length);
     }, delays[step]);
     return () => clearTimeout(timer);
-  }, [step]);
+  }, [step, inView]);
 
   // Read-along sub-animation during step 1
   useEffect(() => {
@@ -286,7 +289,11 @@ function IPadMockup() {
   const wordHighlighted = step === 4 || step === 5;
   const panelVisible = step === 5;
 
+  // Map internal step → display step index (0-3), -1 for transitions
+  const displayStep = step === 1 ? 0 : step === 2 ? 1 : step === 4 ? 2 : step === 5 ? 3 : -1;
+
   const STEP_CARDS: {
+    num: number;
     title: string;
     desc: string;
     side: "left" | "right";
@@ -295,6 +302,7 @@ function IPadMockup() {
 
   if (step === 1)
     STEP_CARDS.push({
+      num: 1,
       title: "Read aloud",
       desc: "suhuf follows along word by word",
       side: "left",
@@ -302,13 +310,15 @@ function IPadMockup() {
     });
   if (step === 2)
     STEP_CARDS.push({
+      num: 2,
       title: "Error detected",
-      desc: "Caught and explained instantly",
+      desc: "Tashkeel, i'rab, and pronunciation — caught instantly",
       side: "right",
       top: "22%",
     });
   if (step === 4)
     STEP_CARDS.push({
+      num: 3,
       title: "Tap any word",
       desc: "Select for instant details",
       side: "left",
@@ -316,11 +326,13 @@ function IPadMockup() {
     });
   if (step === 5)
     STEP_CARDS.push({
+      num: 4,
       title: "Word breakdown",
       desc: "Translation, root, and i'rab",
       side: "right",
       top: "38%",
     });
+
 
   return (
     <div
@@ -360,6 +372,7 @@ function IPadMockup() {
                 </motion.div>
               )}
             </AnimatePresence>
+
           </div>
           <TabBar />
           {/* Home indicator */}
@@ -369,38 +382,132 @@ function IPadMockup() {
         </div>
       </motion.div>
 
-      {/* Annotation cards */}
+      {/* Step indicator */}
+      <div className="flex items-center justify-center gap-2 mt-4">
+        {[0, 1, 2, 3].map((i) => (
+          <motion.div
+            key={i}
+            animate={{
+              backgroundColor: displayStep === i ? "rgba(180, 125, 58, 0.8)" : "rgba(42, 31, 23, 0.1)",
+              scale: displayStep === i ? 1.3 : 1,
+            }}
+            transition={{ duration: 0.3 }}
+            className="w-2 h-2 rounded-full"
+          />
+        ))}
+      </div>
+
+      {/* Annotation cards — desktop: positioned outside iPad, mobile: overlaid on iPad */}
       <AnimatePresence>
         {STEP_CARDS.map((card) => (
-          <motion.div
-            key={card.title}
-            initial={{
-              opacity: 0,
-              x: card.side === "left" ? -16 : 16,
-            }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-            className={`absolute ${
-              card.side === "left"
-                ? "right-[calc(100%+16px)] flex-row"
-                : "left-[calc(100%+16px)] flex-row-reverse"
-            } flex items-center`}
-            style={{ top: card.top }}
-          >
-            <div className="bg-white border border-ink/8 rounded-2xl px-5 py-4 shadow-[0_4px_20px_rgba(0,0,0,0.08)] w-[240px]">
-              <p className="text-[15px] text-ink font-semibold leading-tight">
-                {card.title}
-              </p>
-              <p className="text-[13px] text-ink/40 mt-1.5 leading-snug">
-                {card.desc}
-              </p>
-            </div>
-            <div className="flex items-center">
-              <div className="w-6 h-px bg-ink/15" />
-              <div className="w-2 h-2 rounded-full bg-gold/50 shrink-0" />
-            </div>
-          </motion.div>
+          <React.Fragment key={card.title}>
+            {/* Desktop annotation (hidden on mobile) */}
+            <motion.div
+              initial={{
+                opacity: 0,
+                x: card.side === "left" ? -50 : 50,
+                y: 20,
+                scale: 0.8,
+                rotateY: card.side === "left" ? -12 : 12,
+              }}
+              animate={{
+                opacity: 1,
+                x: 0,
+                y: 0,
+                scale: 1,
+                rotateY: card.side === "left" ? 5 : -5,
+              }}
+              exit={{
+                opacity: 0,
+                x: card.side === "left" ? -30 : 30,
+                y: 8,
+                scale: 0.88,
+                rotateY: card.side === "left" ? -6 : 6,
+              }}
+              transition={{
+                type: "spring",
+                stiffness: 160,
+                damping: 18,
+                mass: 0.7,
+              }}
+              className={`absolute hidden lg:flex ${
+                card.side === "left"
+                  ? "right-[calc(100%+16px)] flex-row"
+                  : "left-[calc(100%+16px)] flex-row-reverse"
+              } items-center`}
+              style={{
+                top: card.top,
+                perspective: "500px",
+                transformStyle: "preserve-3d",
+              }}
+            >
+              <div
+                className="bg-white/95 backdrop-blur-sm border border-ink/8 rounded-2xl px-5 py-4 w-[240px]"
+                style={{
+                  boxShadow:
+                    "0 12px 40px rgba(0,0,0,0.12), 0 2px 10px rgba(0,0,0,0.06)",
+                }}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="w-6 h-6 rounded-full bg-gold/15 text-gold text-[12px] font-bold flex items-center justify-center shrink-0">
+                    {card.num}
+                  </span>
+                  <p className="text-[16px] text-ink font-semibold leading-tight">
+                    {card.title}
+                  </p>
+                </div>
+                <p className="text-[14px] text-ink/55 mt-1.5 leading-snug pl-[34px]">
+                  {card.desc}
+                </p>
+              </div>
+              <div className="flex items-center">
+                <motion.div
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  transition={{ type: "spring", stiffness: 200, damping: 25, delay: 0.08 }}
+                  className="w-6 h-px bg-ink/15 origin-left"
+                  style={{ transformOrigin: card.side === "left" ? "right" : "left" }}
+                />
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 350, damping: 12, delay: 0.15 }}
+                  className="w-2 h-2 rounded-full bg-gold/50 shrink-0"
+                />
+              </div>
+            </motion.div>
+
+            {/* Mobile annotation (overlaid at bottom of iPad) */}
+            <motion.div
+              initial={{ opacity: 0, y: 24, scale: 0.85 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 14, scale: 0.9 }}
+              transition={{
+                type: "spring",
+                stiffness: 180,
+                damping: 18,
+              }}
+              className="absolute bottom-[-52px] left-1/2 -translate-x-1/2 lg:hidden z-20"
+            >
+              <div
+                className="bg-white/95 backdrop-blur-sm border border-ink/8 rounded-xl px-4 py-2.5 flex items-center gap-2 whitespace-nowrap"
+                style={{
+                  boxShadow:
+                    "0 12px 40px rgba(0,0,0,0.12), 0 2px 10px rgba(0,0,0,0.06)",
+                }}
+              >
+                <span className="w-5 h-5 rounded-full bg-gold/15 text-gold text-[11px] font-bold flex items-center justify-center shrink-0">
+                  {card.num}
+                </span>
+                <p className="text-[13px] text-ink font-semibold leading-tight">
+                  {card.title}
+                </p>
+                <p className="text-[12px] text-ink/50 leading-tight">
+                  {card.desc}
+                </p>
+              </div>
+            </motion.div>
+          </React.Fragment>
         ))}
       </AnimatePresence>
     </div>
@@ -459,20 +566,20 @@ export default function Hero() {
   return (
     <section
       id="waitlist"
-      className="flex flex-col items-center w-full px-[60px] pt-[60px] pb-[40px] gap-5"
+      className="flex flex-col items-center w-full px-5 md:px-[60px] pt-10 md:pt-[60px] pb-[40px] gap-5"
       style={{
         boxShadow: "#00000033 0px 2px 3px inset, #00000033 0px 2px 3px",
       }}
     >
       <Image src="/logo.png" alt="suhuf" width={40} height={40} className="rounded-xl" />
 
-      <h1 className="font-serif text-[50px] font-normal leading-[56px] tracking-[-0.03em] text-ink text-center">
+      <h1 className="font-serif text-[34px] md:text-[50px] font-normal leading-[40px] md:leading-[56px] tracking-[-0.03em] text-ink text-center">
         Your Arabic readalong
         <br />
         companion.
       </h1>
 
-      <p className="text-ink/[0.42] text-[20px] font-normal leading-[160%] text-center max-w-[580px]">
+      <p className="text-ink/[0.42] text-base md:text-[20px] font-normal leading-[160%] text-center max-w-[580px]">
         Read any classical Arabic text aloud — suhuf listens, catches your
         grammar mistakes in real time, and explains why. Tap any word for
         instant translation, morphology, and i&apos;rab.
@@ -495,21 +602,21 @@ export default function Hero() {
         </a>
       ) : !checkingCookie ? (
         <>
-          <form onSubmit={handleSubmit} className="flex items-center pt-1">
-            <div className="flex items-center rounded-l-full py-3.5 px-5 bg-parchment-warm border border-ink/10 border-r-0">
+          <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-center pt-1 w-full sm:w-auto px-2 sm:px-0">
+            <div className="flex items-center rounded-full sm:rounded-l-full sm:rounded-r-none py-3.5 px-5 bg-parchment-warm border border-ink/10 sm:border-r-0">
               <input
                 type="email"
                 required
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-[220px] text-sm text-ink bg-transparent outline-none placeholder:text-ink/30"
+                className="w-full sm:w-[220px] text-sm text-ink bg-transparent outline-none placeholder:text-ink/30"
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="rounded-r-full py-3.5 px-7 bg-ink text-white text-sm font-medium hover:bg-ink/90 transition-colors disabled:opacity-70"
+              className="rounded-full sm:rounded-l-none sm:rounded-r-full py-3.5 px-7 bg-ink text-white text-sm font-medium hover:bg-ink/90 transition-colors disabled:opacity-70 mt-2 sm:mt-0"
             >
               {loading ? "Joining..." : "Get Early Access"}
             </button>
@@ -521,7 +628,9 @@ export default function Hero() {
         </>
       ) : null}
 
-      <IPadMockup />
+      <div className="w-full mb-14 lg:mb-0">
+        <IPadMockup />
+      </div>
     </section>
   );
 }

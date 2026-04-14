@@ -1,7 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion } from "motion/react";
 import { ArrowUp, Mic, BookOpen, Languages, ChevronRight, X } from "lucide-react";
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 32 },
+  visible: { opacity: 1, y: 0 },
+};
+
+const staggerContainer = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.1 } },
+};
 
 const upcomingFeatures = [
   {
@@ -137,17 +148,31 @@ export default function Features() {
   return (
     <section id="features" className="w-full flex flex-col items-center px-6 md:px-[60px] py-16 md:py-24 gap-12">
       {/* Section header */}
-      <div className="flex flex-col items-center gap-4">
+      <motion.div
+        variants={fadeUp}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.5 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        className="flex flex-col items-center gap-4"
+      >
         <span className="text-[13px] uppercase tracking-[0.12em] font-semibold text-gold">
           Features
         </span>
         <h2 className="font-serif text-[36px] md:text-[48px] text-ink text-center leading-[1.15]">
           Everything you need{"\n"}to master classical Arabic.
         </h2>
-      </div>
+      </motion.div>
 
       {/* Listen Along card */}
-      <div className="w-full max-w-[1320px] rounded-[20px] bg-white p-8 md:p-12 flex flex-col md:flex-row gap-10">
+      <motion.div
+        variants={fadeUp}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.15 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        className="w-full max-w-[1320px] rounded-[20px] bg-white p-8 md:p-12 flex flex-col md:flex-row gap-10"
+      >
         <div className="flex flex-col gap-4 flex-1">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gold/15 flex items-center justify-center shrink-0">
@@ -195,12 +220,19 @@ export default function Features() {
             اسمٌ وفعلٌ وحرفٌ جاءَ لمعنىً
           </p>
         </div>
-      </div>
+      </motion.div>
 
       {/* Grammar + Translation row */}
       <div className="w-full max-w-[1320px] flex flex-col md:flex-row gap-6">
         {/* Grammar card */}
-        <div className="flex-1 rounded-[20px] bg-white p-9 flex flex-col gap-5">
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.15 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="flex-1 rounded-[20px] bg-white p-9 flex flex-col gap-5"
+        >
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-[#F0EBE3] flex items-center justify-center shrink-0">
               <BookOpen className="w-4 h-4 text-ink/70" />
@@ -248,10 +280,17 @@ export default function Features() {
               </p>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Translation card */}
-        <div className="flex-1 rounded-[20px] bg-white p-9 flex flex-col gap-5">
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.15 }}
+          transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+          className="flex-1 rounded-[20px] bg-white p-9 flex flex-col gap-5"
+        >
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-[#F0EBE3] flex items-center justify-center shrink-0">
               <Languages className="w-4 h-4 text-ink/70" />
@@ -302,15 +341,23 @@ export default function Features() {
               </p>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* Upcoming features row */}
-      <div className="w-full max-w-[1320px] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <motion.div
+        variants={staggerContainer}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.2 }}
+        className="w-full max-w-[1320px] flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-hide lg:grid lg:grid-cols-4 lg:overflow-visible lg:pb-0"
+      >
         {upcomingFeatures.map((f) => (
-          <div
+          <motion.div
             key={f.id}
-            className="flex flex-col rounded-2xl p-6 gap-2 bg-white/70 border-[1.5px] border-dashed border-ink/12"
+            variants={fadeUp}
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            className="flex flex-col rounded-2xl p-6 gap-2 bg-white/70 border-[1.5px] border-dashed border-ink/12 min-w-[280px] snap-start shrink-0 lg:min-w-0 lg:shrink"
           >
             <span
               className={`text-[11px] uppercase tracking-[0.1em] font-semibold px-2 py-0.5 rounded-full w-fit ${f.statusColor}`}
@@ -332,9 +379,9 @@ export default function Features() {
               <ArrowUp className="w-3.5 h-3.5" />
               {votedFeatures.has(f.id) ? "Voted" : "Upvote"}
             </button>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       {/* Suggest a feature */}
       <div className="flex flex-col items-center gap-3">

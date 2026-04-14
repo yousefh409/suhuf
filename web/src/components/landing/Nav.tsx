@@ -6,7 +6,7 @@ export default function Nav() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <nav className="sticky top-0 z-50 flex items-center justify-between w-full px-16 py-7 bg-parchment-light/90 backdrop-blur-md">
+    <nav className="sticky top-0 z-50 flex items-center justify-between w-full px-5 md:px-16 py-5 md:py-7 bg-parchment-light/90 backdrop-blur-md">
       <a href="/" className="font-serif italic text-[22px] text-ink/90">
         suhuf
       </a>

@@ -100,22 +100,72 @@ def diacritize_blocks(pages: list[Page], engine: TashkeelEngine | None) -> list[
     return result
 
 
-def load_engine(name: str = "sadeed") -> TashkeelEngine | None:
-    """Load a tashkeel engine by name. Returns None if loading fails."""
+class _ShakkalaEngine:
+    """Shakkala diacritization via arabic_vocalizer ONNX runtime."""
+
+    def diacritize(self, text: str) -> str:
+        from arabic_vocalizer import vocalize
+        return vocalize(text, model="shakkala")
+
+
+class _FlanT5Engine:
+    """FLAN-T5 Arabic tashkeel via HuggingFace transformers."""
+
+    def __init__(self):
+        import torch
+        from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+
+        model_path = "Abdou/arabic-tashkeel-flan-t5-small"
+        self._tokenizer = AutoTokenizer.from_pretrained(model_path)
+        self._model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
+        self._model.eval()
+        self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self._model.to(self._device)
+
+    def diacritize(self, text: str) -> str:
+        import torch
+
+        inputs = self._tokenizer(
+            text, return_tensors="pt", max_length=256, truncation=True, padding="max_length",
+        )
+        inputs = {k: v.to(self._device) for k, v in inputs.items()}
+        with torch.no_grad():
+            outputs = self._model.generate(**inputs, max_length=256, num_beams=4, early_stopping=True)
+        return self._tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+
+def load_engine(name: str = "shakkala") -> TashkeelEngine | None:
+    """Load a tashkeel engine by name. Returns None if loading fails.
+
+    Available engines:
+        shakkala  -- Shakkala ONNX via arabic_vocalizer (fast, recommended)
+        flan-t5   -- Abdou/arabic-tashkeel-flan-t5-small (slower, higher quality on classical)
+        sadeed    -- Alias for shakkala (Sadeed weights not yet public)
+    """
+    # sadeed falls through to shakkala until model weights are published
     if name == "sadeed":
+        logger.info("Sadeed weights not yet public; falling back to Shakkala.")
+        name = "shakkala"
+
+    if name == "shakkala":
         try:
-            from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-            logger.info("Loading Sadeed tashkeel model...")
-            raise ImportError("Sadeed model ID not yet confirmed on HuggingFace")
+            logger.info("Loading Shakkala tashkeel engine (ONNX)...")
+            engine = _ShakkalaEngine()
+            # Warm up with a short test
+            engine.diacritize("بسم الله")
+            logger.info("Shakkala loaded.")
+            return engine
         except Exception as e:
-            logger.warning(f"Failed to load Sadeed: {e}. Trying Shakkala fallback.")
-            return load_engine("shakkala")
-    elif name == "shakkala":
+            logger.warning(f"Failed to load Shakkala: {e}. Trying flan-t5 fallback.")
+            return load_engine("flan-t5")
+    elif name == "flan-t5":
         try:
-            logger.info("Loading Shakkala tashkeel model...")
-            raise ImportError("Shakkala PyTorch port not yet installed")
+            logger.info("Loading FLAN-T5 tashkeel engine...")
+            engine = _FlanT5Engine()
+            logger.info("FLAN-T5 loaded.")
+            return engine
         except Exception as e:
-            logger.warning(f"Failed to load Shakkala: {e}")
+            logger.warning(f"Failed to load FLAN-T5: {e}")
             return None
     else:
         logger.error(f"Unknown tashkeel engine: {name}")

@@ -10,7 +10,7 @@ def build_parser() -> argparse.ArgumentParser:
     ingest.add_argument("uri", nargs="?", help="OpenITI URI (e.g., 0676Nawawi.ArbacunaNawawiyya)")
     ingest.add_argument("--starter", action="store_true", help="Ingest all starter books")
     ingest.add_argument("--corpus-path", default="./RELEASE", help="Path to OpenITI RELEASE clone")
-    ingest.add_argument("--tashkeel-engine", default="sadeed", choices=["sadeed", "shakkala", "none"])
+    ingest.add_argument("--tashkeel-engine", default="shakkala", choices=["shakkala", "flan-t5", "sadeed", "none"])
     ingest.add_argument("--force-tashkeel", action="store_true", help="Re-diacritize everything")
     ingest.add_argument("--dump", help="Write intermediate JSON to this directory")
     ingest.add_argument("--dry-run", action="store_true", help="Parse and tashkeel but skip upload")

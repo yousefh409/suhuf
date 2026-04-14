@@ -1,10 +1,19 @@
+import 'react-native-url-polyfill/auto';
+import 'expo-sqlite/localStorage/install';
 import { createClient } from '@supabase/supabase-js';
 import type { Book, Page, Chapter } from '../types';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: localStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+});
 
 /** Fetch all books from the catalog. */
 export async function fetchBookCatalog(): Promise<Book[]> {

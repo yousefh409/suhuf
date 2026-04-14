@@ -32,7 +32,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     try {
       const catalog = await fetchBookCatalog();
       set({ catalog, isLoading: false });
-    } catch {
+    } catch (e) {
+      console.error('[loadCatalog] failed:', e);
       set({ isLoading: false });
     }
   },

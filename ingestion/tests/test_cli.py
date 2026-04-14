@@ -7,7 +7,7 @@ def test_ingest_command_parses():
     assert args.command == "ingest"
     assert args.uri == "0676Nawawi.ArbacunaNawawiyya"
     assert args.corpus_path == "./RELEASE"
-    assert args.tashkeel_engine == "sadeed"
+    assert args.tashkeel_engine == "shakkala"
     assert args.dry_run is False
 
 

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Minus } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { motion } from "motion/react";
 
 const faqs = [
   {
@@ -30,6 +31,11 @@ const faqs = [
   },
 ];
 
+const fadeUp = {
+  hidden: { opacity: 0, y: 32 },
+  visible: { opacity: 1, y: 0 },
+};
+
 export default function FAQ() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -44,37 +50,44 @@ export default function FAQ() {
         </h2>
       </div>
 
-      <div className="w-full max-w-[720px] flex flex-col">
-        {faqs.map((faq, i) => (
-          <div
-            key={i}
-            className="border-b border-ink/10 last:border-b-0"
-          >
-            <button
-              onClick={() => setOpenIndex(openIndex === i ? null : i)}
-              className="w-full flex items-center justify-between py-7 text-left"
-            >
-              <span className="text-base text-ink font-medium pr-4">
-                {faq.q}
-              </span>
-              {openIndex === i ? (
-                <Minus className="w-4 h-4 text-ink/30 flex-shrink-0" />
-              ) : (
-                <Plus className="w-4 h-4 text-ink/30 flex-shrink-0" />
-              )}
-            </button>
-            <div
-              className={`faq-answer ${openIndex === i ? "open" : ""}`}
-            >
-              <div>
-                <p className="text-sm text-ink/50 leading-[1.7] pb-7">
-                  {faq.a}
-                </p>
+      <motion.div
+        variants={fadeUp}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.2 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        className="w-full max-w-[720px] flex flex-col rounded-[20px] bg-white p-2 md:p-3"
+      >
+        {faqs.map((faq, i) => {
+          const isOpen = openIndex === i;
+          return (
+            <div key={i}>
+              <button
+                onClick={() => setOpenIndex(isOpen ? null : i)}
+                className={`w-full flex items-center justify-between px-5 md:px-6 py-5 text-left rounded-[14px] transition-colors ${
+                  isOpen ? "bg-parchment" : "hover:bg-parchment/60"
+                }`}
+              >
+                <span className="text-[15px] text-ink font-medium pr-4">
+                  {faq.q}
+                </span>
+                <ChevronDown
+                  className={`w-4 h-4 text-ink/30 flex-shrink-0 transition-transform duration-300 ${
+                    isOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+              <div className={`faq-answer ${isOpen ? "open" : ""}`}>
+                <div>
+                  <p className="text-[14px] text-ink/50 leading-[1.7] px-5 md:px-6 pb-4 pt-1">
+                    {faq.a}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          );
+        })}
+      </motion.div>
     </section>
   );
 }
