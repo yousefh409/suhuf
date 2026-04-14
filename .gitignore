@@ -56,5 +56,11 @@ recitation/eval_clartts_results.json
 # Playwright
 .playwright-mcp/
 
+# OpenITI corpus (multi-GB)
+RELEASE/
+
+# Ingestion output
+ingestion/output/
+
 # Misc
 .1code/
