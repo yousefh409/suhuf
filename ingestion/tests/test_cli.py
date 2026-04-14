@@ -6,6 +6,7 @@ def test_ingest_command_parses():
     args = parser.parse_args(["ingest", "0676Nawawi.ArbacunaNawawiyya"])
     assert args.command == "ingest"
     assert args.uri == "0676Nawawi.ArbacunaNawawiyya"
+    assert args.corpus_path == "./RELEASE"
     assert args.tashkeel_engine == "sadeed"
     assert args.dry_run is False
 
@@ -30,8 +31,14 @@ def test_parse_command_parses():
     assert args.dump == "./output"
 
 
-def test_ingest_starter():
+def test_ingest_starter_flag():
     parser = build_parser()
     args = parser.parse_args(["ingest", "--starter"])
     assert args.starter is True
     assert args.uri is None
+
+
+def test_ingest_with_dump():
+    parser = build_parser()
+    args = parser.parse_args(["ingest", "0676Nawawi.ArbacunaNawawiyya", "--dump", "/tmp/debug"])
+    assert args.dump == "/tmp/debug"
