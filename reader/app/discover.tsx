@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { useLibraryStore } from '../stores/library';
 import { Header } from '../components/ui/Header';
+import { Icon } from '../components/ui/Icon';
 import { CategoryPills } from '../components/library/CategoryPills';
 import { BookGrid } from '../components/library/BookGrid';
 import type { BookCategory } from '../types';
@@ -46,15 +47,18 @@ export default function Discover() {
 
       {/* Search bar */}
       <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search books, authors..."
-          placeholderTextColor={colors.textTertiary}
-          value={query}
-          onChangeText={handleSearch}
-          returnKeyType="search"
-          autoCorrect={false}
-        />
+        <View style={styles.searchBar}>
+          <Icon name="search" size={18} color={colors.textTertiary} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={`Search ${catalog.length.toLocaleString()} Arabic texts...`}
+            placeholderTextColor={colors.textTertiary}
+            value={query}
+            onChangeText={handleSearch}
+            returnKeyType="search"
+            autoCorrect={false}
+          />
+        </View>
       </View>
 
       {/* Category pills */}
@@ -67,10 +71,11 @@ export default function Discover() {
       {/* Sort + count row */}
       <View style={styles.sortRow}>
         <Text style={styles.resultCount}>
-          {isLoading ? 'Loading...' : `${catalog.length} books`}
+          {isLoading ? 'Loading...' : `${selectedCategory ? `${selectedCategory} \u00b7 ` : ''}${catalog.length.toLocaleString()} texts`}
         </Text>
         <Pressable style={styles.sortButton}>
-          <Text style={styles.sortText}>Sort ↕</Text>
+          <Icon name="sliders" size={16} color={colors.textPrimary} />
+          <Text style={styles.sortText}>Sort</Text>
         </Pressable>
       </View>
 
@@ -94,14 +99,21 @@ const styles = StyleSheet.create({
   searchContainer: {
     paddingHorizontal: spacing.screenPadding,
   },
-  searchInput: {
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.card,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     paddingHorizontal: spacing.md,
+    gap: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
     paddingVertical: spacing.md,
-    fontSize: 16,
+    fontSize: 15,
+    fontFamily: 'DMSans',
     color: colors.textPrimary,
   },
   sortRow: {
@@ -115,6 +127,9 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
     backgroundColor: colors.card,
     borderRadius: borderRadius.md,
     borderWidth: 1,
@@ -124,7 +139,7 @@ const styles = StyleSheet.create({
   },
   sortText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: 'DMSans-SemiBold',
     color: colors.textPrimary,
   },
   bottomPad: { height: spacing.xl },

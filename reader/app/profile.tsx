@@ -1,11 +1,11 @@
 import { useEffect, useMemo } from 'react';
-import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useStatsStore } from '../stores/stats';
 import { useLibraryStore } from '../stores/library';
 import { Header } from '../components/ui/Header';
+import { Icon, IconName } from '../components/ui/Icon';
 import { colors, spacing, typography, borderRadius } from '../constants/theme';
-
-// ─── Avatar ────────────────────────────────────────────────────────────────
 
 function Avatar() {
   return (
@@ -13,34 +13,58 @@ function Avatar() {
       <View style={styles.avatar}>
         <Text style={styles.avatarText}>YH</Text>
       </View>
-      <Text style={styles.avatarSubtitle}>Local Reader</Text>
+      <Text style={styles.fullName}>Yousef Hassan</Text>
+      <Text style={styles.email}>yousef@example.com</Text>
     </View>
   );
 }
 
-// ─── Stat card (2×2 grid item) ─────────────────────────────────────────────
-
-interface StatCardProps {
-  label: string;
-  value: string | number;
-  unit?: string;
-}
-
-function StatCard({ label, value, unit }: StatCardProps) {
+function StatsBar({ hoursRead, booksActive, completed, wordsLearned }: {
+  hoursRead: string; booksActive: number; completed: number; wordsLearned: string;
+}) {
+  const stats = [
+    { label: 'HOURS READ', value: hoursRead },
+    { label: 'BOOKS ACTIVE', value: booksActive },
+    { label: 'COMPLETED', value: completed },
+    { label: 'WORDS LEARNED', value: wordsLearned },
+  ];
   return (
-    <View style={styles.statCard}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <View style={styles.statValueRow}>
-        <Text style={styles.statValue}>{value}</Text>
-        {unit ? <Text style={styles.statUnit}>{unit}</Text> : null}
-      </View>
+    <View style={styles.statsCard}>
+      {stats.map((s, i) => (
+        <View key={s.label} style={[styles.statCol, i < stats.length - 1 && styles.statBorder]}>
+          <Text style={styles.statValue}>{s.value}</Text>
+          <Text style={styles.statLabel}>{s.label}</Text>
+        </View>
+      ))}
     </View>
   );
 }
 
-// ─── Screen ────────────────────────────────────────────────────────────────
+function SectionTitle({ title }: { title: string }) {
+  return <Text style={styles.sectionTitle}>{title}</Text>;
+}
+
+function SettingsRow({ icon, label, value, onPress, destructive }: {
+  icon: IconName; label: string; value?: string; onPress?: () => void; destructive?: boolean;
+}) {
+  return (
+    <Pressable style={styles.settingsRow} onPress={onPress}>
+      <Icon name={icon} size={18} color={destructive ? colors.error : colors.textSecondary} />
+      <Text style={[styles.rowLabel, destructive && styles.destructiveLabel]}>{label}</Text>
+      <View style={styles.rowRight}>
+        {value ? <Text style={styles.rowValue}>{value}</Text> : null}
+        <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+      </View>
+    </Pressable>
+  );
+}
+
+function RowDivider() {
+  return <View style={styles.divider} />;
+}
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const { today, totalTimeToday, loadStats } = useStatsStore();
   const { downloadedBooks, loadDownloadedBooks } = useLibraryStore();
 
@@ -49,15 +73,11 @@ export default function ProfileScreen() {
     loadDownloadedBooks();
   }, []);
 
-  // Derive hours read from today's time_seconds (cumulative for display purposes)
   const hoursReadDisplay = useMemo(() => {
     const h = Math.floor(today.time_seconds / 3600);
-    const m = Math.floor((today.time_seconds % 3600) / 60);
-    if (h > 0) return `${h}h ${m}m`;
-    return `${m}m`;
+    return h > 0 ? `${h}` : '0';
   }, [today.time_seconds]);
 
-  // Books active: downloaded books with some progress but not complete
   const booksActive = useMemo(() => {
     return downloadedBooks.filter((b) => {
       if (b.page_count <= 0) return false;
@@ -66,7 +86,6 @@ export default function ProfileScreen() {
     }).length;
   }, [downloadedBooks]);
 
-  // Books completed: progress >= 1
   const booksCompleted = useMemo(() => {
     return downloadedBooks.filter((b) => {
       if (b.page_count <= 0) return false;
@@ -75,50 +94,74 @@ export default function ProfileScreen() {
   }, [downloadedBooks]);
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <Header title="Profile" showBack />
-
       <Avatar />
-
-      {/* Reading Stats */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Reading Stats</Text>
+        <StatsBar
+          hoursRead={hoursReadDisplay}
+          booksActive={booksActive}
+          completed={booksCompleted}
+          wordsLearned={today.words_learned > 999 ? `${(today.words_learned / 1000).toFixed(1)}k` : String(today.words_learned)}
+        />
+      </View>
+
+      {/* SUBSCRIPTION */}
+      <View style={styles.section}>
+        <SectionTitle title="SUBSCRIPTION" />
         <View style={styles.card}>
-          <View style={styles.grid}>
-            <StatCard label="TIME READ" value={hoursReadDisplay} />
-            <StatCard label="BOOKS ACTIVE" value={booksActive} />
-            <StatCard label="COMPLETED" value={booksCompleted} />
-            <StatCard label="WORDS LEARNED" value={today.words_learned} />
+          <View style={styles.subRow}>
+            <Icon name="star" size={20} color={colors.accent} />
+            <View style={styles.subInfo}>
+              <View style={styles.subTitleRow}>
+                <Text style={styles.subPlan}>Monthly Plan</Text>
+                <View style={styles.activeBadge}>
+                  <Text style={styles.activeBadgeText}>ACTIVE</Text>
+                </View>
+              </View>
+              <Text style={styles.subPrice}>$7.99/month · Renews May 12, 2026</Text>
+            </View>
+            <Pressable><Text style={styles.manageText}>Manage</Text></Pressable>
+          </View>
+          <RowDivider />
+          <View style={styles.upsellRow}>
+            <Text style={styles.upsellText}>Save 37% with annual billing</Text>
+            <Pressable><Text style={styles.switchText}>Switch to Annual</Text></Pressable>
           </View>
         </View>
       </View>
 
-      {/* Today's activity summary */}
+      {/* ACCOUNT */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Today</Text>
+        <SectionTitle title="ACCOUNT" />
         <View style={styles.card}>
-          <View style={styles.todayRow}>
-            <View style={styles.todayItem}>
-              <Text style={styles.todayValue}>{today.pages_read}</Text>
-              <Text style={styles.todayLabel}>Pages Read</Text>
-            </View>
-            <View style={styles.todayDivider} />
-            <View style={styles.todayItem}>
-              <Text style={styles.todayValue}>{today.words_learned}</Text>
-              <Text style={styles.todayLabel}>Words Learned</Text>
-            </View>
-            <View style={styles.todayDivider} />
-            <View style={styles.todayItem}>
-              <Text style={styles.todayValue}>{totalTimeToday}</Text>
-              <Text style={styles.todayLabel}>Time Read</Text>
-            </View>
-          </View>
+          <SettingsRow icon="user" label="Name" value="Yousef Hassan" />
+          <RowDivider />
+          <SettingsRow icon="mail" label="Email" value="yousef@example.com" />
         </View>
       </View>
+
+      {/* SUPPORT */}
+      <View style={styles.section}>
+        <SectionTitle title="SUPPORT" />
+        <View style={styles.card}>
+          <SettingsRow icon="help-circle" label="Help Center" />
+          <RowDivider />
+          <SettingsRow icon="message-square" label="Contact Us" />
+          <RowDivider />
+          <SettingsRow icon="star" label="Rate Suhuf" />
+        </View>
+      </View>
+
+      {/* Sign Out */}
+      <View style={styles.section}>
+        <Pressable style={styles.signOutButton}>
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </Pressable>
+      </View>
+
+      {/* Version */}
+      <Text style={styles.versionText}>Suhuf v2.1.0 · Build 847</Text>
 
       <View style={styles.bottomPad} />
     </ScrollView>
@@ -126,121 +169,75 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    gap: spacing.lg,
-    paddingBottom: spacing.xxl,
-  },
+  screen: { flex: 1, backgroundColor: colors.background },
+  content: { gap: spacing.lg, paddingBottom: spacing.xxl },
 
-  // Avatar
-  avatarContainer: {
-    alignItems: 'center',
-    paddingTop: spacing.md,
-    gap: spacing.sm,
-  },
+  avatarContainer: { alignItems: 'center', paddingTop: spacing.lg, gap: spacing.xs },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 72, height: 72, borderRadius: 36,
     backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2, borderColor: colors.cardBorder,
   },
-  avatarText: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.white,
-    fontFamily: 'DMSans-Bold',
-  },
-  avatarSubtitle: {
-    ...typography.caption,
-    fontFamily: 'DMSans',
-    color: colors.textSecondary,
-  },
+  avatarText: { fontSize: 24, fontWeight: '700', color: colors.white, fontFamily: 'DMSans-Bold' },
+  fullName: { fontFamily: 'DMSans-SemiBold', fontSize: 20, color: colors.textPrimary, marginTop: spacing.sm },
+  email: { fontFamily: 'DMSans', fontSize: 14, color: colors.textSecondary },
 
-  // Section
-  section: {
-    paddingHorizontal: spacing.screenPadding,
-    gap: spacing.sm,
-  },
-  sectionTitle: {
-    ...typography.label,
-    color: colors.textSecondary,
-    fontFamily: 'DMSans-Medium',
-  },
+  section: { paddingHorizontal: spacing.screenPadding, gap: spacing.sm },
+  sectionTitle: { ...typography.label, fontFamily: 'DMSans-Medium', color: colors.textSecondary },
+
   card: {
-    backgroundColor: colors.card,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    overflow: 'hidden',
+    backgroundColor: colors.card, borderRadius: borderRadius.lg,
+    borderWidth: 1, borderColor: colors.cardBorder, overflow: 'hidden',
   },
+  divider: { height: 1, backgroundColor: colors.cardBorder, marginHorizontal: spacing.md },
 
-  // 2x2 stats grid
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  statsCard: {
+    flexDirection: 'row', backgroundColor: colors.card, borderRadius: borderRadius.lg,
+    borderWidth: 1, borderColor: colors.cardBorder, overflow: 'hidden',
   },
-  statCard: {
-    width: '50%',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderRightWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  statLabel: {
-    ...typography.statLabel,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  statValueRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 2,
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    fontFamily: 'DMSans-Bold',
-    lineHeight: 34,
-  },
-  statUnit: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: colors.textSecondary,
-    marginBottom: 4,
-    fontFamily: 'DMSans',
-  },
+  statCol: { flex: 1, alignItems: 'center', paddingVertical: spacing.md, gap: spacing.xs },
+  statBorder: { borderRightWidth: 1, borderRightColor: colors.cardBorder },
+  statValue: { fontFamily: 'DMSans-Bold', fontSize: 22, color: colors.textPrimary },
+  statLabel: { ...typography.statLabel, fontFamily: 'DMSans-Medium', color: colors.textSecondary },
 
-  // Today row
-  todayRow: {
-    flexDirection: 'row',
-    paddingVertical: spacing.md,
+  subRow: { flexDirection: 'row', alignItems: 'center', padding: spacing.md, gap: spacing.sm },
+  subInfo: { flex: 1, gap: 2 },
+  subTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  subPlan: { fontFamily: 'DMSans-SemiBold', fontSize: 15, color: colors.textPrimary },
+  activeBadge: {
+    backgroundColor: colors.success, borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.sm, paddingVertical: 2,
   },
-  todayItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: spacing.xs,
+  activeBadgeText: { fontFamily: 'DMSans-Bold', fontSize: 10, color: colors.white, letterSpacing: 0.5 },
+  subPrice: { fontFamily: 'DMSans', fontSize: 13, color: colors.textSecondary },
+  manageText: { fontFamily: 'DMSans-SemiBold', fontSize: 14, color: colors.accent },
+
+  upsellRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
   },
-  todayDivider: {
-    width: 1,
-    backgroundColor: colors.cardBorder,
-    marginVertical: spacing.xs,
+  upsellText: { fontFamily: 'DMSans', fontSize: 13, color: colors.textSecondary },
+  switchText: { fontFamily: 'DMSans-SemiBold', fontSize: 14, color: colors.accent },
+
+  settingsRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.md,
   },
-  todayValue: {
-    ...typography.h2,
-    fontFamily: 'DMSans-SemiBold',
-    color: colors.textPrimary,
+  rowLabel: { flex: 1, fontFamily: 'DMSans', fontSize: 15, color: colors.textPrimary },
+  rowRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  rowValue: { fontFamily: 'DMSans', fontSize: 14, color: colors.textSecondary },
+  destructiveLabel: { color: colors.error },
+
+  signOutButton: {
+    backgroundColor: colors.card, borderRadius: borderRadius.lg,
+    borderWidth: 1, borderColor: colors.cardBorder,
+    paddingVertical: spacing.md, alignItems: 'center',
   },
-  todayLabel: {
-    ...typography.caption,
-    fontFamily: 'DMSans',
-    color: colors.textSecondary,
+  signOutText: { fontFamily: 'DMSans-SemiBold', fontSize: 15, color: colors.error },
+  versionText: {
+    fontFamily: 'DMSans', fontSize: 12, color: colors.textTertiary,
+    textAlign: 'center', paddingTop: spacing.sm,
   },
 
   bottomPad: { height: spacing.xl },

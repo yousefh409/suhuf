@@ -10,6 +10,12 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
     }
 
+    // Verify the cookie matches the requested id
+    const cookieId = req.cookies.get("suhuf_waitlist")?.value;
+    if (!cookieId || cookieId !== id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { error } = await supabase
       .from("waitlist_users")
       .update({

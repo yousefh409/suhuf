@@ -15,7 +15,8 @@ import { TashkeelToggle } from '../../components/reader/TashkeelToggle';
 import { WordPopup } from '../../components/reader/WordPopup';
 import { WordDetailSheet } from '../../components/word-detail/WordDetailSheet';
 import { Header } from '../../components/ui/Header';
-import { colors, spacing } from '../../constants/theme';
+import { Icon } from '../../components/ui/Icon';
+import { colors, spacing, borderRadius } from '../../constants/theme';
 
 export default function ReadingSession() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -60,7 +61,20 @@ export default function ReadingSession() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         {/* Header */}
-        <Header title="Reading" showBack />
+        <Header
+          title="Reading"
+          showBack
+          rightContent={
+            <>
+              <Pressable hitSlop={8}>
+                <Icon name="bookmark" size={22} color={colors.textPrimary} />
+              </Pressable>
+              <Pressable hitSlop={8}>
+                <Icon name="more-vertical" size={22} color={colors.textPrimary} />
+              </Pressable>
+            </>
+          }
+        />
 
         {/* Page content */}
         <Pressable style={styles.pageArea} onPress={handleBackgroundPress}>
@@ -94,6 +108,10 @@ export default function ReadingSession() {
           <Text style={styles.pageNumber}>
             {currentPage} / {pages.length || '—'}
           </Text>
+          <Pressable style={styles.startButton}>
+            <Icon name="play" size={14} color={colors.white} />
+            <Text style={styles.startText}>Start</Text>
+          </Pressable>
         </View>
 
         {/* Word popup overlay */}
@@ -142,5 +160,19 @@ const styles = StyleSheet.create({
     fontFamily: 'DMSans',
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  startButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  startText: {
+    fontFamily: 'DMSans-SemiBold',
+    fontSize: 13,
+    color: colors.white,
   },
 });

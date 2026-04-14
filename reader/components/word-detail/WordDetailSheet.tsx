@@ -6,17 +6,18 @@ import { TranslationTab } from './TranslationTab';
 import { IrabTab } from './IrabTab';
 import { AskAiTab } from './AskAiTab';
 import { LoadingState } from './LoadingState';
+import { Icon } from '../ui/Icon';
 import { colors, spacing, borderRadius, typography } from '../../constants/theme';
 
 type Tab = 'translation' | 'irab' | 'ask-ai';
 
 const TAB_LABELS: Record<Tab, string> = {
-  translation: 'Translate',
-  irab: 'Grammar',
+  translation: 'Translation',
+  irab: 'I3rab',
   'ask-ai': 'Ask AI',
 };
 
-const TABS: Tab[] = ['translation', 'irab', 'ask-ai'];
+const TABS: Tab[] = ['translation', 'irab'];
 
 export function WordDetailSheet() {
   const bottomSheetRef = useRef<BottomSheet>(null);
@@ -66,32 +67,12 @@ export function WordDetailSheet() {
       handleIndicatorStyle={styles.handleIndicator}
     >
       <BottomSheetView style={styles.content}>
-        {/* Header row: back arrow + arabic word + meaning + Ask AI button */}
+        {/* Word header: centered arabic word + transliteration */}
         <View style={styles.wordHeader}>
-          <Pressable
-            onPress={closeWordDetail}
-            style={styles.backButton}
-            accessibilityRole="button"
-            accessibilityLabel="Close"
-          >
-            <Text style={styles.backArrow}>{'‹'}</Text>
-          </Pressable>
-
-          <View style={styles.wordInfo}>
-            <Text style={styles.wordArabic}>{selectedToken.tashkeel}</Text>
-            {irabResult?.meaning ? (
-              <Text style={styles.wordMeaning}>{irabResult.meaning}</Text>
-            ) : null}
-          </View>
-
-          <Pressable
-            style={styles.askAiButton}
-            onPress={openAskAi}
-            accessibilityRole="button"
-            accessibilityLabel="Open Ask AI"
-          >
-            <Text style={styles.askAiText}>+ Ask AI</Text>
-          </Pressable>
+          <Text style={styles.wordArabic}>{selectedToken.tashkeel}</Text>
+          {irabResult?.meaning ? (
+            <Text style={styles.wordTransliteration}>{irabResult.meaning}</Text>
+          ) : null}
         </View>
 
         {/* Tab bar */}
@@ -144,72 +125,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screenPadding,
   },
   wordHeader: {
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    gap: spacing.sm,
-  },
-  backButton: {
-    padding: spacing.xs,
-  },
-  backArrow: {
-    fontSize: 28,
-    color: colors.textSecondary,
-    lineHeight: 32,
-  },
-  wordInfo: {
-    flex: 1,
-    gap: 2,
+    paddingVertical: spacing.lg,
+    gap: spacing.xs,
   },
   wordArabic: {
     fontFamily: 'NotoNaskhArabic-Bold',
-    fontSize: 28,
+    fontSize: 48,
     color: colors.textPrimary,
-    textAlign: 'right',
+    textAlign: 'center',
   },
-  wordMeaning: {
+  wordTransliteration: {
     fontFamily: 'DMSans',
-    fontSize: 13,
-    color: colors.textSecondary,
-    textAlign: 'right',
-  },
-  askAiButton: {
-    backgroundColor: colors.background,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  askAiText: {
-    fontFamily: 'DMSans-Medium',
-    fontSize: 13,
-    color: colors.textPrimary,
+    fontSize: 14,
+    color: colors.textTertiary,
+    textAlign: 'center',
   },
   tabBar: {
     flexDirection: 'row',
-    gap: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
     marginBottom: spacing.md,
   },
   tab: {
-    paddingHorizontal: spacing.md,
+    flex: 1,
+    alignItems: 'center',
     paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
   },
   tabActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.accent,
   },
   tabText: {
-    fontFamily: 'DMSans-Medium',
-    fontSize: 13,
-    color: colors.textSecondary,
+    fontFamily: 'DMSans',
+    fontSize: 15,
+    color: colors.textTertiary,
   },
   tabTextActive: {
-    color: colors.white,
+    fontFamily: 'DMSans-SemiBold',
+    color: colors.textPrimary,
   },
   tabContent: {
     flex: 1,

@@ -11,7 +11,7 @@ const faqs = [
   },
   {
     q: "What texts are included in the library?",
-    a: "We include dozens of classical Arabic texts across grammar (like al-Ajrumiyyah), hadith sciences, theology, and more. New texts are added regularly based on user requests.",
+    a: "We include over 10,000 Arabic books across grammar (like al-Ajrumiyyah), hadith sciences, theology, and more. New texts are added regularly based on user requests.",
   },
   {
     q: "How does the AI pronunciation feedback work?",
@@ -24,10 +24,6 @@ const faqs = [
   {
     q: "Can I add my own texts or just use the library?",
     a: "During the initial launch, you\u2019ll have access to our curated library. Custom text uploads are on our roadmap and will be available in a future update.",
-  },
-  {
-    q: "What\u2019s included in the free plan?",
-    a: "The free plan includes 3 reading sessions per day, basic pronunciation feedback, limited word lookups, and access to grammar corrections. Upgrade for unlimited sessions and advanced features.",
   },
 ];
 

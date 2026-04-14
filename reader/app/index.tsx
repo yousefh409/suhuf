@@ -1,8 +1,10 @@
 import { useEffect, useMemo } from 'react';
 import { ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useLibraryStore } from '../stores/library';
 import { useStatsStore } from '../stores/stats';
 import { Header } from '../components/ui/Header';
+import { Icon } from '../components/ui/Icon';
 import { StatsRow } from '../components/library/StatsRow';
 import { ContinueReading } from '../components/library/ContinueReading';
 import { FilteredTabs } from '../components/library/FilteredTabs';
@@ -11,23 +13,25 @@ import { colors, spacing, typography } from '../constants/theme';
 
 function SearchIcon() {
   return (
-    <Pressable style={headerIconStyles.btn}>
-      <Text style={headerIconStyles.icon}>⌕</Text>
+    <Pressable style={headerIconStyles.btn} hitSlop={8}>
+      <Icon name="search" size={20} color={colors.textPrimary} />
     </Pressable>
   );
 }
 
 function ProfileAvatar() {
+  const router = useRouter();
   return (
-    <View style={headerIconStyles.avatar}>
-      <Text style={headerIconStyles.avatarText}>Y</Text>
-    </View>
+    <Pressable onPress={() => router.push('/profile')}>
+      <View style={headerIconStyles.avatar}>
+        <Text style={headerIconStyles.avatarText}>YH</Text>
+      </View>
+    </Pressable>
   );
 }
 
 const headerIconStyles = StyleSheet.create({
   btn: { padding: 4 },
-  icon: { fontSize: 22, color: colors.textPrimary },
   avatar: {
     width: 32,
     height: 32,
@@ -36,7 +40,7 @@ const headerIconStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  avatarText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  avatarText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF', fontFamily: 'DMSans-Bold' },
 });
 
 export default function LibraryMain() {
@@ -116,9 +120,6 @@ export default function LibraryMain() {
       )}
 
       {/* Filtered tabs (In Progress / Saved / Completed) */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Your Books</Text>
-      </View>
       <FilteredTabs
         inProgress={inProgress}
         saved={[]}
@@ -156,7 +157,8 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   sectionTitle: {
-    ...typography.h2,
+    ...typography.sectionTitle,
+    fontFamily: 'CormorantGaramond-SemiBold',
     color: colors.textPrimary,
   },
   sectionSub: {

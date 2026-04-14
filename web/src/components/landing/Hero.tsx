@@ -525,6 +525,7 @@ type WaitlistUser = {
 export default function Hero() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [referrerCode, setReferrerCode] = useState<string | null>(null);
   const [existingUser, setExistingUser] = useState<WaitlistUser | null>(null);
   const [checkingCookie, setCheckingCookie] = useState(true);
@@ -544,6 +545,7 @@ export default function Hero() {
     e.preventDefault();
     if (!email) return;
     setLoading(true);
+    setError("");
     try {
       const res = await fetch("/api/waitlist", {
         method: "POST",
@@ -557,7 +559,11 @@ export default function Hero() {
       const data = await res.json();
       if (res.ok) {
         window.location.href = `/welcome?id=${data.id}&position=${data.position}&referralCode=${data.referral_code}${data.is_existing ? "&existing=true" : ""}`;
+      } else {
+        setError(data.error || "Something went wrong. Please try again.");
       }
+    } catch {
+      setError("Could not connect. Please check your internet and try again.");
     } finally {
       setLoading(false);
     }
@@ -622,6 +628,9 @@ export default function Hero() {
             </button>
           </form>
 
+          {error && (
+            <p className="text-[13px] text-red-500">{error}</p>
+          )}
           <p className="text-[11px] text-ink/[0.22]">
             Free during beta &middot; No credit card required
           </p>

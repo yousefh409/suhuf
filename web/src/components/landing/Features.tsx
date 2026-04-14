@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { ArrowUp, Mic, BookOpen, Languages, ChevronRight, X } from "lucide-react";
 
 const fadeUp = {
@@ -19,9 +19,17 @@ const upcomingFeatures = [
     id: "lecture-notes",
     status: "In Progress",
     statusColor: "text-green-700 bg-green-700/10",
-    title: "Integrated lecture notes",
+    title: "Integrated notes",
     description:
-      "Read the sharh alongside the matn, with linked commentary.",
+      "Notes built for Arabic \u2014 write alongside any text with full Apple Pencil support.",
+  },
+  {
+    id: "auto-review",
+    status: "Planned",
+    statusColor: "text-ink/50 bg-ink/5",
+    title: "Automatic review sessions",
+    description:
+      "Duolingo-style AI-powered reviews for everything you\u2019ve learned \u2014 so you never forget.",
   },
   {
     id: "memorization",
@@ -29,21 +37,14 @@ const upcomingFeatures = [
     statusColor: "text-ink/50 bg-ink/5",
     title: "Memorization review",
     description:
-      "Spaced repetition for hifz \u2014 review what you\u2019ve memorized.",
+      "Review poems and hadiths you\u2019ve memorized \u2014 recite aloud and get error detection on every word.",
   },
   {
-    id: "hadith-chain",
-    status: "Planned",
-    statusColor: "text-ink/50 bg-ink/5",
-    title: "Hadith chain visualizer",
-    description: "Interactive isnad explorer \u2014 trace narration chains.",
-  },
-  {
-    id: "learning-paths",
+    id: "upload-books",
     status: "Under Review",
     statusColor: "text-gold bg-gold/10",
-    title: "Structured learning paths",
-    description: "Guided curricula from beginner to advanced.",
+    title: "Upload your own books",
+    description: "Bring any Arabic text \u2014 upload your own PDF or paste text to read with full suhuf features.",
   },
 ];
 
@@ -62,7 +63,9 @@ export default function Features() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalEmail, setModalEmail] = useState("");
   const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState("");
   const [pendingFeatureId, setPendingFeatureId] = useState<string | null>(null);
+  const [suggestSent, setSuggestSent] = useState(false);
 
   // Close modal on Escape
   useEffect(() => {
@@ -99,6 +102,7 @@ export default function Features() {
     e.preventDefault();
     if (!modalEmail) return;
     setModalLoading(true);
+    setModalError("");
     try {
       const referrerCode = getReferralFromCookie();
       const res = await fetch("/api/waitlist", {
@@ -112,13 +116,16 @@ export default function Features() {
       });
       const data = await res.json();
       if (res.ok) {
-        // Find the feature they wanted to vote on and pre-fill it
         const feature = upcomingFeatures.find((f) => f.id === pendingFeatureId);
         const featureParam = feature
           ? `&feature=${encodeURIComponent(feature.title + " — " + feature.description)}`
           : "";
         window.location.href = `/welcome?id=${data.id}&position=${data.position}&referralCode=${data.referral_code}${data.is_existing ? "&existing=true" : ""}${featureParam}`;
+      } else {
+        setModalError(data.error || "Something went wrong. Please try again.");
       }
+    } catch {
+      setModalError("Could not connect. Please check your internet and try again.");
     } finally {
       setModalLoading(false);
     }
@@ -143,6 +150,8 @@ export default function Features() {
     });
     setSuggestion("");
     setShowSuggest(false);
+    setSuggestSent(true);
+    setTimeout(() => setSuggestSent(false), 3000);
   }
 
   return (
@@ -183,7 +192,7 @@ export default function Features() {
             </span>
           </div>
           <h3 className="font-serif text-[28px] md:text-[36px] text-ink leading-[1.2]">
-            Read any Arabic text aloud. AI follows along.
+            Read any Arabic text aloud. AI catches your mistakes.
           </h3>
           <p className="text-[16px] text-ink/55 leading-[26px] max-w-md">
             Open any classical text and start reading. Suhuf listens in
@@ -385,7 +394,9 @@ export default function Features() {
 
       {/* Suggest a feature */}
       <div className="flex flex-col items-center gap-3">
-        {!showSuggest ? (
+        {suggestSent ? (
+          <p className="text-sm text-gold font-medium">Thanks for your suggestion!</p>
+        ) : !showSuggest ? (
           <button
             onClick={() => {
               const waitlistId = localStorage.getItem("suhuf_waitlist_id");
@@ -396,9 +407,9 @@ export default function Features() {
                 setShowSuggest(true);
               }
             }}
-            className="flex items-center gap-1 text-sm text-ink/40 hover:text-ink/60 transition-colors"
+            className="flex items-center gap-2 text-sm font-medium text-gold hover:text-gold/80 transition-colors px-5 py-2.5 rounded-full border border-gold/20 bg-gold/5 hover:bg-gold/10"
           >
-            Suggest a feature <ChevronRight className="w-3.5 h-3.5" />
+            Suggest a feature <ChevronRight className="w-4 h-4" />
           </button>
         ) : (
           <form
@@ -425,60 +436,75 @@ export default function Features() {
       </div>
 
       {/* Email modal for non-waitlisted users */}
-      {modalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-6"
-          onClick={() => setModalOpen(false)}
-        >
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-ink/40 backdrop-blur-sm" />
-
-          {/* Modal */}
+      <AnimatePresence>
+        {modalOpen && (
           <div
-            className="relative w-full max-w-[400px] rounded-2xl bg-white p-6 flex flex-col gap-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 flex items-center justify-center px-6"
+            onClick={() => setModalOpen(false)}
           >
-            <button
-              onClick={() => setModalOpen(false)}
-              className="absolute top-4 right-4 text-ink/30 hover:text-ink/60 transition-colors"
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 bg-ink/40 backdrop-blur-sm"
+            />
+
+            {/* Modal */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              className="relative w-full max-w-[400px] rounded-2xl bg-white p-6 flex flex-col gap-4 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
             >
-              <X className="w-4 h-4" />
-            </button>
-
-            <div>
-              <h3 className="font-serif text-[22px] text-ink leading-[1.2]">
-                Join the waitlist to vote
-              </h3>
-              <p className="text-sm text-ink/45 mt-1.5 leading-[1.5]">
-                Enter your email to get early access and have your voice heard.
-              </p>
-            </div>
-
-            <form onSubmit={handleModalSubmit} className="flex flex-col gap-3">
-              <input
-                autoFocus
-                type="email"
-                required
-                placeholder="Enter your email"
-                value={modalEmail}
-                onChange={(e) => setModalEmail(e.target.value)}
-                className="w-full text-sm px-4 py-3 rounded-xl border border-ink/10 bg-parchment outline-none placeholder:text-ink/30 focus:border-gold/40"
-              />
               <button
-                type="submit"
-                disabled={modalLoading}
-                className="w-full rounded-xl py-3 bg-ink text-white text-sm font-medium hover:bg-ink/90 transition-colors disabled:opacity-70"
+                onClick={() => setModalOpen(false)}
+                className="absolute top-4 right-4 text-ink/30 hover:text-ink/60 transition-colors"
               >
-                {modalLoading ? "Joining..." : "Get Early Access"}
+                <X className="w-4 h-4" />
               </button>
-            </form>
 
-            <p className="text-[11px] text-ink/25 text-center">
-              Free during beta &middot; No credit card required
-            </p>
+              <div>
+                <h3 className="font-serif text-[22px] text-ink leading-[1.2]">
+                  Join the waitlist to vote
+                </h3>
+                <p className="text-sm text-ink/45 mt-1.5 leading-[1.5]">
+                  Enter your email to get early access and have your voice heard.
+                </p>
+              </div>
+
+              <form onSubmit={handleModalSubmit} className="flex flex-col gap-3">
+                <input
+                  autoFocus
+                  type="email"
+                  required
+                  placeholder="Enter your email"
+                  value={modalEmail}
+                  onChange={(e) => setModalEmail(e.target.value)}
+                  className="w-full text-sm px-4 py-3 rounded-xl border border-ink/10 bg-parchment outline-none placeholder:text-ink/30 focus:border-gold/40"
+                />
+                <button
+                  type="submit"
+                  disabled={modalLoading}
+                  className="w-full rounded-xl py-3 bg-ink text-white text-sm font-medium hover:bg-ink/90 transition-colors disabled:opacity-70"
+                >
+                  {modalLoading ? "Joining..." : "Get Early Access"}
+                </button>
+              </form>
+
+              {modalError && (
+                <p className="text-[13px] text-red-500 text-center">{modalError}</p>
+              )}
+              <p className="text-[11px] text-ink/25 text-center">
+                Free during beta &middot; No credit card required
+              </p>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </section>
   );
 }

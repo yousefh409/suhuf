@@ -1,5 +1,6 @@
-import { Pressable, Text, StyleSheet, View } from 'react-native';
+import { Pressable, Text, StyleSheet } from 'react-native';
 import { useReaderStore } from '../../stores/reader';
+import { Icon } from '../ui/Icon';
 import { colors, borderRadius, spacing } from '../../constants/theme';
 
 export function TashkeelToggle() {
@@ -14,10 +15,11 @@ export function TashkeelToggle() {
       accessibilityState={{ checked: showTashkeel }}
       accessibilityLabel="Toggle diacritics"
     >
-      {/* Eye icon SVG approximation using unicode */}
-      <Text style={[styles.icon, showTashkeel && styles.iconActive]}>
-        {showTashkeel ? '👁' : '🙈'}
-      </Text>
+      <Icon
+        name={showTashkeel ? 'eye' : 'eye-off'}
+        size={16}
+        color={showTashkeel ? colors.white : colors.textSecondary}
+      />
       <Text style={[styles.label, showTashkeel && styles.labelActive]}>
         Tashkeel
       </Text>
@@ -41,10 +43,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  icon: {
-    fontSize: 14,
-  },
-  iconActive: {},
   label: {
     fontFamily: 'DMSans-Medium',
     fontSize: 13,

@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { useReaderStore } from '../../stores/reader';
 import { colors, spacing, borderRadius, typography } from '../../constants/theme';
 
@@ -6,6 +6,7 @@ export function IrabTab() {
   const irabResult = useReaderStore((s) => s.irabResult);
   const selectedToken = useReaderStore((s) => s.selectedToken);
   const analysisError = useReaderStore((s) => s.analysisError);
+  const openAskAi = useReaderStore((s) => s.openAskAi);
 
   if (analysisError) {
     return (
@@ -29,60 +30,53 @@ export function IrabTab() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      {/* Arabic word large display */}
-      <View style={styles.wordHeader}>
-        <Text style={styles.arabicWord}>{selectedToken?.tashkeel ?? selectedToken?.text}</Text>
-        <Text style={styles.posTag}>{irabResult.pos}</Text>
-      </View>
-
-      {/* Grammatical tags row */}
-      <View style={styles.tagsRow}>
-        {irabResult.role ? (
-          <View style={styles.tag}>
-            <Text style={styles.tagLabel}>Role</Text>
-            <Text style={styles.tagValue}>{irabResult.role}</Text>
-            {irabResult.role_ar ? (
-              <Text style={styles.tagValueAr}>{irabResult.role_ar}</Text>
-            ) : null}
-          </View>
-        ) : null}
-
-        {irabResult.case ? (
-          <View style={styles.tag}>
-            <Text style={styles.tagLabel}>Case</Text>
-            <Text style={styles.tagValue}>{irabResult.case}</Text>
-            {irabResult.case_ar ? (
-              <Text style={styles.tagValueAr}>{irabResult.case_ar}</Text>
-            ) : null}
-          </View>
-        ) : null}
-
-        {irabResult.marker ? (
-          <View style={styles.tag}>
-            <Text style={styles.tagLabel}>Marker</Text>
-            <Text style={styles.tagValue}>{irabResult.marker}</Text>
-            {irabResult.marker_ar ? (
-              <Text style={styles.tagValueAr}>{irabResult.marker_ar}</Text>
-            ) : null}
-          </View>
-        ) : null}
-      </View>
-
-      {/* Meaning */}
-      {irabResult.meaning ? (
-        <View style={styles.meaningCard}>
-          <Text style={styles.cardLabel}>MEANING</Text>
-          <Text style={styles.meaningText}>{irabResult.meaning}</Text>
+      {/* TYPE + CASE side by side */}
+      <View style={styles.twoCol}>
+        <View style={styles.col}>
+          <Text style={styles.sectionLabel}>TYPE</Text>
+          <Text style={styles.arabicValue}>{irabResult.pos_ar ?? irabResult.pos}</Text>
+          <Text style={styles.englishValue}>{irabResult.pos}</Text>
         </View>
-      ) : null}
+        {irabResult.case && (
+          <View style={styles.col}>
+            <Text style={styles.sectionLabel}>CASE</Text>
+            <Text style={styles.arabicValue}>{irabResult.case_ar ?? irabResult.case}</Text>
+            <Text style={styles.englishValue}>{irabResult.case}</Text>
+          </View>
+        )}
+      </View>
 
-      {/* Why explanation card */}
-      {irabResult.why ? (
+      {/* ROLE */}
+      {irabResult.role && (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>ROLE</Text>
+          <Text style={styles.arabicValue}>{irabResult.role_ar ?? irabResult.role}</Text>
+          <Text style={styles.englishValue}>{irabResult.role}</Text>
+        </View>
+      )}
+
+      {/* MARKER */}
+      {irabResult.marker && (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>MARKER</Text>
+          <Text style={styles.arabicValue}>{irabResult.marker_ar ?? irabResult.marker}</Text>
+          <Text style={styles.englishValue}>{irabResult.marker}</Text>
+        </View>
+      )}
+
+      {/* WHY THIS CASE? */}
+      {irabResult.why && (
         <View style={styles.whyCard}>
-          <Text style={styles.cardLabel}>WHY IS IT {irabResult.case?.toUpperCase() ?? 'THIS CASE'} HERE?</Text>
+          <Text style={styles.sectionLabel}>WHY THIS CASE?</Text>
           <Text style={styles.whyText}>{irabResult.why}</Text>
         </View>
-      ) : null}
+      )}
+
+      {/* Ask AI button */}
+      <Pressable style={styles.askAiButton} onPress={openAskAi}>
+        <Text style={styles.askAiIcon}>+</Text>
+        <Text style={styles.askAiText}>Ask AI to learn more</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -92,7 +86,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    gap: spacing.md,
+    gap: spacing.lg,
     paddingBottom: spacing.xl,
   },
   centered: {
@@ -101,89 +95,64 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: spacing.xxl,
   },
-  wordHeader: {
-    alignItems: 'flex-end',
+  section: {
     gap: spacing.xs,
-    paddingVertical: spacing.sm,
   },
-  arabicWord: {
-    fontFamily: 'NotoNaskhArabic-Bold',
-    fontSize: 36,
-    color: colors.textPrimary,
-    textAlign: 'right',
-  },
-  posTag: {
+  sectionLabel: {
     fontFamily: 'DMSans-Medium',
-    fontSize: 13,
-    color: colors.accent,
-    backgroundColor: '#F5EDD0',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: borderRadius.full,
-  },
-  tagsRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    flexWrap: 'wrap',
-  },
-  tag: {
-    flex: 1,
-    minWidth: 90,
-    backgroundColor: colors.card,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    padding: spacing.sm,
-    gap: 2,
-    alignItems: 'center',
-  },
-  tagLabel: {
-    fontFamily: 'DMSans-SemiBold',
     ...typography.label,
     color: colors.textTertiary,
   },
-  tagValue: {
-    fontFamily: 'DMSans-Medium',
-    fontSize: 14,
-    color: colors.textPrimary,
+  twoCol: {
+    flexDirection: 'row',
+    gap: spacing.lg,
   },
-  tagValueAr: {
+  col: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  arabicValue: {
     fontFamily: 'NotoNaskhArabic',
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
+    fontSize: 22,
+    color: colors.textPrimary,
+    writingDirection: 'rtl',
   },
-  meaningCard: {
-    backgroundColor: colors.card,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    padding: spacing.md,
-    gap: spacing.sm,
+  englishValue: {
+    fontFamily: 'DMSans',
+    fontSize: 13,
+    color: colors.textSecondary,
   },
   whyCard: {
     backgroundColor: '#F5EDD0',
     borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: '#E8D8A0',
     padding: spacing.md,
     gap: spacing.sm,
   },
-  cardLabel: {
-    fontFamily: 'DMSans-SemiBold',
-    ...typography.label,
-    color: colors.textTertiary,
-  },
-  meaningText: {
-    fontFamily: 'DMSans',
-    ...typography.body,
-    color: colors.textPrimary,
-  },
   whyText: {
     fontFamily: 'DMSans',
-    ...typography.body,
+    fontSize: 15,
     color: colors.textPrimary,
     lineHeight: 24,
+  },
+  askAiButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: '#F5EDD0',
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.md,
+    marginTop: spacing.md,
+  },
+  askAiIcon: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: 18,
+    color: colors.accent,
+  },
+  askAiText: {
+    fontFamily: 'DMSans-SemiBold',
+    fontSize: 15,
+    color: colors.textPrimary,
   },
   errorText: {
     fontFamily: 'DMSans',

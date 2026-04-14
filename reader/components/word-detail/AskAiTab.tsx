@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useReaderStore } from '../../stores/reader';
+import { Icon } from '../ui/Icon';
 import { colors, spacing, borderRadius, typography } from '../../constants/theme';
 
 const SUGGESTED_QUESTIONS = [
@@ -112,7 +113,7 @@ export function AskAiTab() {
           style={styles.input}
           value={inputText}
           onChangeText={setInputText}
-          placeholder="Ask a question..."
+          placeholder="Ask anything about this word..."
           placeholderTextColor={colors.textTertiary}
           multiline
           returnKeyType="send"
@@ -126,7 +127,7 @@ export function AskAiTab() {
           accessibilityRole="button"
           accessibilityLabel="Send message"
         >
-          <Text style={styles.sendIcon}>↑</Text>
+          <Icon name="arrow-up" size={18} color={colors.white} />
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -233,16 +234,11 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: borderRadius.full,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
   },
   sendButtonDisabled: {
     backgroundColor: colors.cardBorder,
-  },
-  sendIcon: {
-    fontSize: 18,
-    color: colors.white,
-    fontWeight: '700',
   },
 });

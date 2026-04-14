@@ -1,5 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useReaderStore } from '../../stores/reader';
+import { Icon } from '../ui/Icon';
 import { colors, spacing, borderRadius } from '../../constants/theme';
 
 export function WordPopup() {
@@ -27,7 +28,7 @@ export function WordPopup() {
         accessibilityRole="button"
         accessibilityLabel="View grammar"
       >
-        <Text style={styles.buttonIcon}>✏</Text>
+        <Icon name="edit-2" size={14} color={colors.white} />
         <Text style={styles.buttonText}>Grammar</Text>
       </Pressable>
 
@@ -40,7 +41,7 @@ export function WordPopup() {
         accessibilityRole="button"
         accessibilityLabel="Translate"
       >
-        <Text style={styles.buttonIcon}>⟳</Text>
+        <Icon name="globe" size={14} color={colors.white} />
         <Text style={styles.buttonText}>Translate</Text>
       </Pressable>
 
@@ -53,7 +54,7 @@ export function WordPopup() {
         accessibilityRole="button"
         accessibilityLabel="Dismiss"
       >
-        <Text style={styles.buttonIcon}>✕</Text>
+        <Icon name="copy" size={14} color={colors.white} />
       </Pressable>
 
       {/* Arrow pointing down */}
@@ -82,10 +83,6 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
-  },
-  buttonIcon: {
-    fontSize: 13,
-    color: colors.white,
   },
   buttonText: {
     fontFamily: 'DMSans-Medium',

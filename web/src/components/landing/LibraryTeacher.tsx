@@ -412,7 +412,7 @@ export default function LibraryTeacher() {
           A library and teacher right at your fingertips.
         </h2>
         <p className="text-[#7A6E62] text-[17px] leading-[1.6] max-w-[680px]">
-          Dozens of classical texts. Real-time pronunciation feedback. Grammar
+          More than 10,000 Arabic books. Real-time pronunciation feedback. Grammar
           explained in plain English. All in one app.
         </p>
       </motion.div>

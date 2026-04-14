@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { useReaderStore } from '../../stores/reader';
 import { colors, spacing, borderRadius, typography } from '../../constants/theme';
 
@@ -6,6 +6,7 @@ export function TranslationTab() {
   const translationResult = useReaderStore((s) => s.translationResult);
   const selectedToken = useReaderStore((s) => s.selectedToken);
   const analysisError = useReaderStore((s) => s.analysisError);
+  const openAskAi = useReaderStore((s) => s.openAskAi);
 
   if (analysisError) {
     return (
@@ -29,32 +30,46 @@ export function TranslationTab() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      {/* Word + root display */}
-      <View style={styles.wordHeader}>
-        <Text style={styles.arabicWord}>{selectedToken?.tashkeel ?? selectedToken?.text}</Text>
+      {/* MEANING */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>MEANING</Text>
+        <Text style={styles.meaningText}>{translationResult.translation}</Text>
       </View>
 
-      {/* Translation card */}
-      <View style={styles.card}>
-        <Text style={styles.cardLabel}>TRANSLATION</Text>
-        <Text style={styles.translationText}>{translationResult.translation}</Text>
-      </View>
-
-      {/* Related words */}
+      {/* ROOT + PATTERN side by side */}
       {translationResult.related_words.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>RELATED WORDS</Text>
-          {translationResult.related_words.map((rw, i) => (
-            <View key={i} style={styles.relatedWordRow}>
-              <View style={styles.relatedWordLeft}>
-                <Text style={styles.relatedWordArabic}>{rw.word}</Text>
-                <Text style={styles.relatedWordRoot}>root: {rw.root}</Text>
-              </View>
-              <Text style={styles.relatedWordMeaning}>{rw.meaning}</Text>
-            </View>
-          ))}
+        <View style={styles.twoCol}>
+          <View style={styles.col}>
+            <Text style={styles.sectionLabel}>ROOT</Text>
+            <Text style={styles.arabicValue}>{translationResult.related_words[0].root}</Text>
+          </View>
+          <View style={styles.col}>
+            <Text style={styles.sectionLabel}>PATTERN</Text>
+            <Text style={styles.arabicValue}>{'\u0641\u0639\u064A\u0644'}</Text>
+          </View>
         </View>
       )}
+
+      {/* FROM THE SAME ROOT */}
+      {translationResult.related_words.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>FROM THE SAME ROOT</Text>
+          <View style={styles.pillsRow}>
+            {translationResult.related_words.map((rw, i) => (
+              <View key={i} style={styles.relatedPill}>
+                <Text style={styles.relatedPillArabic}>{rw.word}</Text>
+                <Text style={styles.relatedPillMeaning}>{rw.meaning}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* Ask AI button */}
+      <Pressable style={styles.askAiButton} onPress={openAskAi}>
+        <Text style={styles.askAiIcon}>+</Text>
+        <Text style={styles.askAiText}>Ask AI to learn more</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -64,76 +79,80 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    gap: spacing.md,
+    gap: spacing.lg,
     paddingBottom: spacing.xl,
   },
-  wordHeader: {
-    alignItems: 'flex-end',
-    paddingVertical: spacing.sm,
-  },
-  arabicWord: {
-    fontFamily: 'NotoNaskhArabic-Bold',
-    fontSize: 36,
-    color: colors.textPrimary,
-    textAlign: 'right',
-  },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  cardLabel: {
-    fontFamily: 'DMSans-SemiBold',
-    ...typography.label,
-    color: colors.textTertiary,
-  },
-  translationText: {
-    fontFamily: 'DMSans',
-    ...typography.body,
-    color: colors.textPrimary,
-    lineHeight: 26,
-  },
   section: {
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   sectionLabel: {
-    fontFamily: 'DMSans-SemiBold',
+    fontFamily: 'DMSans-Medium',
     ...typography.label,
     color: colors.textTertiary,
-    marginTop: spacing.xs,
   },
-  relatedWordRow: {
+  meaningText: {
+    fontFamily: 'DMSans',
+    fontSize: 15,
+    color: colors.textPrimary,
+    lineHeight: 24,
+  },
+  twoCol: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.cardBorder,
+    gap: spacing.lg,
   },
-  relatedWordLeft: {
-    gap: 2,
+  col: {
+    flex: 1,
+    gap: spacing.xs,
   },
-  relatedWordArabic: {
-    fontFamily: 'NotoNaskhArabic-Bold',
+  arabicValue: {
+    fontFamily: 'NotoNaskhArabic',
     fontSize: 20,
     color: colors.textPrimary,
-    textAlign: 'right',
+    writingDirection: 'rtl',
   },
-  relatedWordRoot: {
-    fontFamily: 'DMSans',
-    fontSize: 12,
-    color: colors.textTertiary,
+  pillsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
   },
-  relatedWordMeaning: {
+  relatedPill: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  relatedPillArabic: {
+    fontFamily: 'NotoNaskhArabic',
+    fontSize: 16,
+    color: colors.textPrimary,
+  },
+  relatedPillMeaning: {
     fontFamily: 'DMSans',
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
-    flex: 1,
-    textAlign: 'right',
-    paddingLeft: spacing.sm,
+  },
+  askAiButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: '#F5EDD0',
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.md,
+    marginTop: spacing.md,
+  },
+  askAiIcon: {
+    fontFamily: 'DMSans-Bold',
+    fontSize: 18,
+    color: colors.accent,
+  },
+  askAiText: {
+    fontFamily: 'DMSans-SemiBold',
+    fontSize: 15,
+    color: colors.textPrimary,
   },
   errorContainer: {
     flex: 1,
