@@ -1,6 +1,9 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "suhuf",
+  "build": {
+    "command": "npx opennextjs-cloudflare build"
+  },
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-04-01",
   "compatibility_flags": ["nodejs_compat"],
