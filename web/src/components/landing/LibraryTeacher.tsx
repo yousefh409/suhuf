@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import {
   motion,
   useMotionValue,
@@ -233,7 +233,7 @@ function IrabRow({
   );
 }
 
-/* ---------- 3D Tilt wrapper (desktop only) ---------- */
+/* ---------- 3D Tilt wrapper ---------- */
 function TiltDevice({
   children,
   className,
@@ -255,25 +255,35 @@ function TiltDevice({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const hovering = useRef(false);
+  const visible = useRef(false);
   const rafId = useRef<number>(0);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse)");
+    setIsMobile(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
 
-  const tiltX = useSpring(useTransform(mouseY, [-0.5, 0.5], [6, -6]), {
-    stiffness: 200,
-    damping: 30,
-  });
-  const tiltY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-6, 6]), {
-    stiffness: 200,
-    damping: 30,
-  });
+  // On mobile: lower stiffness springs = less per-frame computation
+  const springConfig = isMobile
+    ? { stiffness: 80, damping: 40 }
+    : { stiffness: 200, damping: 30 };
 
-  /* Idle orbit: gently rotate when cursor isn't on the device */
+  const tiltX = useSpring(useTransform(mouseY, [-0.5, 0.5], [6, -6]), springConfig);
+  const tiltY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-6, 6]), springConfig);
+
+  /* Idle orbit: gently rotate when cursor isn't on the device.
+     Pauses when element is offscreen via IntersectionObserver. */
   const startIdle = useCallback(() => {
     let start: number | null = null;
     function tick(ts: number) {
-      if (hovering.current) return;
+      if (hovering.current || !visible.current) return;
       if (start === null) start = ts;
       const t = ((ts - start) / 1000) * idleSpeed;
       mouseX.set(Math.sin(t) * idleRadius);
@@ -283,12 +293,30 @@ function TiltDevice({
     rafId.current = requestAnimationFrame(tick);
   }, [idleSpeed, idleRadius, mouseX, mouseY]);
 
+  // IntersectionObserver: only run rAF when visible
   useEffect(() => {
-    startIdle();
-    return () => cancelAnimationFrame(rafId.current);
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        visible.current = entry.isIntersecting;
+        if (entry.isIntersecting && !hovering.current) {
+          startIdle();
+        } else {
+          cancelAnimationFrame(rafId.current);
+        }
+      },
+      { rootMargin: "100px" }
+    );
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(rafId.current);
+    };
   }, [startIdle]);
 
   function handleMouse(e: React.MouseEvent) {
+    if (isMobile) return;
     hovering.current = true;
     cancelAnimationFrame(rafId.current);
     const el = ref.current;
@@ -299,16 +327,17 @@ function TiltDevice({
   }
 
   function handleLeave() {
+    if (isMobile) return;
     hovering.current = false;
-    startIdle();
+    if (visible.current) startIdle();
   }
 
   /* Parallax drives y; entrance uses only opacity + scale so they don't fight */
   return (
     <motion.div
       ref={ref}
-      onMouseMove={handleMouse}
-      onMouseLeave={handleLeave}
+      onMouseMove={isMobile ? undefined : handleMouse}
+      onMouseLeave={isMobile ? undefined : handleLeave}
       initial={{ opacity: 0, scale: 0.92 }}
       whileInView={{ opacity: 1, scale: 1 }}
       viewport={{ once: true, amount: 0.15 }}
@@ -320,6 +349,7 @@ function TiltDevice({
         rotateY: tiltY,
         y: parallaxY,
         transformStyle: "preserve-3d",
+        willChange: "transform",
       }}
     >
       {children}
@@ -466,6 +496,7 @@ export default function LibraryTeacher() {
       <div className="relative w-full max-w-[400px] mx-auto md:hidden" style={{ height: 520, perspective: 1200 }}>
         {/* iPad Device — back layer */}
         <TiltDevice
+          idleSpeed={1.4}
           className="absolute left-0 top-0 w-[300px] rounded-[18px] p-[6px]"
           style={{
             backgroundImage: "linear-gradient(in oklab 160deg, oklab(46% -.0007 0.011) 0%, oklab(38% .0002 0.009) 100%)",
@@ -494,6 +525,7 @@ export default function LibraryTeacher() {
 
         {/* iPhone Device — front layer, overlapping */}
         <TiltDevice
+          idleSpeed={1.4}
           delay={0.12}
           className="absolute right-0 top-[30px] w-[175px] h-[370px] rounded-[30px] p-[6px] z-10"
           style={{

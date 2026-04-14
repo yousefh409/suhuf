@@ -1,5 +1,5 @@
 "use client";
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { useScroll, useTransform, motion } from "motion/react";
 import type { MotionValue } from "motion/react";
 
@@ -14,17 +14,14 @@ export const ContainerScroll = ({
   const { scrollYProgress } = useScroll({
     target: containerRef,
   });
-  const [isMobile, setIsMobile] = React.useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
-  React.useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => {
-      window.removeEventListener("resize", checkMobile);
-    };
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    setIsMobile(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
   }, []);
 
   const rotate = useTransform(scrollYProgress, [0, 1], [20, 0]);
@@ -58,6 +55,7 @@ export const Header = ({ translate, titleComponent }: any) => {
     <motion.div
       style={{
         translateY: translate,
+        willChange: "transform",
       }}
       className="div max-w-5xl mx-auto text-center"
     >
@@ -81,6 +79,7 @@ export const Card = ({
       style={{
         rotateX: rotate,
         scale,
+        willChange: "transform",
       }}
       className="max-w-5xl -mt-12 mx-auto w-full"
     >

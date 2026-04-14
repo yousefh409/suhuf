@@ -346,6 +346,7 @@ function IPadMockup() {
           background: "linear-gradient(145deg, #3a3538 0%, #2a2628 100%)",
           boxShadow:
             "inset 0 1px 0 #FFFFFF14, 0 25px 80px #0000002E, 0 4px 16px #0000001A",
+          willChange: "transform",
         }}
         className="w-full rounded-[22px] p-2"
       >
