@@ -24,7 +24,9 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    initDatabase().then(() => setDbReady(true));
+    initDatabase()
+      .then(() => setDbReady(true))
+      .catch((e) => console.error('Failed to init database:', e));
   }, []);
 
   useEffect(() => {

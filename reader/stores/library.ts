@@ -38,8 +38,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   },
 
   loadDownloadedBooks: async () => {
-    const downloadedBooks = await getDownloadedBooks();
-    set({ downloadedBooks });
+    try {
+      const downloadedBooks = await getDownloadedBooks();
+      set({ downloadedBooks });
+    } catch {
+      // SQLite read failed — keep existing list
+    }
   },
 
   filterByCategory: async (category) => {
@@ -66,15 +70,20 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     set((s) => ({
       downloadProgress: { ...s.downloadProgress, [book.id]: { downloaded: 0, total: book.page_count } },
     }));
-    await downloadBookService(book, (downloaded, total) => {
-      set((s) => ({
-        downloadProgress: { ...s.downloadProgress, [book.id]: { downloaded, total } },
-      }));
-    });
-    set((s) => {
-      const { [book.id]: _, ...rest } = s.downloadProgress;
-      return { downloadProgress: rest };
-    });
-    await get().loadDownloadedBooks();
+    try {
+      await downloadBookService(book, (downloaded, total) => {
+        set((s) => ({
+          downloadProgress: { ...s.downloadProgress, [book.id]: { downloaded, total } },
+        }));
+      });
+      await get().loadDownloadedBooks();
+    } catch {
+      // download failed — clear stuck progress
+    } finally {
+      set((s) => {
+        const { [book.id]: _, ...rest } = s.downloadProgress;
+        return { downloadProgress: rest };
+      });
+    }
   },
 }));

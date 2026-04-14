@@ -54,10 +54,12 @@ export async function fetchBookChapters(bookId: string): Promise<Chapter[]> {
 
 /** Search books by title (Arabic or English). */
 export async function searchBooks(query: string): Promise<Book[]> {
+  const sanitized = query.replace(/[%_,().]/g, '');
+  if (!sanitized) return fetchBookCatalog();
   const { data, error } = await supabase
     .from('books')
     .select('*')
-    .or(`title_en.ilike.%${query}%,title_ar.ilike.%${query}%,author_en.ilike.%${query}%`)
+    .or(`title_en.ilike.%${sanitized}%,title_ar.ilike.%${sanitized}%,author_en.ilike.%${sanitized}%`)
     .order('title_en', { ascending: true });
   if (error) throw error;
   return data as Book[];

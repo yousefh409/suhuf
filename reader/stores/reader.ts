@@ -60,15 +60,19 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
   isAiTyping: false,
 
   loadBook: async (bookId) => {
-    const pages = await getPagesByBook(bookId);
-    set({ bookId, pages, currentPage: 1 });
+    try {
+      const pages = await getPagesByBook(bookId);
+      set({ bookId, pages, currentPage: 1 });
+    } catch {
+      set({ bookId, pages: [], currentPage: 1 });
+    }
   },
 
   goToPage: (page) => {
     const { bookId, pages } = get();
     if (page >= 1 && page <= pages.length) {
       set({ currentPage: page });
-      if (bookId) updateReadingProgress(bookId, page);
+      if (bookId) updateReadingProgress(bookId, page).catch(() => {});
     }
   },
 

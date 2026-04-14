@@ -47,11 +47,13 @@ export async function isBookDownloaded(bookId: string): Promise<boolean> {
 /** Delete a downloaded book and all its local data. */
 export async function deleteDownloadedBook(bookId: string): Promise<void> {
   const db = getDatabase();
-  await db.runAsync('DELETE FROM pages WHERE book_id = ?', bookId);
-  await db.runAsync('DELETE FROM chapters WHERE book_id = ?', bookId);
-  await db.runAsync('DELETE FROM reading_progress WHERE book_id = ?', bookId);
-  await db.runAsync('DELETE FROM bookmarks WHERE book_id = ?', bookId);
-  await db.runAsync('DELETE FROM highlights WHERE book_id = ?', bookId);
-  await db.runAsync('DELETE FROM notes WHERE book_id = ?', bookId);
-  await db.runAsync('DELETE FROM books WHERE id = ?', bookId);
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM pages WHERE book_id = ?', bookId);
+    await db.runAsync('DELETE FROM chapters WHERE book_id = ?', bookId);
+    await db.runAsync('DELETE FROM reading_progress WHERE book_id = ?', bookId);
+    await db.runAsync('DELETE FROM bookmarks WHERE book_id = ?', bookId);
+    await db.runAsync('DELETE FROM highlights WHERE book_id = ?', bookId);
+    await db.runAsync('DELETE FROM notes WHERE book_id = ?', bookId);
+    await db.runAsync('DELETE FROM books WHERE id = ?', bookId);
+  });
 }

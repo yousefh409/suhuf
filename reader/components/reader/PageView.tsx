@@ -2,7 +2,6 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import type { Page } from '../../types';
 import { ArabicBlock } from './ArabicBlock';
 import { colors, spacing } from '../../constants/theme';
-import { useSettingsStore } from '../../stores/settings';
 
 interface PageViewProps {
   page: Page;
@@ -10,11 +9,6 @@ interface PageViewProps {
 }
 
 export function PageView({ page, width }: PageViewProps) {
-  const { fontSize } = useSettingsStore();
-
-  // Scale line height based on user font size preference
-  const lineHeightScale = fontSize / 24;
-
   return (
     <View style={[styles.container, { width }]}>
       <ScrollView

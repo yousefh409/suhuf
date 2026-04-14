@@ -24,7 +24,7 @@ describe('book-download', () => {
     const { saveBookLocally, savePages } = require('../../lib/database');
     const book = {
       id: 'b1', openiti_id: 'test', title_ar: 'كتاب', title_en: 'Book',
-      author_ar: null, author_en: null, category: 'Nahw', level: 'Beginner',
+      author_ar: null, author_en: null, category: 'Nahw' as const, level: 'Beginner' as const,
       cover_color: '#5C4B3A', page_count: 2, content_hash: null,
     };
     await downloadBook(book);

@@ -4,7 +4,7 @@ import { colors, spacing, borderRadius, typography } from '../../constants/theme
 
 const ALL_CATEGORIES: BookCategory[] = [
   'Nahw', 'Sarf', 'Hadith', 'Fiqh', 'Tafseer',
-  'Aqeedah', 'Balagha', 'Lugha', 'Sirah',
+  'Aqeedah', 'Balagha', 'Lugha', 'Sirah', 'Tazkiyah', 'Usul al-Fiqh',
 ];
 
 interface CategoryPillsProps {
