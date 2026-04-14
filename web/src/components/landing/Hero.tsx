@@ -344,16 +344,26 @@ function IPadMockup() {
       <motion.div
         style={{
           rotateX,
-          background: "linear-gradient(145deg, #3a3538 0%, #2a2628 100%)",
-          filter:
-            "drop-shadow(0 25px 40px rgba(0,0,0,0.18)) drop-shadow(0 4px 16px rgba(0,0,0,0.10))",
+          backgroundImage: "linear-gradient(in oklab 160deg, oklab(46% -.0007 0.011) 0%, oklab(38% .0002 0.009) 100%)",
+          boxShadow:
+            "inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.2), 0 30px 80px rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.15)",
           willChange: "transform",
           backfaceVisibility: "hidden",
         }}
-        className="w-full rounded-[22px] p-2"
+        className="relative w-full rounded-[16px] md:rounded-[24px] p-[6px] md:p-[10px]"
       >
+        {/* Front camera */}
         <div
-          className="bg-white rounded-[14px] aspect-[19/12] flex flex-col overflow-hidden"
+          className="absolute top-[4px] md:top-[6px] left-1/2 -translate-x-1/2 w-[4px] md:w-[6px] h-[4px] md:h-[6px] rounded-full z-10"
+          style={{ background: "radial-gradient(circle, #3a3a3c 30%, #1d1d1f 100%)" }}
+        />
+        {/* Side buttons */}
+        <div className="absolute -right-[1.5px] md:-right-[2px] top-[30px] md:top-[60px] w-[2px] md:w-[3px] h-[18px] md:h-[30px] rounded-r-sm bg-[#2a2a2c]" />
+        <div className="absolute -right-[1.5px] md:-right-[2px] top-[55px] md:top-[100px] w-[2px] md:w-[3px] h-[18px] md:h-[30px] rounded-r-sm bg-[#2a2a2c]" />
+        <div className="absolute -left-[1.5px] md:-left-[2px] top-[40px] md:top-[80px] w-[2px] md:w-[3px] h-[30px] md:h-[50px] rounded-l-sm bg-[#2a2a2c]" />
+
+        <div
+          className="bg-white rounded-[10px] md:rounded-[16px] aspect-[19/12] flex flex-col overflow-hidden relative"
           style={{ contain: "layout paint", backfaceVisibility: "hidden" }}
         >
           <AppBar isListening={isListening} />
@@ -384,6 +394,13 @@ function IPadMockup() {
           <div className="flex justify-center pb-2">
             <div className="w-[100px] h-[3px] rounded-full bg-ink/20" />
           </div>
+          {/* Screen glare */}
+          <div
+            className="pointer-events-none absolute inset-0 rounded-[10px] md:rounded-[16px]"
+            style={{
+              background: "linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 50%)",
+            }}
+          />
         </div>
       </motion.div>
 
@@ -496,21 +513,23 @@ function IPadMockup() {
               className="absolute bottom-[-52px] left-1/2 -translate-x-1/2 lg:hidden z-20 w-[calc(100%-32px)] max-w-[360px]"
             >
               <div
-                className="bg-white border border-ink/8 rounded-xl px-4 py-2.5 flex items-center gap-2"
+                className="bg-white border border-ink/8 rounded-xl px-4 py-2.5 flex items-start gap-2"
                 style={{
                   boxShadow:
                     "0 12px 40px rgba(0,0,0,0.12), 0 2px 10px rgba(0,0,0,0.06)",
                 }}
               >
-                <span className="w-5 h-5 rounded-full bg-gold/15 text-gold text-[11px] font-bold flex items-center justify-center shrink-0">
+                <span className="w-5 h-5 rounded-full bg-gold/15 text-gold text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
                   {card.num}
                 </span>
-                <p className="text-[13px] text-ink font-semibold leading-tight shrink-0">
-                  {card.title}
-                </p>
-                <p className="text-[12px] text-ink/50 leading-tight truncate">
-                  {card.desc}
-                </p>
+                <div className="min-w-0">
+                  <p className="text-[13px] text-ink font-semibold leading-tight">
+                    {card.title}
+                  </p>
+                  <p className="text-[12px] text-ink/50 leading-tight mt-0.5">
+                    {card.desc}
+                  </p>
+                </div>
               </div>
             </motion.div>
           </React.Fragment>
