@@ -9,6 +9,7 @@ function getReferralFromCookie(): string | null {
   return match ? match[1] : null;
 }
 
+
 type WaitlistUser = {
   id: string;
   position: number;
