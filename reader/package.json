@@ -10,6 +10,10 @@
     "test": "jest"
   },
   "dependencies": {
+    "@expo-google-fonts/amiri": "^0.4.1",
+    "@expo-google-fonts/dm-sans": "^0.4.2",
+    "@expo-google-fonts/noto-naskh-arabic": "^0.4.5",
+    "@expo-google-fonts/scheherazade-new": "^0.4.2",
     "@gorhom/bottom-sheet": "^5.2.9",
     "@supabase/supabase-js": "^2.103.0",
     "babel-preset-expo": "~54.0.10",
