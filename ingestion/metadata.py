@@ -81,7 +81,7 @@ def parse_file_header(lines: list[str], openiti_uri: str) -> BookMetadata:
 
     return BookMetadata(
         openiti_id=openiti_id,
-        title_ar=title_ar or openiti_uri,
+        title_ar=title_ar or "",
         author_openiti_id=author_id,
         word_count=word_count,
         char_count=char_count,
@@ -115,10 +115,9 @@ def _extract_leading_int(value: str) -> int | None:
 def parse_author_yml(lines: list[str]) -> dict:
     """Parse an OpenITI author .yml file (custom key: value format, not real YAML).
 
-    Returns a plain dict with mapped field names as keys. All expected keys are
-    always present; missing or NODATA values are represented as None.
+    Returns a plain dict with only the fields that were present and non-missing.
     """
-    result: dict = {field: None for field in _AUTH_FIELD_MAP.values()}
+    result: dict = {}
 
     for line in lines:
         line = line.strip()
