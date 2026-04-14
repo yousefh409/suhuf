@@ -17,10 +17,14 @@ def upload_book(
     author_data: dict,
     client: Any,
     has_tashkeel: bool = False,
+    enriched_book: dict | None = None,
+    enriched_author: dict | None = None,
 ) -> None:
     """Upload a parsed book to Supabase. All operations are upserts."""
     meta = result.metadata
     author_id = meta.author_openiti_id
+    enriched_book = enriched_book or {}
+    enriched_author = enriched_author or {}
 
     # 1. Upsert author
     author_row = {
@@ -32,8 +36,9 @@ def upload_book(
         "kunya_ar": author_data.get("kunya_lat"),
         "laqab_ar": author_data.get("laqab_lat"),
         "nisba_ar": author_data.get("nisba_lat"),
-        "birth_ah": author_data.get("birth_ah"),
-        "death_ah": author_data.get("death_ah"),
+        "birth_ah": author_data.get("birth_ah") or enriched_author.get("birth_ah"),
+        "death_ah": author_data.get("death_ah") or enriched_author.get("death_ah"),
+        "full_name_ar": enriched_author.get("full_name_en"),
     }
     # Remove None values
     author_row = {k: v for k, v in author_row.items() if v is not None}
@@ -46,8 +51,9 @@ def upload_book(
         "openiti_id": meta.openiti_id,
         "author_id": author_uuid,
         "title_ar": meta.title_ar,
-        "title_lat": meta.title_lat,
-        "genres": meta.genres,
+        "title_lat": enriched_book.get("title_en") or meta.title_lat,
+        "description": enriched_book.get("description"),
+        "genres": enriched_book.get("genres") or meta.genres,
         "word_count": meta.word_count,
         "char_count": meta.char_count,
         "total_pages": len(result.pages),
@@ -55,6 +61,9 @@ def upload_book(
         "version_status": meta.version_status,
         "language": meta.language,
         "has_tashkeel": has_tashkeel,
+        "composition_date_ah": enriched_book.get("composition_date_ah"),
+        "commentary_on": enriched_book.get("commentary_on"),
+        "abridgement_of": enriched_book.get("abridgement_of"),
     }
     book_row = {k: v for k, v in book_row.items() if v is not None}
     resp = client.table("books").upsert(book_row, on_conflict="openiti_id").execute()

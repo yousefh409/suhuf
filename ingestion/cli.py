@@ -14,6 +14,7 @@ def build_parser() -> argparse.ArgumentParser:
     ingest.add_argument("--force-tashkeel", action="store_true", help="Re-diacritize everything")
     ingest.add_argument("--dump", help="Write intermediate JSON to this directory")
     ingest.add_argument("--dry-run", action="store_true", help="Parse and tashkeel but skip upload")
+    ingest.add_argument("--skip-enrich", action="store_true", help="Skip AI metadata enrichment")
 
     # parse command
     parse_cmd = sub.add_parser("parse", help="Run parse stage only")

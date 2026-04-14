@@ -45,7 +45,22 @@ def _ingest_one(uri: str, args, engine, client):
                 result.model_dump_json(indent=2), encoding="utf-8"
             )
 
-    # Stage 3: Upload
+    # Stage 3: AI enrichment
+    enriched_book = {}
+    enriched_author = {}
+    if not getattr(args, "skip_enrich", False):
+        from ingestion.enrich import enrich_book_metadata, enrich_author_metadata
+        logger.info("Running AI metadata enrichment...")
+        enriched_book = enrich_book_metadata(result)
+        if enriched_book:
+            logger.info(f"Book enriched: title_en={enriched_book.get('title_en')}, genres={enriched_book.get('genres')}")
+        enriched_author = enrich_author_metadata(result.metadata.author_openiti_id, {})
+        if enriched_author:
+            logger.info(f"Author enriched: {enriched_author.get('full_name_en')}")
+    else:
+        logger.info("Skipping AI enrichment (--skip-enrich)")
+
+    # Stage 4: Upload
     if not args.dry_run and client:
         from ingestion.upload import upload_book
 
@@ -55,7 +70,12 @@ def _ingest_one(uri: str, args, engine, client):
             with open(author_yml, encoding="utf-8") as f:
                 author_data = parse_author_yml(f.readlines())
 
-        upload_book(result, author_data, client, has_tashkeel=engine is not None)
+        upload_book(
+            result, author_data, client,
+            has_tashkeel=engine is not None,
+            enriched_book=enriched_book,
+            enriched_author=enriched_author,
+        )
         logger.info(f"Upload complete: {uri}")
     elif args.dry_run:
         logger.info(f"Dry run -- skipping upload for {uri}")
