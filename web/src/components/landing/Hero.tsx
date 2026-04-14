@@ -239,7 +239,7 @@ function IPadMockup() {
     offset: ["start end", "end start"],
   });
 
-  const rotateX = useTransform(scrollYProgress, [0, 0.45, 1], [55, 0, 0]);
+  const rotateX = useTransform(scrollYProgress, [0, 0.45, 1], [40, 0, 0]);
   const inView = useInView(containerRef, { amount: 0.3 });
 
   /* ─── Walkthrough state machine ───
@@ -344,14 +344,18 @@ function IPadMockup() {
         style={{
           rotateX,
           background: "linear-gradient(145deg, #3a3538 0%, #2a2628 100%)",
-          boxShadow:
-            "inset 0 1px 0 #FFFFFF14, 0 25px 80px #0000002E, 0 4px 16px #0000001A",
+          filter:
+            "drop-shadow(0 25px 40px rgba(0,0,0,0.18)) drop-shadow(0 4px 16px rgba(0,0,0,0.10))",
           willChange: "transform",
+          backfaceVisibility: "hidden",
         }}
         className="w-full rounded-[22px] p-2"
       >
-        {/* Screen */}
-        <div className="bg-white rounded-[14px] aspect-[19/12] flex flex-col overflow-hidden">
+        {/* Screen — isolated layer so inner content doesn't cause repaints during rotateX */}
+        <div
+          className="bg-white rounded-[14px] aspect-[19/12] flex flex-col overflow-hidden"
+          style={{ contain: "layout paint", backfaceVisibility: "hidden" }}
+        >
           <AppBar isListening={isListening} />
           <div className="relative flex flex-1 min-h-0">
             <BookPage
@@ -440,6 +444,8 @@ function IPadMockup() {
                 top: card.top,
                 perspective: "500px",
                 transformStyle: "preserve-3d",
+                backfaceVisibility: "hidden",
+                willChange: "transform, opacity",
               }}
             >
               <div
