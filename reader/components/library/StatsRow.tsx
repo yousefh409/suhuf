@@ -13,7 +13,7 @@ function StatCard({ label, value, unit }: StatCardProps) {
       <Text style={styles.label}>{label}</Text>
       <View style={styles.valueRow}>
         <Text style={styles.value}>{value}</Text>
-        {unit ? <Text style={styles.unit}>{unit}</Text> : null}
+        {unit ? <Text style={styles.unit}> {unit}</Text> : null}
       </View>
     </View>
   );
@@ -28,20 +28,27 @@ interface StatsRowProps {
 
 export function StatsRow({ pagesToday, wordsLearned, streak, timeRead }: StatsRowProps) {
   return (
-    <View style={styles.row}>
-      <StatCard label="TODAY" value={pagesToday} unit="pg" />
-      <StatCard label="WORDS LEARNED" value={wordsLearned} />
-      <StatCard label="STREAK" value={streak} unit="d" />
-      <StatCard label="TIME READ" value={timeRead} />
+    <View style={styles.grid}>
+      <View style={styles.row}>
+        <StatCard label="TODAY" value={pagesToday} unit="pages" />
+        <StatCard label="WORDS LEARNED" value={wordsLearned} unit="this week" />
+      </View>
+      <View style={styles.row}>
+        <StatCard label="STREAK" value={streak} unit="days" />
+        <StatCard label="TIME READ" value={timeRead} />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  grid: {
+    paddingHorizontal: spacing.screenPadding,
+    gap: spacing.sm,
+  },
   row: {
     flexDirection: 'row',
     gap: spacing.sm,
-    paddingHorizontal: spacing.screenPadding,
   },
   card: {
     flex: 1,
@@ -49,28 +56,28 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   label: {
     ...typography.statLabel,
+    fontFamily: 'DMSans-Medium',
     color: colors.textSecondary,
     marginBottom: spacing.xs,
   },
   valueRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 2,
+    alignItems: 'baseline',
   },
   value: {
     ...typography.stat,
+    fontFamily: 'DMSans-Bold',
     color: colors.textPrimary,
   },
   unit: {
-    fontSize: 13,
-    fontWeight: '500',
+    fontSize: 12,
+    fontFamily: 'DMSans',
     color: colors.textSecondary,
-    marginBottom: 6,
   },
 });
