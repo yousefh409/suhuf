@@ -3,8 +3,6 @@ import logging
 import os
 import sys
 from pathlib import Path
-from dotenv import load_dotenv
-
 from ingestion.cli import build_parser
 from ingestion.corpus import find_book_file, find_author_metadata
 from ingestion.metadata import parse_author_yml
@@ -25,7 +23,11 @@ STARTER_URIS = [
 
 
 def run_ingest(args):
-    load_dotenv()
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        pass
 
     if not args.uri and not args.starter:
         logger.error("Provide a URI or use --starter")
