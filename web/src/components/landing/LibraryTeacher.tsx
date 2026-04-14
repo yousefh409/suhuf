@@ -345,16 +345,11 @@ function TiltDevice({
       className={className}
       style={{
         ...style,
-        // Mobile: flat idle sway via rotate only. Desktop: full 3D tilt + parallax.
-        ...(isMobile
-          ? { rotate: tiltY }
-          : {
-              rotateX: tiltX,
-              rotateY: tiltY,
-              y: parallaxY,
-              transformStyle: "preserve-3d" as const,
-              willChange: "transform",
-            }),
+        rotateX: tiltX,
+        rotateY: tiltY,
+        y: parallaxY,
+        transformStyle: "preserve-3d",
+        willChange: "transform",
       }}
     >
       {children}
@@ -417,15 +412,6 @@ function IPhoneFrame({ children }: { children: React.ReactNode }) {
 /* ---------- Main Component ---------- */
 export default function LibraryTeacher() {
   const sectionRef = useRef<HTMLElement>(null);
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 768px)");
-    setIsMobile(mq.matches);
-    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
 
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -440,7 +426,7 @@ export default function LibraryTeacher() {
     <section
       ref={sectionRef}
       className="w-full flex flex-col items-center px-6 md:px-[60px] pt-16 md:pt-[100px] pb-10 gap-10 md:gap-14 overflow-hidden"
-      style={isMobile ? undefined : { perspective: 1200 }}
+      style={{ perspective: 1200 }}
     >
       {/* Text Area */}
       <motion.div
@@ -507,8 +493,8 @@ export default function LibraryTeacher() {
         </TiltDevice>
       </div>
 
-      {/* Device Stack — Mobile (overlapping like desktop, no perspective = no 3D compositing) */}
-      <div className="relative w-full max-w-[400px] mx-auto md:hidden" style={{ height: 520 }}>
+      {/* Device Stack — Mobile (overlapping like desktop) */}
+      <div className="relative w-full max-w-[400px] mx-auto md:hidden" style={{ height: 520, perspective: 1200 }}>
         {/* iPad Device — back layer */}
         <TiltDevice
           idleSpeed={1.4}

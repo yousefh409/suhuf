@@ -14,10 +14,10 @@ export default function Home() {
     <main className="flex flex-col items-center w-full">
       <Nav />
       <Hero />
-      <SocialProof />
       <BoldStatement />
       <Features />
       <LibraryTeacher />
+      <SocialProof />
       <DarkCTA />
       {/* <Pricing /> */}
       <FAQ />

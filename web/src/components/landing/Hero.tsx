@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-import { motion, AnimatePresence, useScroll, useTransform, useInView, useMotionValue } from "motion/react";
+import { motion, AnimatePresence, useScroll, useTransform, useInView } from "motion/react";
 
 function getReferralFromCookie(): string | null {
   if (typeof document === "undefined") return null;
@@ -234,28 +234,13 @@ function TabBar() {
 
 function IPadMockup() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 768px)");
-    setIsMobile(mq.matches);
-    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
 
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start end", "end start"],
   });
 
-  const rotateXDesktop = useTransform(scrollYProgress, [0, 0.45, 1], [40, 0, 0]);
-  const rotateXNone = useMotionValue(0);
-  const rotateX = isMobile ? rotateXNone : rotateXDesktop;
-
-  // Mobile: lightweight fade + slide-up instead of 3D tilt
-  const mobileOpacity = useTransform(scrollYProgress, [0, 0.35], [0, 1]);
-  const mobileY = useTransform(scrollYProgress, [0, 0.35], [60, 0]);
+  const rotateX = useTransform(scrollYProgress, [0, 0.45, 1], [40, 0, 0]);
   const inView = useInView(containerRef, { amount: 0.3 });
 
   /* ─── Walkthrough state machine ───
@@ -354,7 +339,7 @@ function IPadMockup() {
     <div
       ref={containerRef}
       className="relative mx-auto w-full max-w-[760px]"
-      style={isMobile ? undefined : { perspective: "1000px" }}
+      style={{ perspective: "1000px" }}
     >
       <motion.div
         style={{
@@ -362,15 +347,14 @@ function IPadMockup() {
           background: "linear-gradient(145deg, #3a3538 0%, #2a2628 100%)",
           filter:
             "drop-shadow(0 25px 40px rgba(0,0,0,0.18)) drop-shadow(0 4px 16px rgba(0,0,0,0.10))",
-          ...(isMobile
-            ? { opacity: mobileOpacity, y: mobileY }
-            : { willChange: "transform", backfaceVisibility: "hidden" as const }),
+          willChange: "transform",
+          backfaceVisibility: "hidden",
         }}
         className="w-full rounded-[22px] p-2"
       >
         <div
           className="bg-white rounded-[14px] aspect-[19/12] flex flex-col overflow-hidden"
-          style={isMobile ? undefined : { contain: "layout paint", backfaceVisibility: "hidden" }}
+          style={{ contain: "layout paint", backfaceVisibility: "hidden" }}
         >
           <AppBar isListening={isListening} />
           <div className="relative flex flex-1 min-h-0">
@@ -592,9 +576,6 @@ export default function Hero() {
     <section
       id="waitlist"
       className="flex flex-col items-center w-full px-5 md:px-[60px] pt-10 md:pt-[60px] pb-[40px] gap-5"
-      style={{
-        boxShadow: "#00000033 0px 2px 3px inset, #00000033 0px 2px 3px",
-      }}
     >
       <Image src="/logo.png" alt="suhuf" width={40} height={40} className="rounded-xl" />
 
