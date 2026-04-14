@@ -512,7 +512,7 @@ function IPadMockup() {
               className="absolute bottom-[-52px] left-1/2 -translate-x-1/2 lg:hidden z-20 w-[calc(100%-32px)] max-w-[360px]"
             >
               <div
-                className="bg-white/95 backdrop-blur-sm border border-ink/8 rounded-xl px-4 py-2.5 flex items-center gap-2"
+                className="bg-white border border-ink/8 rounded-xl px-4 py-2.5 flex items-center gap-2"
                 style={{
                   boxShadow:
                     "0 12px 40px rgba(0,0,0,0.12), 0 2px 10px rgba(0,0,0,0.06)",
