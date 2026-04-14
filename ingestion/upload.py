@@ -1,7 +1,11 @@
 from __future__ import annotations
 import json
 import logging
-from supabase import Client
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    pass  # supabase.Client used only at runtime
+
 from ingestion.models import ParseResult
 
 logger = logging.getLogger(__name__)
@@ -11,7 +15,7 @@ PAGE_BATCH_SIZE = 100
 def upload_book(
     result: ParseResult,
     author_data: dict,
-    client: Client,
+    client: Any,
     has_tashkeel: bool = False,
 ) -> None:
     """Upload a parsed book to Supabase. All operations are upserts."""
