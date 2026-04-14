@@ -11,11 +11,11 @@ export interface Book {
   id: string;
   openiti_id: string;
   title_ar: string;
-  title_en: string;
+  title_en: string | null;
   author_ar: string | null;
   author_en: string | null;
-  category: BookCategory;
-  level: BookLevel;
+  category: BookCategory | null;
+  level: BookLevel | null;
   cover_color: string;
   page_count: number;
   content_hash: string | null;
@@ -25,8 +25,8 @@ export type BlockType = 'prose' | 'hadith' | 'isnad' | 'matn' | 'poetry' | 'biog
 
 export interface Token {
   id: string;       // e.g. "p42_b1_w5"
-  text: string;     // Arabic word (may include clitics)
-  tashkeel: string; // Diacritized form
+  text: string;     // Arabic word (with diacritics)
+  tashkeel?: string; // Optional separate diacritized form
 }
 
 export interface Block {
@@ -94,6 +94,7 @@ export interface DayStats {
 
 export interface IrabResult {
   pos: string;
+  pos_ar: string;
   role: string;
   role_ar: string;
   case: string;

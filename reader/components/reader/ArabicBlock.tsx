@@ -10,7 +10,7 @@ interface ArabicBlockProps {
 
 /** Build a sentence string from all tokens in the block. */
 function buildSentence(tokens: Token[]): string {
-  return tokens.map((t) => t.tashkeel || t.text).join(' ');
+  return tokens.map((t) => t.text).join(' ');
 }
 
 export function ArabicBlock({ block }: ArabicBlockProps) {

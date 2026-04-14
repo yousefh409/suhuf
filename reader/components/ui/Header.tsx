@@ -1,4 +1,5 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Icon } from './Icon';
 import { colors, typography, spacing } from '../../constants/theme';
@@ -13,8 +14,9 @@ interface HeaderProps {
 
 export function Header({ title, showBack, backLabel = 'Library', subtitle, rightContent }: HeaderProps) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
       <View style={styles.left}>
         {showBack ? (
           <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={8}>

@@ -31,7 +31,9 @@ export default function Discover() {
   const categoryCounts = useMemo(() => {
     const counts: Partial<Record<BookCategory, number>> = {};
     for (const book of catalog) {
-      counts[book.category] = (counts[book.category] ?? 0) + 1;
+      if (book.category) {
+        counts[book.category] = (counts[book.category] ?? 0) + 1;
+      }
     }
     return counts;
   }, [catalog]);

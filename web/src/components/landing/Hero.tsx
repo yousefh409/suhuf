@@ -509,10 +509,10 @@ function IPadMockup() {
                 stiffness: 180,
                 damping: 18,
               }}
-              className="absolute bottom-[-52px] left-1/2 -translate-x-1/2 lg:hidden z-20"
+              className="absolute bottom-[-52px] left-1/2 -translate-x-1/2 lg:hidden z-20 w-[calc(100%-32px)] max-w-[360px]"
             >
               <div
-                className="bg-white/95 backdrop-blur-sm border border-ink/8 rounded-xl px-4 py-2.5 flex items-center gap-2 whitespace-nowrap"
+                className="bg-white/95 backdrop-blur-sm border border-ink/8 rounded-xl px-4 py-2.5 flex items-center gap-2"
                 style={{
                   boxShadow:
                     "0 12px 40px rgba(0,0,0,0.12), 0 2px 10px rgba(0,0,0,0.06)",
@@ -521,10 +521,10 @@ function IPadMockup() {
                 <span className="w-5 h-5 rounded-full bg-gold/15 text-gold text-[11px] font-bold flex items-center justify-center shrink-0">
                   {card.num}
                 </span>
-                <p className="text-[13px] text-ink font-semibold leading-tight">
+                <p className="text-[13px] text-ink font-semibold leading-tight shrink-0">
                   {card.title}
                 </p>
-                <p className="text-[12px] text-ink/50 leading-tight">
+                <p className="text-[12px] text-ink/50 leading-tight truncate">
                   {card.desc}
                 </p>
               </div>
@@ -550,8 +550,6 @@ export default function Hero() {
   const [error, setError] = useState("");
   const [referrerCode, setReferrerCode] = useState<string | null>(null);
   const [existingUser, setExistingUser] = useState<WaitlistUser | null>(null);
-  const [checkingCookie, setCheckingCookie] = useState(true);
-
   useEffect(() => {
     setReferrerCode(getReferralFromCookie());
     fetch("/api/waitlist/me")
@@ -559,8 +557,7 @@ export default function Hero() {
       .then((data) => {
         if (data?.user) setExistingUser(data.user);
       })
-      .catch(() => {})
-      .finally(() => setCheckingCookie(false));
+      .catch(() => {});
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -613,7 +610,7 @@ export default function Hero() {
         instant translation, morphology, and i&apos;rab.
       </p>
 
-      {!checkingCookie && existingUser ? (
+      {existingUser ? (
         <a
           href={`/welcome?id=${existingUser.id}&position=${existingUser.position}&referralCode=${existingUser.referral_code}&existing=true`}
           className="flex items-center gap-3 rounded-full py-3 pl-6 pr-4 bg-parchment-warm border border-ink/10 hover:border-gold/30 transition-colors"
@@ -628,7 +625,7 @@ export default function Hero() {
             </svg>
           </span>
         </a>
-      ) : !checkingCookie ? (
+      ) : (
         <>
           <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-center pt-1 w-full sm:w-auto px-2 sm:px-0">
             <div className="flex items-center rounded-full sm:rounded-l-full sm:rounded-r-none py-3.5 px-5 bg-parchment-warm border border-ink/10 sm:border-r-0">
@@ -657,7 +654,7 @@ export default function Hero() {
             Free during beta &middot; No credit card required
           </p>
         </>
-      ) : null}
+      )}
 
       <div className="w-full mb-14 lg:mb-0">
         <IPadMockup />

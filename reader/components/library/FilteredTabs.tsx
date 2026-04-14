@@ -58,11 +58,11 @@ export function FilteredTabs({ inProgress, saved, completed, progressMap }: Filt
               </Pressable>
             );
           })}
+          <Pressable onPress={() => router.push('/discover')} style={styles.fullLibraryBtn}>
+            <Text style={styles.fullLibraryText}>Full Library</Text>
+            <Icon name="arrow-right" size={14} color={colors.white} />
+          </Pressable>
         </ScrollView>
-        <Pressable onPress={() => router.push('/discover')} style={styles.fullLibraryBtn}>
-          <Text style={styles.fullLibraryText}>Full Library</Text>
-          <Icon name="arrow-right" size={14} color={colors.white} />
-        </Pressable>
       </View>
 
       {/* Book scroll */}
@@ -97,16 +97,24 @@ const styles = StyleSheet.create({
   pills: {
     flexDirection: 'row',
     gap: spacing.sm,
-    flexGrow: 0,
+    alignItems: 'center',
+    paddingRight: spacing.screenPadding,
   },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
-  pillActive: {},
+  pillActive: {
+    backgroundColor: '#F5EDD0',
+    borderColor: colors.accent,
+  },
   dot: {
     width: 6,
     height: 6,
@@ -127,7 +135,6 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
   },
   fullLibraryBtn: {
-    marginLeft: 'auto',
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,

@@ -4,10 +4,11 @@ import {
   FlatList,
   Text,
   Pressable,
+  ActivityIndicator,
   StyleSheet,
   useWindowDimensions,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { useReaderStore } from '../../stores/reader';
 import { PageView } from '../../components/reader/PageView';
@@ -24,6 +25,9 @@ export default function ReadingSession() {
 
   const pages = useReaderStore((s) => s.pages);
   const currentPage = useReaderStore((s) => s.currentPage);
+  const isLoadingBook = useReaderStore((s) => s.isLoadingBook);
+  const downloadProgress = useReaderStore((s) => s.downloadProgress);
+  const loadError = useReaderStore((s) => s.loadError);
   const loadBook = useReaderStore((s) => s.loadBook);
   const goToPage = useReaderStore((s) => s.goToPage);
   const clearSelection = useReaderStore((s) => s.clearSelection);
@@ -97,7 +101,35 @@ export default function ReadingSession() {
             />
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>Loading book...</Text>
+              {loadError ? (
+                <>
+                  <Icon name="alert-circle" size={32} color={colors.error} />
+                  <Text style={styles.errorText}>{loadError}</Text>
+                  <Pressable style={styles.retryButton} onPress={() => id && loadBook(id)}>
+                    <Text style={styles.retryText}>Try Again</Text>
+                  </Pressable>
+                </>
+              ) : downloadProgress && downloadProgress.total > 0 ? (
+                <>
+                  <Text style={styles.loadingTitle}>Downloading pages...</Text>
+                  <View style={styles.progressBarContainer}>
+                    <View
+                      style={[
+                        styles.progressBarFill,
+                        { width: `${Math.round((downloadProgress.downloaded / downloadProgress.total) * 100)}%` },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.progressText}>
+                    {downloadProgress.downloaded} / {downloadProgress.total} pages
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <ActivityIndicator size="large" color={colors.accent} />
+                  <Text style={styles.emptyText}>Loading book...</Text>
+                </>
+              )}
             </View>
           )}
         </Pressable>
@@ -140,11 +172,52 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.xl,
   },
   emptyText: {
     fontFamily: 'DMSans',
     fontSize: 16,
     color: colors.textTertiary,
+  },
+  loadingTitle: {
+    fontFamily: 'DMSans-SemiBold',
+    fontSize: 16,
+    color: colors.textPrimary,
+  },
+  progressBarContainer: {
+    width: '100%',
+    height: 6,
+    backgroundColor: colors.cardBorder,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: colors.accent,
+    borderRadius: 3,
+  },
+  progressText: {
+    fontFamily: 'DMSans',
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  errorText: {
+    fontFamily: 'DMSans',
+    fontSize: 15,
+    color: colors.error,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  retryText: {
+    fontFamily: 'DMSans-SemiBold',
+    fontSize: 14,
+    color: colors.white,
   },
   footer: {
     flexDirection: 'row',

@@ -5,6 +5,11 @@ import { useSettingsStore } from '../../stores/settings';
 import { useReaderStore } from '../../stores/reader';
 import { colors } from '../../constants/theme';
 
+/** Strip Arabic diacritical marks (tashkeel) from text. */
+function stripTashkeel(text: string): string {
+  return text.replace(/[\u064B-\u065F\u0670]/g, '');
+}
+
 interface ArabicWordProps {
   token: Token;
   sentence: string;
@@ -18,7 +23,10 @@ export function ArabicWord({ token, sentence, isSelected }: ArabicWordProps) {
 
   // Use the reader store's tashkeel toggle (overrides settings during session)
   const displayTashkeel = showTashkeelFromReader && showTashkeel;
-  const displayText = displayTashkeel ? token.tashkeel : token.text;
+  // Diacritics are embedded in token.text; strip them when tashkeel is off
+  const displayText = displayTashkeel
+    ? (token.tashkeel || token.text)
+    : stripTashkeel(token.text);
 
   const ref = useRef<View>(null);
 

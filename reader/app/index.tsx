@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    gap: spacing.lg,
+    gap: spacing.sectionGap,
     paddingBottom: spacing.xxl,
   },
   sectionHeader: {

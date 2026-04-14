@@ -1,7 +1,13 @@
 import { create } from 'zustand';
 import type { Page, Chapter, Token, IrabResult, TranslationResult, AskAiMessage } from '../types';
-import { getPagesByBook, updateReadingProgress } from '../lib/database';
+import { getPagesByBook, savePages, updateReadingProgress } from '../lib/database';
+import { fetchBookPages, fetchBookChapters } from '../lib/supabase';
 import { fetchIrab, fetchTranslation, askAi } from '../lib/word-analysis';
+
+interface DownloadProgress {
+  downloaded: number;
+  total: number;
+}
 
 interface ReaderState {
   bookId: string | null;
@@ -9,6 +15,9 @@ interface ReaderState {
   chapters: Chapter[];
   currentPage: number;
   showTashkeel: boolean;
+  isLoadingBook: boolean;
+  downloadProgress: DownloadProgress | null;
+  loadError: string | null;
 
   selectedToken: Token | null;
   selectedSentence: string | null;
@@ -43,6 +52,9 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
   chapters: [],
   currentPage: 1,
   showTashkeel: true,
+  isLoadingBook: false,
+  downloadProgress: null,
+  loadError: null,
 
   selectedToken: null,
   selectedSentence: null,
@@ -60,11 +72,35 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
   isAiTyping: false,
 
   loadBook: async (bookId) => {
+    set({ bookId, pages: [], currentPage: 1, isLoadingBook: true, downloadProgress: null, loadError: null });
     try {
-      const pages = await getPagesByBook(bookId);
-      set({ bookId, pages, currentPage: 1 });
-    } catch {
-      set({ bookId, pages: [], currentPage: 1 });
+      // 1. Try local SQLite first
+      const localPages = await getPagesByBook(bookId);
+      if (localPages.length > 0) {
+        set({ pages: localPages, isLoadingBook: false });
+        return;
+      }
+
+      // 2. Not downloaded yet — fetch from Supabase with progress
+      set({ downloadProgress: { downloaded: 0, total: 0 } });
+      const remotePages = await fetchBookPages(bookId);
+      const total = remotePages.length;
+      set({ downloadProgress: { downloaded: 0, total } });
+
+      // Save in batches to local SQLite
+      const BATCH = 10;
+      for (let i = 0; i < remotePages.length; i += BATCH) {
+        const batch = remotePages.slice(i, i + BATCH);
+        await savePages(batch);
+        set({ downloadProgress: { downloaded: Math.min(i + BATCH, total), total } });
+      }
+
+      // Load pages back from local (ensures consistent format)
+      const savedPages = await getPagesByBook(bookId);
+      set({ pages: savedPages.length > 0 ? savedPages : remotePages, isLoadingBook: false, downloadProgress: null });
+    } catch (e: any) {
+      console.error('[loadBook] failed:', e);
+      set({ isLoadingBook: false, downloadProgress: null, loadError: e?.message ?? 'Failed to load book' });
     }
   },
 

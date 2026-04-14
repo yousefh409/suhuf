@@ -359,33 +359,33 @@ export default function Features() {
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.2 }}
-        className="w-full max-w-[1320px] flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-hide lg:grid lg:grid-cols-4 lg:overflow-visible lg:pb-0"
+        className="w-full max-w-[1320px] flex gap-3 lg:gap-4 overflow-x-auto pb-2 scrollbar-hide lg:grid lg:grid-cols-4 lg:overflow-visible lg:pb-0"
       >
         {upcomingFeatures.map((f) => (
           <motion.div
             key={f.id}
             variants={fadeUp}
             transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="flex flex-col rounded-2xl p-6 gap-2 bg-white/70 border-[1.5px] border-dashed border-ink/12 min-w-[280px] snap-start shrink-0 lg:min-w-0 lg:shrink"
+            className="flex flex-col rounded-xl lg:rounded-2xl p-4 lg:p-6 gap-1.5 lg:gap-2 bg-white/70 border-[1.5px] border-dashed border-ink/12 min-w-[260px] lg:max-w-none shrink-0 lg:min-w-0 lg:shrink"
           >
             <span
               className={`text-[11px] uppercase tracking-[0.1em] font-semibold px-2 py-0.5 rounded-full w-fit ${f.statusColor}`}
             >
               {f.status}
             </span>
-            <h4 className="font-serif text-lg text-ink mt-1">{f.title}</h4>
-            <p className="text-xs text-ink/45 leading-[1.6] flex-1">
+            <h4 className="font-serif text-[15px] lg:text-lg text-ink mt-0.5 lg:mt-1">{f.title}</h4>
+            <p className="text-[11px] lg:text-xs text-ink/45 leading-[1.5] lg:leading-[1.6] flex-1">
               {f.description}
             </p>
             <button
               onClick={() => handleVote(f.id)}
-              className={`flex items-center gap-1.5 mt-2 text-sm px-3 py-1.5 rounded-full border w-fit transition-colors ${
+              className={`flex items-center gap-1 lg:gap-1.5 mt-1.5 lg:mt-2 text-xs lg:text-sm px-2.5 lg:px-3 py-1 lg:py-1.5 rounded-full border w-fit transition-colors ${
                 votedFeatures.has(f.id)
                   ? "border-gold/30 bg-gold/5 text-gold"
                   : "border-ink/10 text-ink/40 hover:border-ink/20 hover:text-ink/60"
               }`}
             >
-              <ArrowUp className="w-3.5 h-3.5" />
+              <ArrowUp className="w-3 h-3 lg:w-3.5 lg:h-3.5" />
               {votedFeatures.has(f.id) ? "Voted" : "Upvote"}
             </button>
           </motion.div>
