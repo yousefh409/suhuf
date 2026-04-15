@@ -399,14 +399,14 @@ export default function Features() {
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.2 }}
-        className="w-full max-w-[1320px] flex gap-3 lg:gap-4 overflow-x-auto pb-2 scrollbar-hide lg:grid lg:grid-cols-4 lg:overflow-visible lg:pb-0"
+        className="w-full max-w-[1320px] grid grid-cols-2 gap-3 lg:gap-4 lg:grid-cols-4"
       >
         {upcomingFeatures.map((f) => (
           <motion.div
             key={f.id}
             variants={fadeUp}
             transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="flex flex-col rounded-xl lg:rounded-2xl p-4 lg:p-6 gap-1.5 lg:gap-2 bg-white/70 border-[1.5px] border-dashed border-ink/12 min-w-[260px] lg:max-w-none shrink-0 lg:min-w-0 lg:shrink"
+            className="flex flex-col rounded-xl lg:rounded-2xl p-4 lg:p-6 gap-1.5 lg:gap-2 bg-white/70 border-[1.5px] border-dashed border-ink/12"
           >
             <span
               className={`text-[11px] uppercase tracking-[0.1em] font-semibold px-2 py-0.5 rounded-full w-fit ${f.statusColor}`}

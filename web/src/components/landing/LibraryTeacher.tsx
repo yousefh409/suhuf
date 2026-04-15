@@ -295,6 +295,93 @@ function MobileShelfCard({ book }: { book: (typeof BOOKS)[keyof typeof BOOKS] })
 }
 
 /* ═══════════════════════════════════════════════
+   Mobile Device Stack (scaled to fit viewport)
+   ═══════════════════════════════════════════════ */
+
+const DESIGN_W = 400;
+const DESIGN_H = 520;
+
+function MobileDeviceStack() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setScale(Math.min(1, entry.contentRect.width / DESIGN_W));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div ref={containerRef} className="w-full max-w-[400px] mx-auto md:hidden">
+      <div style={{ height: DESIGN_H * scale }}>
+        <div
+          className="relative origin-top-left"
+          style={{ width: DESIGN_W, height: DESIGN_H, transform: `scale(${scale})`, perspective: 1200 }}
+        >
+          {/* iPad Device — back layer */}
+          <TiltDevice
+            idleSpeed={1.4}
+            className="absolute left-0 top-0 w-[300px] rounded-[18px] p-[6px]"
+            style={{
+              backgroundImage: "linear-gradient(in oklab 160deg, oklab(46% -.0007 0.011) 0%, oklab(38% .0002 0.009) 100%)",
+              boxShadow:
+                "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 48px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.1)",
+              rotate: "-4deg",
+              transformOrigin: "0% 0%",
+            }}
+          >
+            <div
+              className="absolute top-[4px] left-1/2 -translate-x-1/2 w-[4px] h-[4px] rounded-full z-10"
+              style={{ background: "radial-gradient(circle, #3a3a3c 30%, #1d1d1f 100%)" }}
+            />
+            <div className="absolute -right-[1.5px] top-[40px] w-[2px] h-[20px] rounded-r-sm bg-[#2a2a2c]" />
+            <div className="absolute -left-[1.5px] top-[50px] w-[2px] h-[32px] rounded-l-sm bg-[#2a2a2c]" />
+            <div className="rounded-[12px] overflow-hidden bg-white relative" style={{ height: 380 }}>
+              <IPadScreen />
+              <div
+                className="pointer-events-none absolute inset-0 rounded-[12px]"
+                style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%)" }}
+              />
+            </div>
+          </TiltDevice>
+
+          {/* iPhone Device — front layer, overlapping */}
+          <TiltDevice
+            idleSpeed={1.4}
+            delay={0.12}
+            className="absolute right-0 top-[30px] w-[175px] h-[370px] rounded-[30px] p-[6px] z-10"
+            style={{
+              backgroundImage: "linear-gradient(in oklab 160deg, oklab(32% -.0001 0.005) 0%, oklab(24% .0004 0.004) 100%)",
+              boxShadow:
+                "inset 0 1px 0 rgba(255,255,255,0.1), 0 20px 60px rgba(0,0,0,0.35), 0 6px 18px rgba(0,0,0,0.2)",
+              rotate: "4deg",
+              transformOrigin: "0% 0%",
+            }}
+          >
+            <div className="absolute top-[8px] left-1/2 -translate-x-1/2 w-[44px] h-[12px] rounded-full bg-black z-20" />
+            <div className="absolute -right-[1.5px] top-[70px] w-[2px] h-[24px] rounded-r-sm bg-[#1a1a1c]" />
+            <div className="absolute -left-[1.5px] top-[55px] w-[2px] h-[16px] rounded-l-sm bg-[#1a1a1c]" />
+            <div className="absolute -left-[1.5px] top-[78px] w-[2px] h-[24px] rounded-l-sm bg-[#1a1a1c]" />
+            <div className="rounded-[24px] overflow-hidden bg-white w-full h-full relative">
+              <IPhoneScreen />
+              <div
+                className="pointer-events-none absolute inset-0 rounded-[24px]"
+                style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 45%)" }}
+              />
+            </div>
+            <div className="absolute bottom-[4px] left-1/2 -translate-x-1/2 w-[60px] h-[3px] rounded-full bg-black/20 z-20" />
+          </TiltDevice>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════
    3D Tilt wrapper
    ═══════════════════════════════════════════════ */
 
@@ -548,61 +635,7 @@ export default function LibraryTeacher() {
       </div>
 
       {/* Device Stack — Mobile (overlapping) */}
-      <div className="relative w-full max-w-[400px] mx-auto md:hidden" style={{ height: 520, perspective: 1200 }}>
-        {/* iPad Device — back layer */}
-        <TiltDevice
-          idleSpeed={1.4}
-          className="absolute left-0 top-0 w-[300px] rounded-[18px] p-[6px]"
-          style={{
-            backgroundImage: "linear-gradient(in oklab 160deg, oklab(46% -.0007 0.011) 0%, oklab(38% .0002 0.009) 100%)",
-            boxShadow:
-              "inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 48px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.1)",
-            rotate: "-4deg",
-            transformOrigin: "0% 0%",
-          }}
-        >
-          <div
-            className="absolute top-[4px] left-1/2 -translate-x-1/2 w-[4px] h-[4px] rounded-full z-10"
-            style={{ background: "radial-gradient(circle, #3a3a3c 30%, #1d1d1f 100%)" }}
-          />
-          <div className="absolute -right-[1.5px] top-[40px] w-[2px] h-[20px] rounded-r-sm bg-[#2a2a2c]" />
-          <div className="absolute -left-[1.5px] top-[50px] w-[2px] h-[32px] rounded-l-sm bg-[#2a2a2c]" />
-          <div className="rounded-[12px] overflow-hidden bg-white relative" style={{ height: 380 }}>
-            <IPadScreen />
-            <div
-              className="pointer-events-none absolute inset-0 rounded-[12px]"
-              style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%)" }}
-            />
-          </div>
-        </TiltDevice>
-
-        {/* iPhone Device — front layer, overlapping */}
-        <TiltDevice
-          idleSpeed={1.4}
-          delay={0.12}
-          className="absolute right-0 top-[30px] w-[175px] h-[370px] rounded-[30px] p-[6px] z-10"
-          style={{
-            backgroundImage: "linear-gradient(in oklab 160deg, oklab(32% -.0001 0.005) 0%, oklab(24% .0004 0.004) 100%)",
-            boxShadow:
-              "inset 0 1px 0 rgba(255,255,255,0.1), 0 20px 60px rgba(0,0,0,0.35), 0 6px 18px rgba(0,0,0,0.2)",
-            rotate: "4deg",
-            transformOrigin: "0% 0%",
-          }}
-        >
-          <div className="absolute top-[8px] left-1/2 -translate-x-1/2 w-[44px] h-[12px] rounded-full bg-black z-20" />
-          <div className="absolute -right-[1.5px] top-[70px] w-[2px] h-[24px] rounded-r-sm bg-[#1a1a1c]" />
-          <div className="absolute -left-[1.5px] top-[55px] w-[2px] h-[16px] rounded-l-sm bg-[#1a1a1c]" />
-          <div className="absolute -left-[1.5px] top-[78px] w-[2px] h-[24px] rounded-l-sm bg-[#1a1a1c]" />
-          <div className="rounded-[24px] overflow-hidden bg-white w-full h-full relative">
-            <IPhoneScreen />
-            <div
-              className="pointer-events-none absolute inset-0 rounded-[24px]"
-              style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 45%)" }}
-            />
-          </div>
-          <div className="absolute bottom-[4px] left-1/2 -translate-x-1/2 w-[60px] h-[3px] rounded-full bg-black/20 z-20" />
-        </TiltDevice>
-      </div>
+      <MobileDeviceStack />
     </section>
   );
 }

@@ -14,18 +14,18 @@ function getReferralFromCookie(): string | null {
 
 function AppBar({ isListening }: { isListening: boolean }) {
   return (
-    <div className="flex items-center justify-between px-4 h-[50px] shrink-0 border-b border-ink/6">
+    <div className="flex items-center justify-between px-3 md:px-4 h-[34px] md:h-[50px] shrink-0 border-b border-ink/6">
       {/* Left: back arrow + Library */}
       <div className="flex items-center gap-1.5 min-w-[80px]">
         <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
           <path d="M7 1L1 7L7 13" stroke="#B47D3A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span className="text-[13px] text-gold">Library</span>
+        <span className="text-[10px] md:text-[13px] text-gold">Library</span>
       </div>
       {/* Center: title + subtitle */}
       <div className="flex flex-col items-center">
-        <span className="text-[13px] text-ink font-semibold leading-tight">Al-Ajrumiyyah</span>
-        <span className="text-[10px] text-ink/40">Chapter 1 &middot; Bab al-Kalam</span>
+        <span className="text-[10px] md:text-[13px] text-ink font-semibold leading-tight">Al-Ajrumiyyah</span>
+        <span className="text-[8px] md:text-[10px] text-ink/40">Chapter 1 &middot; Bab al-Kalam</span>
       </div>
       {/* Right: bookmark + play/listening */}
       <div className="flex items-center gap-2 min-w-[80px] justify-end">
@@ -43,7 +43,7 @@ function AppBar({ isListening }: { isListening: boolean }) {
                 scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" },
                 opacity: { duration: 0.2 },
               }}
-              className="w-7 h-7 rounded-full bg-[#3A7D50] flex items-center justify-center"
+              className="w-5 h-5 md:w-7 md:h-7 rounded-full bg-[#3A7D50] flex items-center justify-center"
             >
               <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
                 <rect x="0" y="3" width="2" height="4" rx="1" fill="white" />
@@ -59,7 +59,7 @@ function AppBar({ isListening }: { isListening: boolean }) {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="w-7 h-7 rounded-full bg-[#3A7D50] flex items-center justify-center"
+              className="w-5 h-5 md:w-7 md:h-7 rounded-full bg-[#3A7D50] flex items-center justify-center"
             >
               <svg width="10" height="12" viewBox="0 0 10 12" fill="none">
                 <path d="M1 1L9 6L1 11V1Z" fill="white" />
@@ -85,14 +85,14 @@ function BookPage({
 }) {
   return (
     <div
-      className="flex-1 overflow-hidden flex flex-col items-center px-5 py-4 font-arabic"
+      className="flex-1 overflow-hidden flex flex-col items-center px-3 py-2 md:px-5 md:py-4 font-arabic"
       dir="rtl"
     >
-      <h2 className="text-[18px] text-ink font-bold pb-2 mb-3 border-b border-ink/10 w-full text-center">
+      <h2 className="text-[14px] md:text-[18px] text-ink font-bold pb-1 mb-2 md:pb-2 md:mb-3 border-b border-ink/10 w-full text-center">
         بَابُ الكَلامِ
       </h2>
 
-      <div className="text-[16px] leading-[38px] text-ink text-center space-y-0">
+      <div className="text-[12px] leading-[24px] md:text-[16px] md:leading-[38px] text-ink text-center space-y-0">
         {/* First paragraph: read-along highlights + error on last word */}
         <span className="block">
           {READ_ALONG_WORDS.map((word, i) => {
@@ -183,9 +183,9 @@ function BookPage({
 
 function WordPanel() {
   return (
-    <div className="w-[155px] shrink-0 border-l border-ink/8 px-3 py-3 flex flex-col gap-1.5 overflow-hidden">
+    <div className="w-[110px] md:w-[155px] shrink-0 border-l border-ink/8 px-2 py-2 md:px-3 md:py-3 flex flex-col gap-1 md:gap-1.5 overflow-hidden">
       {/* Word + transliteration */}
-      <p className="font-arabic text-[20px] text-ink text-right" dir="rtl">وَالتَّنوِينِ</p>
+      <p className="font-arabic text-[15px] md:text-[20px] text-ink text-right" dir="rtl">وَالتَّنوِينِ</p>
       <p className="text-[10px] text-ink/40 italic">wat-tanwīni</p>
 
       {/* Tabs */}
@@ -244,7 +244,7 @@ function WordPanel() {
 
 function BottomBar({ isListening, showError }: { isListening: boolean; showError: boolean }) {
   return (
-    <div className="h-[42px] shrink-0 border-t border-ink/8 flex items-center justify-between px-4">
+    <div className="h-[30px] md:h-[42px] shrink-0 border-t border-ink/8 flex items-center justify-between px-3 md:px-4">
       {/* Tashkeel toggle */}
       <div className="flex items-center gap-1.5">
         <div className="w-[14px] h-[14px] rounded-sm border border-ink/20 flex items-center justify-center">
@@ -325,7 +325,7 @@ function IPadMockup() {
   // Only advance walkthrough when visible in viewport
   useEffect(() => {
     if (!inView) return;
-    const delays = [800, 3500, 3500, 300, 500, 5000, 500];
+    const delays = [800, 3500, 3500, 300, 1800, 5000, 500];
     const timer = setTimeout(() => {
       setStep((s) => (s + 1) % delays.length);
     }, delays[step]);
@@ -480,8 +480,8 @@ function IPadMockup() {
           </div>
           <BottomBar isListening={isListening} showError={showError} />
           {/* Home indicator */}
-          <div className="flex justify-center pb-2">
-            <div className="w-[100px] h-[3px] rounded-full bg-ink/20" />
+          <div className="flex justify-center pb-1 md:pb-2">
+            <div className="w-[60px] h-[2px] md:w-[100px] md:h-[3px] rounded-full bg-ink/20" />
           </div>
           {/* Screen glare */}
           <div
