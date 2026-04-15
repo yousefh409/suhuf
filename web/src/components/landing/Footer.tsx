@@ -41,7 +41,7 @@ export default function Footer() {
         {/* Divider + copyright */}
         <div className="border-t border-white/8 pt-6">
           <span className="text-xs text-white/25">
-            2025 suhuf.ai. All rights reserved.
+            2026 Suhuf.ai. All rights reserved.
           </span>
         </div>
       </div>
