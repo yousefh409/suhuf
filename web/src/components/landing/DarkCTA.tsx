@@ -77,8 +77,8 @@ export default function DarkCTA() {
         Start reading with{"\n"}confidence today.
       </h2>
       <p className="text-[#FFF8F0]/65 text-base md:text-[18px] text-center leading-7 max-w-[415px] relative z-10">
-        Join hundreds of students already improving their classical Arabic with
-        suhuf.
+        Be one of the first to master classical Arabic with
+        Suhuf.
       </p>
 
       {!checkingCookie && existingUser ? (
