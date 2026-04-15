@@ -104,12 +104,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Send welcome email (fire-and-forget)
-    sendWelcomeEmail({
-      email: normalizedEmail,
-      position: user.position,
-      referralCode: user.referral_code,
-    }).catch(() => {});
+    // Send welcome email (awaited — Workers kill background promises after response)
+    try {
+      await sendWelcomeEmail({
+        email: normalizedEmail,
+        position: user.position,
+        referralCode: user.referral_code,
+      });
+    } catch (err) {
+      console.error("Email send failed:", err);
+    }
 
     const res = NextResponse.json({
       id: user.id,
