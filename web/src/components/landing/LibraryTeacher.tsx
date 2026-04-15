@@ -298,8 +298,8 @@ function MobileShelfCard({ book }: { book: (typeof BOOKS)[keyof typeof BOOKS] })
    Mobile Device Stack (scaled to fit viewport)
    ═══════════════════════════════════════════════ */
 
-const DESIGN_W = 580;
-const DESIGN_H = 520;
+const DESIGN_W = 440;
+const DESIGN_H = 460;
 
 function MobileDeviceStack() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -316,7 +316,7 @@ function MobileDeviceStack() {
   }, []);
 
   return (
-    <div ref={containerRef} className="w-full max-w-[400px] mx-auto md:hidden">
+    <div ref={containerRef} className="w-full mx-auto md:hidden">
       <div style={{ height: DESIGN_H * scale }}>
         <div
           className="relative"
@@ -332,7 +332,7 @@ function MobileDeviceStack() {
           {/* iPad Device — back layer */}
           <TiltDevice
             idleSpeed={1.4}
-            className="absolute left-[90px] top-0 w-[300px] rounded-[18px] p-[6px]"
+            className="absolute left-[30px] top-0 w-[300px] rounded-[18px] p-[6px]"
             style={{
               backgroundImage: "linear-gradient(in oklab 160deg, oklab(46% -.0007 0.011) 0%, oklab(38% .0002 0.009) 100%)",
               boxShadow:
@@ -362,7 +362,7 @@ function MobileDeviceStack() {
           <TiltDevice
             idleSpeed={1.4}
             delay={0.12}
-            className="absolute right-[90px] top-[30px] w-[175px] h-[370px] rounded-[30px] p-[6px] z-10"
+            className="absolute right-[30px] top-[30px] w-[175px] h-[370px] rounded-[30px] p-[6px] z-10"
             style={{
               backgroundImage: "linear-gradient(in oklab 160deg, oklab(32% -.0001 0.005) 0%, oklab(24% .0004 0.004) 100%)",
               boxShadow:
