@@ -26,7 +26,7 @@ const amiri = Amiri({
 });
 
 export const metadata: Metadata = {
-  title: "suhuf — Your Arabic readalong companion",
+  title: "Suhuf — Your Arabic readalong companion",
   description:
     "Read any classical Arabic text aloud. Suhuf listens, catches your grammar mistakes in real time, and explains why. Tap any word for instant grammar and translation.",
 };

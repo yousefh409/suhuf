@@ -375,6 +375,12 @@ export default function Features() {
                 </p>
               </div>
               <div>
+                <p className="text-[10px] text-gold uppercase font-semibold tracking-wider">EXPLANATION</p>
+                <p className="text-[12px] text-ink/55 leading-snug mt-0.5">
+                  In Arabic grammar, <span className="font-medium text-ink/70">al-kalām</span> refers specifically to a complete, meaningful utterance composed of two or more words that conveys an independent meaning. It is one of the first terms introduced in classical grammar texts like the Ājurrūmiyyah, distinguishing purposeful speech from isolated words or incomplete phrases.
+                </p>
+              </div>
+              <div>
                 <p className="text-[10px] text-gold uppercase font-semibold tracking-wider">FROM THE SAME ROOT</p>
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   <span className="text-[11px] text-ink/60 bg-parchment rounded-full px-2.5 py-0.5"><span className="font-arabic" dir="rtl">كَلِمَة</span> word</span>

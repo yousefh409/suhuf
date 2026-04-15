@@ -541,7 +541,7 @@ function IPadMockup() {
                 damping: 18,
                 mass: 0.7,
               }}
-              className={`absolute hidden lg:flex ${
+              className={`absolute hidden min-[1380px]:flex ${
                 card.side === "left"
                   ? "right-[calc(100%+16px)] flex-row"
                   : "left-[calc(100%+16px)] flex-row-reverse"
@@ -599,7 +599,7 @@ function IPadMockup() {
                 stiffness: 180,
                 damping: 18,
               }}
-              className="absolute bottom-[-52px] left-1/2 -translate-x-1/2 lg:hidden z-20 w-[calc(100%-32px)] max-w-[360px]"
+              className="absolute bottom-[-52px] left-1/2 -translate-x-1/2 min-[1380px]:hidden z-20 w-[calc(100%-32px)] max-w-[360px]"
             >
               <div
                 className="bg-white border border-ink/8 rounded-xl px-4 py-2.5 flex items-start gap-2"
@@ -750,7 +750,7 @@ export default function Hero() {
         </>
       )}
 
-      <div className="w-full mb-14 lg:mb-0">
+      <div className="w-full mb-14 min-[1380px]:mb-0">
         <IPadMockup />
       </div>
     </section>

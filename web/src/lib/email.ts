@@ -21,7 +21,7 @@ export async function sendWelcomeEmail({
   await resend.emails.send({
     from: FROM,
     to: email,
-    subject: `You're #${position} on the suhuf waitlist`,
+    subject: `You're #${position} on the Suhuf waitlist`,
     html: `
       <div style="font-family: Georgia, serif; max-width: 520px; margin: 0 auto; padding: 40px 20px;">
         <p style="font-style: italic; font-size: 22px; color: #2A1F17; margin-bottom: 32px;">suhuf</p>
@@ -47,7 +47,7 @@ export async function sendWelcomeEmail({
         </div>
 
         <p style="font-size: 13px; color: #2A1F1740;">
-          &mdash; The suhuf team
+          &mdash; The Suhuf team
         </p>
       </div>
     `,
