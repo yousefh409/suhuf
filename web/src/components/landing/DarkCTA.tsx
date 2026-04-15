@@ -48,6 +48,11 @@ export default function DarkCTA() {
           email,
           signup_source: "cta",
           referral_code: referrerCode,
+          ...Object.fromEntries(
+            ["utm_source", "utm_medium", "utm_campaign"]
+              .map((k) => [k, new URLSearchParams(window.location.search).get(k)])
+              .filter(([, v]) => v)
+          ),
         }),
       });
       const data = await res.json();

@@ -30,8 +30,13 @@ function WelcomeContent() {
   const [submitted, setSubmitted] = useState(false);
   const [copied, setCopied] = useState(false);
   const [loadingUser, setLoadingUser] = useState(!paramId);
+  const [origin, setOrigin] = useState("");
 
-  const referralLink = `${typeof window !== "undefined" ? window.location.origin : ""}/r/${referralCode}`;
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  const referralLink = `${origin}/r/${referralCode}`;
 
   // If no URL params, try loading from cookie
   useEffect(() => {

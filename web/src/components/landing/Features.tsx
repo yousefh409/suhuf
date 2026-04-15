@@ -112,6 +112,11 @@ export default function Features() {
           email: modalEmail,
           signup_source: "feature_vote",
           referral_code: referrerCode,
+          ...Object.fromEntries(
+            ["utm_source", "utm_medium", "utm_campaign"]
+              .map((k) => [k, new URLSearchParams(window.location.search).get(k)])
+              .filter(([, v]) => v)
+          ),
         }),
       });
       const data = await res.json();
@@ -202,16 +207,26 @@ export default function Features() {
         </div>
 
         {/* Listen Along preview */}
-        <div className="flex-1 rounded-[14px] bg-[#F5EEE499] flex flex-col items-center justify-center p-8 gap-5">
-          {/* Chapter heading */}
-          <p className="font-arabic text-[18px] text-ink text-center leading-[22px]" dir="rtl">
-            بابُ الكلامِ
+        <div className="flex-1 rounded-[14px] bg-[#F5EEE499] flex flex-col items-center justify-center p-8 gap-4">
+          {/* Reading text with highlighted word */}
+          <p className="font-arabic text-[18px] text-ink/30 text-center leading-[32px]" dir="rtl">
+            بِكُلِّ{" "}
+            <span className="text-ink bg-gold/15 rounded px-1 border-b-2 border-gold">طَرِيقٍ</span>
+            {" "}فما يزداد إلا توقدا
           </p>
 
-          {/* Main Arabic text line */}
-          <p className="font-arabic text-[20px] text-ink/30 text-center leading-[32px]" dir="rtl">
-            المُفِيدُ بِالوَضعِ وأقسامُهُ ثلاثةٌ
-          </p>
+          {/* Error correction banner */}
+          <div className="w-full bg-parchment-warm rounded-xl px-4 py-3 flex items-center justify-center gap-4" dir="rtl">
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="text-[10px] uppercase tracking-wider text-red-500 font-semibold">YOU SAID</span>
+              <span className="font-arabic text-[20px] text-red-500">طريقاً</span>
+            </div>
+            <span className="text-ink/25 text-lg">&rarr;</span>
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="text-[10px] uppercase tracking-wider text-[#3A7D50] font-semibold">SHOULD BE</span>
+              <span className="font-arabic text-[20px] text-[#3A7D50]">طريقٍ</span>
+            </div>
+          </div>
 
           {/* Listening pill */}
           <div className="flex items-center gap-2 rounded-[20px] bg-[#3A7D501A] px-4 py-2">
@@ -223,11 +238,6 @@ export default function Features() {
               ▎▌▎▍▎▌▎
             </span>
           </div>
-
-          {/* Faded final line */}
-          <p className="font-arabic text-[16px] text-ink/15 text-center leading-[20px]" dir="rtl">
-            اسمٌ وفعلٌ وحرفٌ جاءَ لمعنىً
-          </p>
         </div>
       </motion.div>
 
@@ -258,35 +268,52 @@ export default function Features() {
             and the rule behind it explained in plain English.
           </p>
 
-          {/* Grammar preview */}
+          {/* Grammar preview — I3rab tab */}
           <div className="flex flex-col rounded-[14px] bg-parchment p-6 gap-4">
-            {/* Arabic text */}
-            <p className="font-arabic text-[22px] text-ink text-center leading-[180%]" dir="rtl">
-              فَالاسمُ يُعرَفُ بِالخَفضِ والتَنوينِ
-            </p>
-
-            {/* Error correction row */}
-            <div className="flex items-center justify-center gap-3" dir="rtl">
-              {/* Wrong pill */}
-              <span className="font-arabic text-[18px] leading-[22px] text-[#D4483B] bg-[#D4483B22] border border-[#D4483B44] rounded-lg px-3 py-1">
-                بِالخَفضَ
-              </span>
-              {/* Arrow */}
-              <span className="text-[14px] text-[#7A6E62] leading-[18px]">
-                &rarr;
-              </span>
-              {/* Correct pill */}
-              <span className="font-arabic text-[18px] leading-[22px] text-[#5C7A54] bg-[#5C7A5422] border border-[#5C7A5444] rounded-lg px-3 py-1">
-                بِالخَفضِ
-              </span>
+            {/* Word */}
+            <div className="text-center">
+              <p className="font-arabic text-[28px] text-ink leading-tight" dir="rtl">بِالخَفضِ</p>
+              <p className="text-[12px] text-ink/40 italic mt-1">bil-khafḍi</p>
             </div>
 
-            {/* Explanation callout */}
-            <div className="flex items-start gap-2 bg-white rounded-[10px] px-4 py-3">
-              <div className="w-[3px] min-h-[20px] self-stretch bg-[#D4483B] rounded-[2px] shrink-0" />
-              <p className="text-[13px] leading-[160%] text-[#5A4F44]">
-                After بِ, the noun takes kasra (خَفْضِ). You read it with fatha instead.
-              </p>
+            {/* I3rab analysis card */}
+            <div className="bg-white rounded-[10px] p-4 flex flex-col gap-3">
+              <div className="flex gap-6">
+                <div>
+                  <p className="text-[10px] text-gold uppercase font-semibold tracking-wider">TYPE</p>
+                  <p className="text-[14px] text-ink mt-0.5"><span className="font-arabic" dir="rtl">اسم</span> <span className="text-ink/50">noun</span></p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gold uppercase font-semibold tracking-wider">CASE</p>
+                  <p className="text-[14px] text-ink mt-0.5"><span className="font-arabic" dir="rtl">مجرور</span> <span className="text-ink/50">genitive</span></p>
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] text-gold uppercase font-semibold tracking-wider">ROLE</p>
+                <p className="text-[14px] text-ink mt-0.5"><span className="font-arabic" dir="rtl">اسم مجرور بحرف الجر</span></p>
+                <p className="text-[11px] text-ink/45 mt-0.5">noun governed by preposition</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gold uppercase font-semibold tracking-wider">MARKER</p>
+                <p className="text-[14px] text-ink mt-0.5"><span className="font-arabic" dir="rtl">كسرة</span> <span className="text-ink/50">kasra</span></p>
+              </div>
+              <div className="flex gap-6">
+                <div>
+                  <p className="text-[10px] text-gold uppercase font-semibold tracking-wider">ROOT</p>
+                  <p className="font-arabic text-[14px] text-ink mt-0.5" dir="rtl">خ ف ض</p>
+                  <p className="text-[11px] text-ink/40">to lower</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gold uppercase font-semibold tracking-wider">PATTERN</p>
+                  <p className="font-arabic text-[14px] text-ink mt-0.5" dir="rtl">فَعْل</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] text-gold uppercase font-semibold tracking-wider">WHY THIS CASE?</p>
+                <p className="text-[13px] text-ink/55 leading-snug mt-1">
+                  After the preposition بِ, the noun takes jar (kasra). This is one of the core rules of Arabic grammar.
+                </p>
+              </div>
             </div>
           </div>
         </motion.div>
@@ -316,38 +343,45 @@ export default function Features() {
             and contextual translation.
           </p>
 
-          {/* Translation preview */}
+          {/* Translation preview — Translation tab */}
           <div className="flex flex-col rounded-[14px] bg-parchment p-6 gap-4">
-            {/* Arabic text */}
-            <p className="font-arabic text-[22px] text-ink text-center leading-[180%]" dir="rtl">
-              الكَلامُ هوَ اللَّفظُ المُرَكَّبُ
-            </p>
-
-            {/* Word card */}
-            <div className="flex flex-col bg-white rounded-[10px] p-4 gap-1">
-              {/* Top row */}
-              <div className="flex items-baseline gap-3" dir="rtl">
-                <span className="font-arabic text-[24px] font-bold text-ink leading-[30px]">
-                  الكَلامُ
-                </span>
-                <span className="text-[14px] text-[#7A6E62] leading-[18px]">
-                  &mdash;
-                </span>
-                <span className="text-[16px] font-semibold text-ink leading-[20px]">
-                  speech, utterance
-                </span>
-              </div>
-              {/* Info line */}
-              <p className="text-[12px] leading-[160%] text-[#7A6E62]" dir="rtl">
-                Root: ك ل م &middot; Pattern: فَعَال &middot; Mubtada&apos; (marfu&apos;)
-              </p>
+            {/* Word */}
+            <div className="text-center">
+              <p className="font-arabic text-[28px] text-ink leading-tight" dir="rtl">الكَلامُ</p>
+              <p className="text-[12px] text-ink/40 italic mt-1">al-kalāmu</p>
             </div>
 
-            {/* Translation quote */}
-            <div className="bg-white rounded-[10px] px-4 py-3">
-              <p className="text-[13px] italic leading-[160%] text-[#5A4F44]">
-                &ldquo;Speech is the composed utterance...&rdquo;
-              </p>
+            {/* Translation content card */}
+            <div className="bg-white rounded-[10px] p-4 flex flex-col gap-3">
+              <div>
+                <p className="text-[10px] text-gold uppercase font-semibold tracking-wider">MEANING</p>
+                <p className="text-[15px] text-ink mt-0.5">speech, utterance, discourse</p>
+              </div>
+              <div className="flex gap-6">
+                <div>
+                  <p className="text-[10px] text-gold uppercase font-semibold tracking-wider">ROOT</p>
+                  <p className="font-arabic text-[14px] text-ink mt-0.5" dir="rtl">ك ل م</p>
+                  <p className="text-[11px] text-ink/40">to speak</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gold uppercase font-semibold tracking-wider">PATTERN</p>
+                  <p className="font-arabic text-[14px] text-ink mt-0.5" dir="rtl">فَعَال</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] text-gold uppercase font-semibold tracking-wider">IN THIS SENTENCE</p>
+                <p className="text-[12px] text-ink/55 leading-snug mt-0.5">
+                  &ldquo;Speech&rdquo; &mdash; the composed utterance that conveys meaning by convention.
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gold uppercase font-semibold tracking-wider">FROM THE SAME ROOT</p>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  <span className="text-[11px] text-ink/60 bg-parchment rounded-full px-2.5 py-0.5"><span className="font-arabic" dir="rtl">كَلِمَة</span> word</span>
+                  <span className="text-[11px] text-ink/60 bg-parchment rounded-full px-2.5 py-0.5"><span className="font-arabic" dir="rtl">مُتَكَلِّم</span> speaker</span>
+                  <span className="text-[11px] text-ink/60 bg-parchment rounded-full px-2.5 py-0.5"><span className="font-arabic" dir="rtl">تَكَلَّمَ</span> to speak</span>
+                </div>
+              </div>
             </div>
           </div>
         </motion.div>

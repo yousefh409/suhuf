@@ -48,7 +48,7 @@ function Card({
   image: string;
 }) {
   return (
-    <div className="flex flex-col justify-between flex-shrink-0 w-[320px] sm:w-[600px] rounded-2xl px-5 sm:px-7 py-5 gap-4 bg-white">
+    <div className="flex flex-col justify-between flex-shrink-0 w-[213px] sm:w-[400px] rounded-2xl px-5 sm:px-7 py-5 gap-4 bg-white">
       <p className="text-sm text-ink/60 leading-[1.5]">{quote}</p>
       <div className="flex items-center gap-3">
         <img

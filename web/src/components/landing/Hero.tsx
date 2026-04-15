@@ -14,51 +14,65 @@ function getReferralFromCookie(): string | null {
 
 function AppBar({ isListening }: { isListening: boolean }) {
   return (
-    <div className="flex items-center justify-between px-4 h-[53px] shrink-0">
-      <span className="font-serif italic text-[14px] text-ink">suhuf</span>
-      <span className="text-[12px] text-gold">
-        Al-Ajrumiyyah — Chapter 1
-      </span>
-      <AnimatePresence mode="wait">
-        {isListening ? (
-          <motion.div
-            key="listening"
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: [1, 1.15, 1], opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            transition={{
-              scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" },
-              opacity: { duration: 0.2 },
-            }}
-            className="w-7 h-7 rounded-full bg-[#3A7D50] flex items-center justify-center"
-          >
-            <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
-              <rect x="0" y="3" width="2" height="4" rx="1" fill="white" />
-              <rect x="4" y="1" width="2" height="8" rx="1" fill="white" />
-              <rect x="8" y="2" width="2" height="6" rx="1" fill="white" />
-              <rect x="12" y="3" width="2" height="4" rx="1" fill="white" />
-            </svg>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="play"
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="w-7 h-7 rounded-full bg-[#3A7D50] flex items-center justify-center"
-          >
-            <svg width="10" height="12" viewBox="0 0 10 12" fill="none">
-              <path d="M1 1L9 6L1 11V1Z" fill="white" />
-            </svg>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div className="flex items-center justify-between px-4 h-[50px] shrink-0 border-b border-ink/6">
+      {/* Left: back arrow + Library */}
+      <div className="flex items-center gap-1.5 min-w-[80px]">
+        <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
+          <path d="M7 1L1 7L7 13" stroke="#B47D3A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span className="text-[13px] text-gold">Library</span>
+      </div>
+      {/* Center: title + subtitle */}
+      <div className="flex flex-col items-center">
+        <span className="text-[13px] text-ink font-semibold leading-tight">Al-Ajrumiyyah</span>
+        <span className="text-[10px] text-ink/40">Chapter 1 &middot; Bab al-Kalam</span>
+      </div>
+      {/* Right: bookmark + play/listening */}
+      <div className="flex items-center gap-2 min-w-[80px] justify-end">
+        <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+          <path d="M4 2H14V16L9 12.5L4 16V2Z" stroke="#2A1F17" strokeOpacity="0.3" strokeWidth="1.5" strokeLinejoin="round" />
+        </svg>
+        <AnimatePresence mode="wait">
+          {isListening ? (
+            <motion.div
+              key="listening"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: [1, 1.15, 1], opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{
+                scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" },
+                opacity: { duration: 0.2 },
+              }}
+              className="w-7 h-7 rounded-full bg-[#3A7D50] flex items-center justify-center"
+            >
+              <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
+                <rect x="0" y="3" width="2" height="4" rx="1" fill="white" />
+                <rect x="4" y="1" width="2" height="8" rx="1" fill="white" />
+                <rect x="8" y="2" width="2" height="6" rx="1" fill="white" />
+                <rect x="12" y="3" width="2" height="4" rx="1" fill="white" />
+              </svg>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="play"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="w-7 h-7 rounded-full bg-[#3A7D50] flex items-center justify-center"
+            >
+              <svg width="10" height="12" viewBox="0 0 10 12" fill="none">
+                <path d="M1 1L9 6L1 11V1Z" fill="white" />
+              </svg>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
 
-const READ_ALONG_WORDS = ["الكلامُ", "هو", "اللفظُ", "المركّبُ", "المفيدُ", "بالوضعِ"];
+const READ_ALONG_WORDS = ["الكَلامُ", "هُوَ", "اللَّفظُ", "المُرَكَّبُ", "المُفِيدُ", "بِالوَضْعِ"];
 
 function BookPage({
   readAlongIndex,
@@ -75,7 +89,7 @@ function BookPage({
       dir="rtl"
     >
       <h2 className="text-[18px] text-ink font-bold pb-2 mb-3 border-b border-ink/10 w-full text-center">
-        بابُ الكلامِ
+        بَابُ الكَلامِ
       </h2>
 
       <div className="text-[16px] leading-[38px] text-ink text-center space-y-0">
@@ -115,7 +129,7 @@ function BookPage({
                           transition={{ duration: 0.3 }}
                           className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 bg-red-50 border border-red-200 rounded-md px-2 py-0.5 text-[10px] text-red-600 whitespace-nowrap z-10"
                         >
-                          بالوضعِ not بالوضعَ
+                          بِالوَضْعِ
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -143,7 +157,7 @@ function BookPage({
           })}
         </span>
 
-        <p>وأقسامُهُ ثلاثةٌ: اسمٌ، وفعلٌ، وحرفٌ جاءَ لمعنًى</p>
+        <p>وَأَقسَامُهُ ثَلاثَةٌ: اسمٌ، وَفِعلٌ، وَحَرفٌ جَاءَ لِمَعنًى</p>
         <p>
           فَالاسمُ يُعرَفُ بِالخَفضِ{" "}
           <motion.span
@@ -155,13 +169,13 @@ function BookPage({
             transition={{ duration: 0.4 }}
             className="rounded px-0.5"
           >
-            والتنوينِ
+            وَالتَّنوِينِ
           </motion.span>{" "}
-          ودخولِ الألفِ واللامِ
+          وَدُخُولِ الأَلِفِ وَاللَّامِ
         </p>
-        <p>وحروفُ الخفضِ: مِن وإلى وعن وعلى وفي ورُبَّ</p>
-        <p>والباءُ والكافُ واللامُ وحروفُ القسَمِ</p>
-        <p>وهي: الواوُ والباءُ والتاءُ</p>
+        <p>وَحُرُوفُ الخَفضِ: مِن وَإِلى وَعَن وَعَلى وَفِي وَرُبَّ</p>
+        <p>وَالبَاءُ وَالكَافُ وَاللَّامُ وَحُرُوفُ القَسَمِ</p>
+        <p>وَهِيَ: الوَاوُ وَالبَاءُ وَالتَّاءُ</p>
       </div>
     </div>
   );
@@ -169,64 +183,117 @@ function BookPage({
 
 function WordPanel() {
   return (
-    <div className="w-[155px] shrink-0 border-l border-ink/8 px-3 py-4 flex flex-col gap-3 overflow-hidden">
-      <p className="font-arabic text-[22px] text-ink text-right" dir="rtl">
-        والتنوينِ
-      </p>
-      <p className="text-[12px] text-gold">and the tanwin</p>
-      <div className="text-[10px] text-gold leading-relaxed">
-        <p>root: ن و ن</p>
-        <p>pattern: تَفعِيل</p>
-        <p>ma&apos;tuf &middot; majrur</p>
+    <div className="w-[155px] shrink-0 border-l border-ink/8 px-3 py-3 flex flex-col gap-1.5 overflow-hidden">
+      {/* Word + transliteration */}
+      <p className="font-arabic text-[20px] text-ink text-right" dir="rtl">وَالتَّنوِينِ</p>
+      <p className="text-[10px] text-ink/40 italic">wat-tanwīni</p>
+
+      {/* Tabs */}
+      <div className="flex border-b border-ink/8">
+        <span className="text-[9px] text-ink/25 pb-1 px-1">Translation</span>
+        <span className="text-[9px] text-gold font-semibold pb-1 border-b border-gold px-1">I&apos;rab</span>
       </div>
+
+      {/* Type + Case */}
+      <div className="flex gap-3">
+        <div>
+          <p className="text-[7px] text-gold uppercase font-semibold tracking-widest mb-0.5">TYPE</p>
+          <p className="text-[9px] text-ink"><span className="font-arabic" dir="rtl">اسم</span> noun</p>
+        </div>
+        <div>
+          <p className="text-[7px] text-gold uppercase font-semibold tracking-widest mb-0.5">CASE</p>
+          <p className="text-[9px] text-ink"><span className="font-arabic" dir="rtl">مجرور</span> gen.</p>
+        </div>
+      </div>
+
+      {/* Role (i'rab classification) */}
       <div>
-        <p className="text-[9px] text-gold uppercase font-semibold tracking-widest mb-1">
-          I&apos;RAB
-        </p>
-        <p className="text-[10px] text-ink/60 leading-snug">
-          Conjuncted (ma&apos;tuf) to بِالخَفضِ, takes kasra as it follows a
-          preposition.
+        <p className="text-[7px] text-gold uppercase font-semibold tracking-widest mb-0.5">ROLE</p>
+        <p className="font-arabic text-[11px] text-ink" dir="rtl">مَعطُوف</p>
+        <p className="text-[8px] text-ink/45">conjuncted noun</p>
+      </div>
+
+      {/* Marker */}
+      <div>
+        <p className="text-[7px] text-gold uppercase font-semibold tracking-widest mb-0.5">MARKER</p>
+        <p className="text-[9px] text-ink"><span className="font-arabic" dir="rtl">كسرة</span> kasra</p>
+      </div>
+
+      {/* Sarf: Root + Pattern */}
+      <div className="flex gap-3">
+        <div>
+          <p className="text-[7px] text-gold uppercase font-semibold tracking-widest mb-0.5">ROOT</p>
+          <p className="font-arabic text-[11px] text-ink" dir="rtl">ن و ن</p>
+        </div>
+        <div>
+          <p className="text-[7px] text-gold uppercase font-semibold tracking-widest mb-0.5">PATTERN</p>
+          <p className="font-arabic text-[11px] text-ink" dir="rtl">تَفعِيل</p>
+        </div>
+      </div>
+
+      {/* Why this case */}
+      <div>
+        <p className="text-[7px] text-gold uppercase font-semibold tracking-widest mb-0.5">WHY THIS CASE?</p>
+        <p className="text-[8px] text-ink/50 leading-snug">
+          Conjuncted to بِالخَفضِ via وَ, so it takes the same case (jar/kasra).
         </p>
       </div>
     </div>
   );
 }
 
-function TabBar() {
+function BottomBar({ isListening, showError }: { isListening: boolean; showError: boolean }) {
   return (
-    <div className="h-[45px] shrink-0 border-t border-ink/8 flex items-center justify-around px-4">
-      <div className="flex flex-col items-center gap-0.5">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <path
-            d="M2 7L9 2L16 7V15C16 15.55 15.55 16 15 16H3C2.45 16 2 15.55 2 15V7Z"
-            stroke="#B47D3A"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path d="M7 16V9H11V16" stroke="#B47D3A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <span className="text-[10px] text-gold">Read</span>
+    <div className="h-[42px] shrink-0 border-t border-ink/8 flex items-center justify-between px-4">
+      {/* Tashkeel toggle */}
+      <div className="flex items-center gap-1.5">
+        <div className="w-[14px] h-[14px] rounded-sm border border-ink/20 flex items-center justify-center">
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+            <path d="M1 4L3 6L7 2" stroke="#3A7D50" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <span className="text-[11px] text-ink/60">Tashkeel</span>
       </div>
-      <div className="flex flex-col items-center gap-0.5">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <rect x="3" y="2" width="12" height="14" rx="1.5" stroke="#2A1F17" strokeOpacity="0.4" strokeWidth="1.5" />
-          <path d="M6 5H12M6 8H12M6 11H9" stroke="#2A1F17" strokeOpacity="0.4" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-        <span className="text-[10px] text-ink/40">Library</span>
-      </div>
-      <div className="flex flex-col items-center gap-0.5">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <circle cx="9" cy="9" r="6.5" stroke="#2A1F17" strokeOpacity="0.4" strokeWidth="1.5" />
-        </svg>
-        <span className="text-[10px] text-ink/40">Review</span>
-      </div>
-      <div className="flex flex-col items-center gap-0.5">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <circle cx="9" cy="6" r="3" stroke="#2A1F17" strokeOpacity="0.4" strokeWidth="1.5" />
-          <path d="M3 16C3 13 5.5 11 9 11C12.5 11 15 13 15 16" stroke="#2A1F17" strokeOpacity="0.4" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-        <span className="text-[10px] text-ink/40">Profile</span>
+
+      {/* Recording indicator */}
+      <AnimatePresence>
+        {isListening && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="flex items-center gap-1.5"
+          >
+            <motion.div
+              animate={{ opacity: [1, 0.4, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              className="w-[6px] h-[6px] rounded-full bg-red-500"
+            />
+            <span className="text-[11px] text-ink/50">Recording</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Error count + Stop */}
+      <div className="flex items-center gap-3">
+        <AnimatePresence>
+          {showError && (
+            <motion.span
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="text-[11px] text-red-500 font-medium"
+            >
+              1 error
+            </motion.span>
+          )}
+        </AnimatePresence>
+        {isListening && (
+          <div className="flex items-center gap-1.5 bg-ink text-white rounded-full px-3 py-1">
+            <div className="w-[8px] h-[8px] rounded-sm bg-white" />
+            <span className="text-[10px] font-medium">Stop</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -258,7 +325,7 @@ function IPadMockup() {
   // Only advance walkthrough when visible in viewport
   useEffect(() => {
     if (!inView) return;
-    const delays = [2500, 4000, 4000, 600, 1000, 3500, 1000];
+    const delays = [800, 3500, 3500, 300, 500, 5000, 500];
     const timer = setTimeout(() => {
       setStep((s) => (s + 1) % delays.length);
     }, delays[step]);
@@ -366,6 +433,28 @@ function IPadMockup() {
           className="bg-white rounded-[10px] md:rounded-[16px] aspect-[19/12] flex flex-col overflow-hidden relative"
           style={{ contain: "layout paint", backfaceVisibility: "hidden" }}
         >
+          {/* Status Bar */}
+          <div className="flex items-center justify-between px-4 pt-1.5 pb-0">
+            <span className="text-[9px] font-semibold text-ink">9:41</span>
+            <div className="flex items-center gap-1">
+              <svg width="12" height="9" viewBox="0 0 18 12" fill="none">
+                <rect x="0" y="7" width="3" height="5" rx="0.5" fill="#2A1F17" />
+                <rect x="4" y="5" width="3" height="7" rx="0.5" fill="#2A1F17" />
+                <rect x="8" y="3" width="3" height="9" rx="0.5" fill="#2A1F17" />
+                <rect x="12" y="0" width="3" height="12" rx="0.5" fill="#2A1F17" />
+              </svg>
+              <svg width="11" height="9" viewBox="0 0 16 12" fill="none">
+                <path d="M1 3.5C4 0.5 12 0.5 15 3.5" stroke="#2A1F17" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M3.5 6C5.5 4 10.5 4 12.5 6" stroke="#2A1F17" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="8" cy="9" r="1.5" fill="#2A1F17" />
+              </svg>
+              <svg width="16" height="8" viewBox="0 0 22 11" fill="none">
+                <rect x="0.5" y="0.5" width="18" height="10" rx="2" stroke="#2A1F17" strokeOpacity="0.5" />
+                <rect x="2" y="2" width="13" height="7" rx="1" fill="#2A1F17" />
+                <rect x="19.5" y="3" width="2" height="5" rx="1" fill="#2A1F17" strokeOpacity="0.3" />
+              </svg>
+            </div>
+          </div>
           <AppBar isListening={isListening} />
           <div className="relative flex flex-1 min-h-0">
             <BookPage
@@ -389,7 +478,7 @@ function IPadMockup() {
             </AnimatePresence>
 
           </div>
-          <TabBar />
+          <BottomBar isListening={isListening} showError={showError} />
           {/* Home indicator */}
           <div className="flex justify-center pb-2">
             <div className="w-[100px] h-[3px] rounded-full bg-ink/20" />
@@ -576,6 +665,11 @@ export default function Hero() {
           email,
           signup_source: "hero",
           referral_code: referrerCode,
+          ...Object.fromEntries(
+            ["utm_source", "utm_medium", "utm_campaign"]
+              .map((k) => [k, new URLSearchParams(window.location.search).get(k)])
+              .filter(([, v]) => v)
+          ),
         }),
       });
       const data = await res.json();
