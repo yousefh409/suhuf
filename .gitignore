@@ -64,3 +64,8 @@ ingestion/output/
 
 # Misc
 .1code/
+
+# Claude Code local state (keep hooks + settings tracked)
+.claude/worktrees/
+.claude/plans/
+.claude/scheduled_tasks.lock

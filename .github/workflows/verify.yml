@@ -1,0 +1,44 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Determine base ref
+        id: base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "ref=origin/${{ github.event.pull_request.base.ref }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            echo "ref=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=HEAD~1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install pytest (for --co)
+        run: pip install pytest
+
+      - name: Run suhuf verify
+        run: node scripts/suhuf/bin/suhuf.mjs verify --base ${{ steps.base.outputs.ref }}

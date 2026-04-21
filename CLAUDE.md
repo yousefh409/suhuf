@@ -1,0 +1,34 @@
+# Suhuf Project Rules
+
+## Shipping (enforced by hooks — do not bypass)
+
+- Feature branch / worktree → `./bin/suhuf ship`. Raw `git push` is blocked by a PreToolUse hook.
+- Direct to `main` → `./bin/suhuf quickfix "msg"`. Never commit on main and push directly.
+- Check state any time → `./bin/suhuf status`.
+- CI runs `.github/workflows/verify.yml` (`verify` job). Quickfix waits for this to pass before fast-forwarding main.
+
+## Worktrees
+
+- Create: `./bin/suhuf worktree new <branch>` → lands at `.claude/worktrees/<branch>/` off `origin/main`.
+- Finish: `./bin/suhuf worktree finish` → runs `suhuf ship` from inside the worktree.
+- Prune merged worktrees: `./bin/suhuf worktree prune`.
+- Keep all non-current worktrees rebased on main: `./bin/suhuf sync-worktrees`.
+
+## Verify
+
+- `./bin/suhuf verify` runs lint/typecheck/test on packages affected by your diff vs `origin/main`.
+- `./bin/suhuf verify --all` runs every package.
+- Per-package steps are declared in `scripts/suhuf/src/lib/packages.mjs`. Add tests → they run automatically.
+
+## Packages
+
+- `web/` — Next.js (lint, tsc --noEmit, build)
+- `reader/` — Expo / React Native (tsc --noEmit, jest)
+- `ingestion/` — Python (compileall, pytest --co)
+- `recitation/` — Python (compileall, pytest --co)
+
+Python dirs currently have no real tests; `pytest --co` tolerates exit code 5 so CI stays green until tests are added.
+
+## Destructive actions
+
+Confirm with the user before: `rm`, `git reset --hard`, force-push outside of `suhuf ship`, dropping a DB, deleting branches.
