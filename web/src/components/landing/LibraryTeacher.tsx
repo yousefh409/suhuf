@@ -13,12 +13,14 @@ import {
    Shared sub-components
    ═══════════════════════════════════════════════ */
 
+// Cover images sourced from Internet Archive's image service:
+// https://archive.org/services/img/<identifier> — each is a real Arabic-edition cover.
 const BOOKS = {
-  ajrumiyyah: { bg: "#5C4A35", arabic: "الآجرومية", title: "Al-Ajrumiyyah", author: "Ibn Ajurrum", category: "Nahw · Beginner", pct: 42 },
-  arbain:     { bg: "#1C2B3A", arabic: "الأربعين", title: "Al-Arba'in al-Nawawiyyah", author: "Imam Nawawi", category: "Hadith", pct: 67 },
-  qatr:       { bg: "#2D1F3D", arabic: "قطر الندى", title: "Qatr al-Nada", author: "Ibn Hisham", category: "Nahw", pct: 18 },
-  riyad:      { bg: "#3A2A1A", arabic: "رياض الصالحين", title: "Riyad al-Salihin", author: "Imam Nawawi", category: "Hadith", pct: 31 },
-  bulugh:     { bg: "#4D4535", arabic: "بلوغ المرام", title: "Bulugh al-Maram", author: "Ibn Hajar", category: "Fiqh", pct: 8 },
+  ajrumiyyah: { bg: "#5C4A35", arabic: "الآجرومية", title: "Al-Ajrumiyyah", author: "Ibn Ajurrum", category: "Nahw · Beginner", pct: 42, image: "https://archive.org/services/img/ar113lang06" },
+  arbain:     { bg: "#1C2B3A", arabic: "الأربعين", title: "Al-Arba'in al-Nawawiyyah", author: "Imam Nawawi", category: "Hadith", pct: 67, image: "https://archive.org/services/img/fahadfirozkhan_live" },
+  qatr:       { bg: "#2D1F3D", arabic: "قطر الندى", title: "Qatr al-Nada", author: "Ibn Hisham", category: "Nahw", pct: 18, image: "https://archive.org/services/img/20210914_20210914_1126" },
+  riyad:      { bg: "#3A2A1A", arabic: "رياض الصالحين", title: "Riyad al-Salihin", author: "Imam Nawawi", category: "Hadith", pct: 31, image: "https://archive.org/services/img/Riyad-Us-Saliheen-ARABIC.pdf" },
+  bulugh:     { bg: "#4D4535", arabic: "بلوغ المرام", title: "Bulugh al-Maram", author: "Ibn Hajar", category: "Fiqh", pct: 8, image: "https://archive.org/services/img/0501BulooghAlQasim" },
 } as const;
 
 /* ═══════════════════════════════════════════════
@@ -248,12 +250,16 @@ function MobileBookRow({
       style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
     >
       <div
-        className="w-[36px] h-[46px] rounded-md flex items-center justify-center shrink-0 overflow-hidden"
+        className="w-[36px] h-[46px] rounded-md shrink-0 overflow-hidden"
         style={{ backgroundColor: book.bg }}
       >
-        <span className="font-arabic text-white text-[9px] leading-tight text-center px-0.5">
-          {book.arabic}
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={book.image}
+          alt=""
+          loading="lazy"
+          className="w-full h-full object-cover"
+        />
       </div>
       <div className="flex flex-col min-w-0 flex-1">
         <span className="text-ink text-[11px] font-semibold truncate">{book.title}</span>
@@ -278,10 +284,16 @@ function MobileShelfCard({ book }: { book: (typeof BOOKS)[keyof typeof BOOKS] })
   return (
     <div className="flex flex-col shrink-0 flex-1 gap-1 rounded-lg border border-ink/[0.06] bg-white p-1 pb-1.5 overflow-hidden">
       <div
-        className="w-full h-[50px] rounded flex items-center justify-center relative overflow-hidden"
+        className="w-full h-[50px] rounded relative overflow-hidden"
         style={{ backgroundColor: book.bg }}
       >
-        <span className="font-arabic text-white text-[10px] text-center px-1">{book.arabic}</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={book.image}
+          alt=""
+          loading="lazy"
+          className="w-full h-full object-cover"
+        />
         <div className="absolute top-0.5 right-0.5 bg-gold text-white text-[7px] font-bold rounded-full w-[22px] h-[12px] flex items-center justify-center">
           {book.pct}%
         </div>
