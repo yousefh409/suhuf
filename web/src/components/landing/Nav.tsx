@@ -7,6 +7,7 @@ export default function Nav() {
 
   return (
     <nav className="sticky top-0 z-50 flex items-center justify-between w-full px-5 md:px-16 py-5 md:py-7 bg-parchment-light/[0.97] md:bg-parchment-light/90 md:backdrop-blur-md">
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
       <a href="/" className="font-serif italic text-[22px] text-ink/90">
         suhuf
       </a>

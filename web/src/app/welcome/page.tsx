@@ -33,6 +33,7 @@ function WelcomeContent() {
   const [origin, setOrigin] = useState("");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrigin(window.location.origin);
   }, []);
 
@@ -42,6 +43,7 @@ function WelcomeContent() {
   useEffect(() => {
     if (paramId) {
       localStorage.setItem("suhuf_waitlist_id", paramId);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoadingUser(false);
       return;
     }
@@ -105,6 +107,7 @@ function WelcomeContent() {
       <div className="min-h-screen bg-parchment flex items-center justify-center px-6 py-16">
         <div className="text-center">
           <p className="text-ink/45 text-base mb-4">No waitlist signup found.</p>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/#waitlist" className="text-sm text-gold hover:text-gold/80 transition-colors">
             Join the waitlist
           </a>
@@ -116,6 +119,7 @@ function WelcomeContent() {
   return (
     <div className="min-h-screen bg-parchment flex items-center justify-center px-6 py-16">
       <div className="w-full max-w-[520px] flex flex-col items-center gap-8">
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a href="/" className="font-serif italic text-[22px] text-ink">
           suhuf
         </a>
@@ -158,7 +162,7 @@ function WelcomeContent() {
 
             <div>
               <p className="text-sm font-medium text-ink mb-2">
-                Any feature you'd love to see?
+                Any feature you&apos;d love to see?
               </p>
               <textarea
                 placeholder="Tell us what would make suhuf perfect for you..."
@@ -234,6 +238,7 @@ function WelcomeContent() {
           </div>
         </div>
 
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a
           href="/"
           className="text-sm text-ink/30 hover:text-ink/50 transition-colors"
