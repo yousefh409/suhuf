@@ -25,7 +25,7 @@ export function TashkeelToggle() {
     <button
       type="button"
       onClick={flip}
-      className="text-xs font-mono px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200"
+      className="reader-chip text-xs font-mono px-2 py-1 rounded"
     >
       Tashkeel: {on ? "On" : "Off"}
     </button>

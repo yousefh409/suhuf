@@ -15,7 +15,7 @@ export function ChapterDrawer({ chapters, pages }: Props) {
 
   return (
     <details className="text-sm relative">
-      <summary className="cursor-pointer font-mono px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200">
+      <summary className="reader-chip cursor-pointer font-mono px-2 py-1 rounded text-xs">
         {tab === "chapters" ? `Chapters (${chapters.length})` : `Pages (${pages.length})`}
       </summary>
       <div className="absolute z-10 mt-2 border border-zinc-200 rounded bg-white shadow-sm w-72">

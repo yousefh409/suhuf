@@ -21,10 +21,24 @@ export function PageBoundary({ volume, pageNumber, mode, visible }: Props) {
 
   if (mode === "reader") {
     return (
-      <div id={id} className="flex items-center gap-2 my-6 text-xs text-zinc-400 scroll-mt-16" dir="ltr">
-        <hr className="flex-1 border-zinc-200" />
-        <span>{label}</span>
-        <hr className="flex-1 border-zinc-200" />
+      <div
+        id={id}
+        className="my-10 flex flex-col items-center gap-1 select-none scroll-mt-16"
+        dir="ltr"
+      >
+        <span
+          aria-hidden
+          className="text-xl leading-none"
+          style={{ color: "var(--reader-accent)", opacity: 0.55 }}
+        >
+          ✦
+        </span>
+        <span
+          className="text-[10px] tracking-[0.2em] uppercase font-mono"
+          style={{ color: "var(--reader-fg-faint)" }}
+        >
+          {label}
+        </span>
       </div>
     );
   }
