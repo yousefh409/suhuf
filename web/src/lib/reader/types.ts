@@ -6,9 +6,27 @@ export type BlockType =
   | "hadith"
   | "isnad"
   | "matn"
-  | "poetry"
+  | "takhrij"
+  | "hadith_grading"
   | "biography"
+  | "commentary"
+  | "quoted_text"
+  | "editor_note"
+  | "poetry"
   | "heading";
+
+export type SpanLabel =
+  | "qur_quote"
+  | "hadith_quote"
+  | "book_title"
+  | "personal_name"
+  | "place_name"
+  | "date_hijri";
+
+export type QualityFlag =
+  | "parse_error"
+  | "tashkeel_suspect"
+  | "ocr_artifact";
 
 export type Token = {
   id: string;
@@ -16,9 +34,21 @@ export type Token = {
   text_raw?: string | null;
 };
 
+export type Span = {
+  start_token_id: string;
+  end_token_id: string;
+  label: SpanLabel;
+  sub_label?: string | null;
+  ref?: string | null;
+  confidence?: number | null;
+};
+
 type BlockBase = {
   key: string;
   metadata?: Record<string, unknown> | null;
+  parser_type?: string | null;
+  spans?: Span[];
+  flags?: QualityFlag[];
 };
 
 export type ProseLikeBlock = BlockBase & {
