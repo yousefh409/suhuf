@@ -20,6 +20,7 @@ export function ChapterScroll({ pages, mode }: Props) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const t = window.localStorage.getItem(TASHKEEL_KEY);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (t !== null) setShowTashkeel(t === "1");
     const d = window.localStorage.getItem(DIFF_KEY);
     if (d !== null) setShowDiff(d === "1");
