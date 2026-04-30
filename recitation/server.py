@@ -844,7 +844,6 @@ async def ws_score(websocket: WebSocket):
     scoring_lock = asyncio.Lock()
     session_start = time.time()
     session_id = uuid.uuid4().hex[:8]
-    last_client_msg = time.time()
     PING_INTERVAL = 30
     IDLE_TIMEOUT = 60
 
@@ -862,14 +861,15 @@ async def ws_score(websocket: WebSocket):
 
     try:
         while True:
-            msg = await websocket.receive()
+            try:
+                msg = await asyncio.wait_for(websocket.receive(), timeout=IDLE_TIMEOUT)
+            except asyncio.TimeoutError:
+                # Client idle for IDLE_TIMEOUT seconds; close the connection.
+                try:
+                    await websocket.close(1008)
+                finally:
+                    break
             if msg["type"] == "websocket.disconnect":
-                break
-
-            last_client_msg = time.time()
-
-            # Idle timeout check
-            if time.time() - last_client_msg > IDLE_TIMEOUT:
                 break
 
             # Session cap check
