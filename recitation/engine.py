@@ -1803,6 +1803,30 @@ class StreamingSession:
         return self.scored_words
 
     # ------------------------------------------------------------------
+    # Phrase extension (sliding-window growth)
+    # ------------------------------------------------------------------
+
+    def extend_phrases(self, new_phrases: list) -> None:
+        """Append new phrases to the session without resetting any state.
+
+        Filters out non-string and empty/whitespace-only entries before
+        appending.  Cursor, audio buffer, and accumulated scores are
+        left untouched so recitation can continue seamlessly.
+        """
+        valid = [p for p in new_phrases if isinstance(p, str) and p.strip()]
+        if not valid:
+            return
+
+        offset = len(self.all_words)
+        for ph in valid:
+            self.phrases.append(ph)
+            self.phrase_word_offsets.append(offset)
+            words = ph.split()
+            self.all_words.extend(words)
+            offset += len(words)
+            self._stripped_phrases.append(strip_diacritics(ph).split())
+
+    # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 

@@ -826,6 +826,20 @@ async def ws_score(websocket: WebSocket):
                         score_log.append({"type": "final", "response": resp})
                 break
 
+            # append_phrases: extend the phrase list mid-session
+            if text:
+                try:
+                    msg = json.loads(text)
+                except (ValueError, TypeError):
+                    msg = None
+                if isinstance(msg, dict) and msg.get("type") == "append_phrases":
+                    new_phrases = msg.get("phrases", [])
+                    if isinstance(new_phrases, list):
+                        session.extend_phrases(new_phrases)
+                        # Refresh all_words to reflect the extended list
+                        all_words = session.all_words
+                    continue
+
             if not raw:
                 continue
 
