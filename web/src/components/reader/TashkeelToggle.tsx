@@ -10,6 +10,7 @@ export function TashkeelToggle() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const v = window.localStorage.getItem(KEY);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (v !== null) setOn(v === "1");
   }, []);
 
