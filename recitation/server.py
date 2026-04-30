@@ -185,6 +185,56 @@ def load_passages():
         return json.load(f)
 
 
+def parse_ws_init(init: dict, load_passages_fn) -> tuple:
+    """Parse the WebSocket init message and return (phrases, log_info).
+
+    Accepts two forms:
+      - Inline:   {"passage": {"id": "...", "phrases": [...]}}
+      - Stored:   {"passage_id": "..."}
+
+    Returns:
+      phrases   — list of non-empty phrase strings
+      log_info  — dict with keys: log_label, passage_id, inline_id
+
+    Raises ValueError with a descriptive message on any validation failure.
+    """
+    inline = init.get("passage")
+    passage_id = init.get("passage_id")
+
+    if inline and isinstance(inline, dict) and isinstance(inline.get("phrases"), list):
+        # Inline form
+        phrases = [str(p) for p in inline["phrases"]
+                   if isinstance(p, str) and p.strip()]
+        if not phrases:
+            raise ValueError("Inline passage has no phrases")
+        inline_id = inline.get("id")
+        log_label = inline_id or "inline"
+        log_info = {
+            "log_label": log_label,
+            "passage_id": None,
+            "inline_id": inline_id,
+        }
+        return phrases, log_info
+
+    elif passage_id:
+        # Stored passage_id form
+        data = load_passages_fn()
+        passage = next((p for p in data.get("passages", [])
+                        if p["id"] == passage_id), None)
+        if not passage or "phrases" not in passage:
+            raise ValueError("Passage not found")
+        phrases = passage["phrases"]
+        log_info = {
+            "log_label": passage_id,
+            "passage_id": passage_id,
+            "inline_id": None,
+        }
+        return phrases, log_info
+
+    else:
+        raise ValueError("Init must include 'passage' or 'passage_id'")
+
+
 # ── Pages ──
 
 @app.get("/")
@@ -712,15 +762,14 @@ async def ws_score(websocket: WebSocket):
         await websocket.close(1008, "Expected JSON init message")
         return
 
-    passage_id = init.get("passage_id")
-    data = load_passages()
-    passage = next((p for p in data["passages"] if p["id"] == passage_id), None)
-    if not passage or "phrases" not in passage:
-        await websocket.send_json({"error": "Passage not found"})
+    # Accept either inline {passage: {phrases: [...]}} or stored {passage_id: "..."}
+    try:
+        phrases, log_info = parse_ws_init(init, load_passages)
+    except ValueError as exc:
+        await websocket.send_json({"error": str(exc)})
         await websocket.close(1008)
         return
 
-    phrases = passage["phrases"]
     all_words = " ".join(phrases).split()
 
     from engine import StreamingSession
@@ -733,12 +782,14 @@ async def ws_score(websocket: WebSocket):
     score_log = []
     if log_enabled:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_dir = SESSION_LOG_DIR / f"{ts}_{passage_id}"
+        log_label = log_info["log_label"]
+        log_dir = SESSION_LOG_DIR / f"{ts}_{log_label}"
         log_dir.mkdir(parents=True, exist_ok=True)
         audio_log = open(log_dir / "audio.raw", "wb")
         # Save session metadata
         (log_dir / "meta.json").write_text(json.dumps({
-            "passage_id": passage_id,
+            "passage_id": log_info["passage_id"],
+            "inline_id": log_info["inline_id"],
             "phrases": phrases,
             "timestamp": ts,
         }, ensure_ascii=False, indent=2))
