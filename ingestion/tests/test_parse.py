@@ -119,3 +119,30 @@ def test_parse_metadata():
     result = parse_file(FIXTURE, "0100Test.TestBook")
     assert result.metadata.title_ar == "كتاب تجريبي"
     assert result.metadata.word_count == 50
+
+
+def test_parse_strips_openiti_milestones(tmp_path):
+    """OpenITI msNN milestone markers are tooling artifacts; they must not
+    appear as tokens in any block."""
+    src = tmp_path / "milestone.mARkdown"
+    src.write_text(
+        "######OpenITI#\n"
+        "#META# 020.BookTITLE\t:: اختبار\n"
+        "#META# 00#VERS#LENGTH###\t:: 5\n"
+        "#META#Header#End#\n"
+        "# PageV01P001\n"
+        "### | باب\n"
+        "# هذا ms01 نص ms02 تجريبي\n",
+        encoding="utf-8",
+    )
+    result = parse_file(src, "0100Test.MilestoneBook")
+    all_text = " ".join(
+        t.text
+        for page in result.pages
+        for block in page.content_blocks
+        for t in block.tokens
+    )
+    assert "ms01" not in all_text
+    assert "ms02" not in all_text
+    # The surrounding Arabic words are preserved.
+    assert "هذا" in all_text and "نص" in all_text and "تجريبي" in all_text

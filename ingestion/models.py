@@ -49,6 +49,10 @@ class Chapter(BaseModel):
     page_number: int
     sort_order: int
     parent_index: int | None = None
+    # Index of the heading block within its page's content_blocks. Lets the
+    # reader slice pages that contain multiple chapter starts (e.g. several
+    # hadiths printed on one physical page).
+    block_index: int | None = None
 
 
 class BookMetadata(BaseModel):
