@@ -129,7 +129,16 @@ function renderInner(
 
   switch (block.type) {
     case "heading":
-      return <h2 className="font-bold text-xl mt-6 mb-2">{tokens}</h2>;
+      return isReader ? (
+        <h2
+          className="font-bold text-[1.55em] leading-snug mt-10 mb-4 text-center"
+          style={{ color: "var(--reader-fg)" }}
+        >
+          {tokens}
+        </h2>
+      ) : (
+        <h2 className="font-bold text-xl mt-6 mb-2">{tokens}</h2>
+      );
     case "isnad":
       return isReader ? (
         <p
