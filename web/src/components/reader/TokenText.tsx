@@ -2,6 +2,8 @@
 
 import type { Token, ReaderMode, SpanLabel } from "@/lib/reader/types";
 import { stripTashkeel } from "@/lib/reader/tashkeel";
+import { useRecitationStatus } from "./recite/RecitationProvider";
+import "./recite/recite.css";
 
 type Props = {
   token: Token;
@@ -18,10 +20,13 @@ export function TokenText({ token, mode, showTashkeel, showDiff, accentClass, sp
   const raw = token.text_raw ?? null;
   const showRawAbove = mode === "inspector" && showDiff && raw && raw !== token.text;
   const spanClass = spanLabel ? `reader-span reader-span-${spanLabel}` : undefined;
-  const className = [accentClass, spanClass].filter(Boolean).join(" ") || undefined;
+  const recitationStatus = useRecitationStatus(token.id);
+  const recitationClass = recitationStatus ? `tok--${recitationStatus}` : undefined;
   const title = spanRef ?? undefined;
 
   if (mode === "reader") {
+    const className =
+      [accentClass, spanClass, recitationClass].filter(Boolean).join(" ") || undefined;
     if (className) {
       return <span className={className} title={title}>{display} </span>;
     }
@@ -36,7 +41,7 @@ export function TokenText({ token, mode, showTashkeel, showDiff, accentClass, sp
 
   const inspectorClass =
     "cursor-pointer underline decoration-dotted underline-offset-4 decoration-zinc-300 hover:decoration-zinc-600";
-  const combined = [inspectorClass, spanClass].filter(Boolean).join(" ");
+  const combined = [inspectorClass, spanClass, recitationClass].filter(Boolean).join(" ");
 
   return (
     <span
