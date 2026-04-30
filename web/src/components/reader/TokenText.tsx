@@ -8,14 +8,18 @@ type Props = {
   mode: ReaderMode;
   showTashkeel: boolean;   // reader toggle
   showDiff: boolean;       // inspector-only diff toggle
+  accentClass?: string;    // optional class applied in reader mode (e.g. transmission-verb accent)
 };
 
-export function TokenText({ token, mode, showTashkeel, showDiff }: Props) {
+export function TokenText({ token, mode, showTashkeel, showDiff, accentClass }: Props) {
   const display = showTashkeel ? token.text : stripTashkeel(token.text);
   const raw = token.text_raw ?? null;
   const showRawAbove = mode === "inspector" && showDiff && raw && raw !== token.text;
 
   if (mode === "reader") {
+    if (accentClass) {
+      return <span className={accentClass}>{display} </span>;
+    }
     return <span>{display} </span>;
   }
 

@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 
-const KEY = "suhuf.reader.pageMarkers";
+const KEY = "suhuf.reader.hadithCard";
 
-export function PageMarkersToggle() {
-  const [on, setOn] = useState(true);
+export function HadithCardToggle() {
+  const [on, setOn] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -27,7 +27,7 @@ export function PageMarkersToggle() {
       onClick={flip}
       className="reader-chip text-xs font-mono px-2 py-1 rounded"
     >
-      Pages: {on ? "On" : "Off"}
+      Cards: {on ? "On" : "Off"}
     </button>
   );
 }

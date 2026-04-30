@@ -63,3 +63,96 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* ============================================================
+   Reader theme tokens. Applied via [data-reader-theme] on the
+   ReaderThemeShell wrapper so reader chrome + content inherit
+   the same palette without leaking into other internal pages.
+   ============================================================ */
+
+[data-reader-theme="paper"] {
+  --reader-bg:           #F5EEE4;
+  --reader-fg:           #2A1F17;
+  --reader-fg-muted:     #6B5B4A;
+  --reader-fg-faint:     #8E7E6C;
+  --reader-accent:       #B47D3A;
+  --reader-rule:         #E1D5C2;
+  --reader-card-bg:      rgba(255, 253, 249, 0.55);
+  --reader-card-border:  rgba(180, 125, 58, 0.18);
+  --reader-chrome-bg:    rgba(245, 238, 228, 0.88);
+  --reader-chip-bg:      rgba(42, 31, 23, 0.06);
+  --reader-chip-bg-hover:rgba(42, 31, 23, 0.10);
+}
+[data-reader-theme="sepia"] {
+  --reader-bg:           #E8D6B3;
+  --reader-fg:           #3A2E22;
+  --reader-fg-muted:     #6E5640;
+  --reader-fg-faint:     #8E7257;
+  --reader-accent:       #8B5A2B;
+  --reader-rule:         #C7B493;
+  --reader-card-bg:      rgba(255, 248, 232, 0.45);
+  --reader-card-border:  rgba(139, 90, 43, 0.20);
+  --reader-chrome-bg:    rgba(232, 214, 179, 0.90);
+  --reader-chip-bg:      rgba(58, 46, 34, 0.08);
+  --reader-chip-bg-hover:rgba(58, 46, 34, 0.14);
+}
+[data-reader-theme="night"] {
+  --reader-bg:           #14110D;
+  --reader-fg:           #E8DDC9;
+  --reader-fg-muted:     #A0917D;
+  --reader-fg-faint:     #756855;
+  --reader-accent:       #D4A05A;
+  --reader-rule:         #2E2820;
+  --reader-card-bg:      rgba(255, 250, 240, 0.04);
+  --reader-card-border:  rgba(212, 160, 90, 0.18);
+  --reader-chrome-bg:    rgba(20, 17, 13, 0.88);
+  --reader-chip-bg:      rgba(232, 221, 201, 0.06);
+  --reader-chip-bg-hover:rgba(232, 221, 201, 0.12);
+}
+
+.reader-shell {
+  background: var(--reader-bg);
+  color: var(--reader-fg);
+  min-height: 100vh;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+.reader-article {
+  font-feature-settings: "calt" 1, "liga" 1, "kern" 1;
+}
+
+/* Chip used by reader header/footer/toggle buttons.
+   Falls back to neutral zinc when no [data-reader-theme] ancestor exists
+   (e.g. when these toggles are reused in inspector mode). */
+.reader-chip {
+  background: var(--reader-chip-bg, rgb(244 244 245));   /* zinc-100 */
+  color: var(--reader-fg, inherit);
+  transition: background-color 120ms ease;
+}
+.reader-chip:hover {
+  background: var(--reader-chip-bg-hover, rgb(228 228 231)); /* zinc-200 */
+}
+
+/* Subtle accent on transmission verbs (حدثنا، أخبرنا، عن، قال…) inside isnad. */
+.reader-isnad-verb {
+  color: var(--reader-accent);
+}
+
+/* Hadith card grouping — only rendered when the user enables it. */
+.reader-hadith-card {
+  position: relative;
+  background: var(--reader-card-bg);
+  border: 1px solid var(--reader-card-border);
+  border-radius: 4px;
+  padding: 1rem 1.25rem 1rem 2.25rem;
+  margin: 1rem 0;
+}
+.reader-hadith-card > .reader-hadith-num {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.6rem;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--reader-fg-faint);
+}
