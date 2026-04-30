@@ -26,6 +26,7 @@
  */
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useRecitation } from "@/lib/recitation/useRecitation";
+import { fetchAuthToken } from "@/lib/recitation/token";
 import type { Block } from "@/lib/reader/types";
 import type { RecitationStatus } from "@/lib/recitation/types";
 import { RecitationProvider } from "./RecitationProvider";
@@ -64,7 +65,11 @@ export function ReciteShell({
   recitable: boolean;
   children: ReactNode;
 }) {
-  const r = useRecitation({ chapterBlocks, wsUrl: WS_URL });
+  const r = useRecitation({
+    chapterBlocks,
+    wsUrl: WS_URL,
+    tokenProvider: WS_URL.startsWith("wss") ? fetchAuthToken : undefined,
+  });
   const isActive = r.connectionState !== "idle" && r.connectionState !== "error";
 
   const value = useMemo<ShellCtx>(
