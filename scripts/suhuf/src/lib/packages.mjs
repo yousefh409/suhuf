@@ -10,6 +10,7 @@ export const PACKAGES = [
     steps: [
       { kind: "lint",      cmd: "npm run lint" },
       { kind: "typecheck", cmd: "npx tsc --noEmit" },
+      { kind: "test",      cmd: "npm test" },
       { kind: "build",     cmd: "npm run build" },
     ],
   },
