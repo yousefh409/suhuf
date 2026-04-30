@@ -170,10 +170,13 @@ def test_retreat_to_sets_cursor():
 # ---------------------------------------------------------------------------
 
 def test_retreat_decision_triggers_on_wide_margin():
-    """Simulates the retreat decision logic from score_cycle.
+    """_retreat_to moves the cursor and clears the target phrase's words.
 
-    Builds a fake scores dict where the retreatable phrase beats the current
-    cursor phrase by > RETREAT_MARGIN.  Verifies _retreat_to is called.
+    We confirm the preconditions that would cause score_cycle to call _retreat_to
+    (best_idx is behind cursor by at most 2 and the score margin is sufficient),
+    then call _retreat_to directly and assert the action was taken.  This way the
+    test exercises the real engine building block rather than duplicating the
+    predicate logic inline.
     """
     sess = _make_session(8)
     sess.cursor_phrase = 3
@@ -182,25 +185,18 @@ def test_retreat_decision_triggers_on_wide_margin():
     # Pre-fill some scored words for phrase 3 (global word idx 3)
     sess.scored_words = {3: {"word": "word3", "_locked": True}}
 
-    # Simulate what score_cycle does when it sees best_idx < cursor_phrase
-    # and a wide score margin.
+    # Confirm entry conditions that score_cycle checks before calling _retreat_to.
     best_idx = 1
     best_score = 0.75
-    scores = {
-        1: 0.75,  # phrase 1 — strong match
-        3: 0.40,  # cursor phrase — weaker
-    }
-    current_score = scores.get(sess.cursor_phrase, 0.0)
-
-    should_retreat = (
-        best_idx < sess.cursor_phrase
-        and best_idx >= sess.cursor_phrase - 2
-        and best_score - current_score >= StreamingSession.RETREAT_MARGIN
+    cursor_score = 0.40
+    assert best_idx < sess.cursor_phrase, "best_idx must be behind cursor"
+    assert best_idx >= sess.cursor_phrase - 2, "best_idx must be within 2 of cursor"
+    assert best_score - cursor_score >= StreamingSession.RETREAT_MARGIN, (
+        "Score margin must exceed RETREAT_MARGIN"
     )
-    assert should_retreat, "Retreat condition should fire"
 
-    if should_retreat:
-        sess._retreat_to(best_idx)
+    # Exercise the engine action directly.
+    sess._retreat_to(best_idx)
 
     assert sess.cursor_phrase == 1
     # Phrase 3 words cleared, forward words from phrase >=2 preserved

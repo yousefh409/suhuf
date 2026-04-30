@@ -1687,7 +1687,7 @@ class StreamingSession:
 
         # Match against candidate phrases
         candidates = self._get_candidates()
-        best_idx, best_sim = self._match_phrase(whisper_words, candidates)
+        best_idx, best_sim, scores = self._match_phrase(whisper_words, candidates)
 
         if best_sim < self.min_match_sim:
             return self.scored_words  # no match yet
@@ -1790,15 +1790,15 @@ class StreamingSession:
         # phrase gets fresh CTC scoring.
         if (best_idx < self.cursor_phrase
                 and best_idx >= self.cursor_phrase - 2):
-            cursor_sim = _phrase_coverage(
-                whisper_words, self._stripped_phrases[self.cursor_phrase]
-            )
+            cursor_sim = scores.get(self.cursor_phrase, 0.0)
             if best_sim - cursor_sim >= self.RETREAT_MARGIN:
                 self._retreat_to(best_idx)
 
         # --- Phase 3b: Cursor advance (trust Whisper) ---
         # Cap to +1 per cycle to prevent wild jumps from common-word matches
-        if best_idx > self.cursor_phrase:
+        # Mutually exclusive with retreat: if we retreated above, best_idx is
+        # no longer > cursor_phrase so this elif is a safety net.
+        elif best_idx > self.cursor_phrase:
             self.cursor_phrase = min(best_idx, self.cursor_phrase + 1)
 
         # Advance past current phrase if we have data about it:
@@ -1948,13 +1948,18 @@ class StreamingSession:
 
         Prefers the nearest phrase (closest to cursor) that exceeds the
         match threshold, preventing false jumps on common Arabic words.
+
+        Returns (best_idx, best_sim, scores) where scores maps each evaluated
+        candidate index to its coverage score.
         """
         # candidates are sorted low→high (nearest first)
+        scores = {}
         for idx in candidate_indices:
             sim = _phrase_coverage(whisper_words, self._stripped_phrases[idx])
+            scores[idx] = sim
             if sim >= self.min_match_sim:
-                return idx, sim
-        return self.cursor_phrase, 0.0
+                return idx, sim, scores
+        return self.cursor_phrase, 0.0, scores
 
     @staticmethod
     def _spoken_word_count(whisper_words, phrase_words):
