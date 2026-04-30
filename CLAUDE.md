@@ -23,7 +23,6 @@
 ## Packages
 
 - `web/` — Next.js (lint, tsc --noEmit, build)
-- `reader/` — Expo / React Native (tsc --noEmit, jest)
 - `ingestion/` — Python (compileall, pytest --co)
 - `recitation/` — Python (compileall, pytest --co)
 
