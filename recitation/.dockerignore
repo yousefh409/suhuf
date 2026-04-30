@@ -1,0 +1,8 @@
+# recitation/.dockerignore
+__pycache__/
+*.pyc
+test_data/sessions/
+test_data/recordings/
+.tts_cache/
+.pytest_cache/
+*.log
