@@ -1,8 +1,10 @@
 """Recitation assessment server — serves the UI and scores audio."""
 import asyncio
 import json
+import os
 import sys
 import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -17,6 +19,15 @@ BASE_DIR = Path(__file__).parent
 sys.path.insert(0, str(BASE_DIR))
 
 from arabic import strip_diacritics
+from auth import verify as verify_auth_token
+
+AUTH_SECRET = os.getenv("RECITATION_AUTH_SECRET")
+ALLOWED_ORIGINS = (
+    [o.strip() for o in os.getenv("RECITATION_ALLOWED_ORIGINS", "").split(",") if o.strip()]
+    or None
+)
+ALLOW_DEBUG = os.getenv("RECITATION_ALLOW_DEBUG") == "1"
+MAX_SESSION_SEC = int(os.getenv("RECITATION_MAX_SESSION_SEC", "600"))
 
 # ── Error classifier (GBM) for low-eff fallback ──
 _error_classifier = None
@@ -755,12 +766,33 @@ async def ws_score(websocket: WebSocket):
     """Stream audio as raw PCM float32 @ 16 kHz, get scored words back live."""
     await websocket.accept()
 
+    # Origin check (if allowlist set)
+    origin = websocket.headers.get("origin")
+    if ALLOWED_ORIGINS is not None and origin not in ALLOWED_ORIGINS:
+        await websocket.send_json({"type": "error", "code": "origin_denied",
+                                   "message": f"origin not allowed: {origin}"})
+        await websocket.close(1008)
+        return
+
     # First message: JSON with passage_id
     try:
         init = await websocket.receive_json()
     except Exception:
         await websocket.close(1008, "Expected JSON init message")
         return
+
+    # Auth check (if secret set)
+    if AUTH_SECRET:
+        token = init.get("auth_token")
+        if not token or not verify_auth_token(AUTH_SECRET, token, expected_origin=origin):
+            await websocket.send_json({"type": "error", "code": "auth_failed",
+                                       "message": "invalid or expired auth_token"})
+            await websocket.close(1008)
+            return
+
+    # Debug gate
+    if init.get("debug") and not ALLOW_DEBUG:
+        init["debug"] = False
 
     # Accept either inline {passage: {phrases: [...]}} or stored {passage_id: "..."}
     try:
@@ -798,11 +830,19 @@ async def ws_score(websocket: WebSocket):
     BYTES_PER_SEC = 16000 * 4  # float32 @ 16 kHz
     first_score_sent = False
     scoring_lock = asyncio.Lock()
+    session_start = time.time()
 
     try:
         while True:
             msg = await websocket.receive()
             if msg["type"] == "websocket.disconnect":
+                break
+
+            # Session cap check
+            if time.time() - session_start > MAX_SESSION_SEC:
+                await websocket.send_json({"type": "error", "code": "session_too_long",
+                                           "message": "max session duration exceeded"})
+                await websocket.close(1008)
                 break
 
             raw = msg.get("bytes")
