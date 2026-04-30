@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type { RecitationStatus } from "@/lib/recitation/types";
 
 type Ctx = {
@@ -21,8 +21,9 @@ export function RecitationProvider({
   status: Map<string, RecitationStatus>;
   cursorTokenId: string | null;
 }) {
+  const value = useMemo(() => ({ status, cursorTokenId }), [status, cursorTokenId]);
   return (
-    <RecitationContext.Provider value={{ status, cursorTokenId }}>
+    <RecitationContext.Provider value={value}>
       {children}
     </RecitationContext.Provider>
   );
