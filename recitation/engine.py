@@ -1784,7 +1784,19 @@ class StreamingSession:
                 if gw in self.scored_words:
                     self.scored_words[gw]["whisper_match"] = wmatch[wi] if wi < len(wmatch) else True
 
-        # --- Phase 3: Cursor advance (trust Whisper) ---
+        # --- Phase 3: Cursor retreat for re-reading ---
+        # If Whisper matched a phrase 1-2 behind the cursor with a significantly
+        # higher score than the current cursor phrase, retreat so the re-read
+        # phrase gets fresh CTC scoring.
+        if (best_idx < self.cursor_phrase
+                and best_idx >= self.cursor_phrase - 2):
+            cursor_sim = _phrase_coverage(
+                whisper_words, self._stripped_phrases[self.cursor_phrase]
+            )
+            if best_sim - cursor_sim >= self.RETREAT_MARGIN:
+                self._retreat_to(best_idx)
+
+        # --- Phase 3b: Cursor advance (trust Whisper) ---
         # Cap to +1 per cycle to prevent wild jumps from common-word matches
         if best_idx > self.cursor_phrase:
             self.cursor_phrase = min(best_idx, self.cursor_phrase + 1)
@@ -1893,14 +1905,43 @@ class StreamingSession:
         return spoken >= 2
 
     def _get_candidates(self):
-        """Return phrase indices: one behind cursor + forward lookahead.
+        """Return phrase indices: two behind cursor + forward lookahead.
 
-        Including cursor-1 prevents old audio still in the ring buffer
-        from falsely matching a distant future phrase that shares words.
+        Including cursor-1 and cursor-2 prevents old audio still in the ring
+        buffer from falsely matching a distant future phrase that shares words,
+        and also exposes re-read phrases to the retreat-detection logic.
         """
-        lo = max(0, self.cursor_phrase - 1)
+        lo = max(0, self.cursor_phrase - 2)
         hi = min(len(self.phrases) - 1, self.cursor_phrase + self.lookahead)
         return list(range(lo, hi + 1))
+
+    # Retreat threshold: retreating phrase must beat cursor phrase by this margin.
+    RETREAT_MARGIN = 0.20
+
+    def _phrase_word_range(self, phrase_idx: int) -> tuple:
+        """Return (start, end) global word indices for phrase_idx (end exclusive)."""
+        start = self.phrase_word_offsets[phrase_idx]
+        if phrase_idx + 1 < len(self.phrase_word_offsets):
+            end = self.phrase_word_offsets[phrase_idx + 1]
+        else:
+            end = len(self.all_words)
+        return start, end
+
+    def _retreat_to(self, target_phrase_idx: int) -> None:
+        """Retreat cursor to target_phrase_idx and unlock that phrase's words.
+
+        Forward _best_spoken watermarks are preserved so the user doesn't lose
+        progress on phrases they've already passed.  No-ops if target is not
+        strictly behind the current cursor.
+        """
+        if target_phrase_idx >= self.cursor_phrase:
+            return
+        first, last = self._phrase_word_range(target_phrase_idx)
+        for wi in list(self.scored_words.keys()):
+            if first <= wi < last:
+                del self.scored_words[wi]
+        self._best_spoken[target_phrase_idx] = 0
+        self.cursor_phrase = target_phrase_idx
 
     def _match_phrase(self, whisper_words, candidate_indices):
         """Find closest phrase match from candidates using phrase coverage.
