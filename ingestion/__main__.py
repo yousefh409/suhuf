@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 def _ingest_one(uri: str, args, engine, client):
     """Run the full pipeline for a single book."""
+    import json
+
     corpus = args.corpus_path
 
     # Stage 1: Parse
@@ -26,6 +28,13 @@ def _ingest_one(uri: str, args, engine, client):
     logger.info(f"Found file: {path.name}")
     result = parse_file(path, uri)
     logger.info(f"Parsed: {len(result.pages)} pages, {len(result.chapters)} chapters")
+
+    # Author yml — used by enrichment context, dump, and upload
+    author_data: dict = {}
+    author_yml = find_author_metadata(result.metadata.author_openiti_id, corpus)
+    if author_yml:
+        with open(author_yml, encoding="utf-8") as f:
+            author_data = parse_author_yml(f.readlines())
 
     if args.dump:
         dump_dir = Path(args.dump)
@@ -46,30 +55,41 @@ def _ingest_one(uri: str, args, engine, client):
             )
 
     # Stage 3: AI enrichment
-    enriched_book = {}
-    enriched_author = {}
+    enriched_book: dict = {}
+    enriched_author: dict = {}
     if not getattr(args, "skip_enrich", False):
         from ingestion.enrich import enrich_book_metadata, enrich_author_metadata
         logger.info("Running AI metadata enrichment...")
         enriched_book = enrich_book_metadata(result)
         if enriched_book:
             logger.info(f"Book enriched: title_en={enriched_book.get('title_en')}, genres={enriched_book.get('genres')}")
-        enriched_author = enrich_author_metadata(result.metadata.author_openiti_id, {})
+        enriched_author = enrich_author_metadata(
+            result.metadata.author_openiti_id, author_data
+        )
         if enriched_author:
             logger.info(f"Author enriched: {enriched_author.get('full_name_en')}")
     else:
         logger.info("Skipping AI enrichment (--skip-enrich)")
 
+    # Dump full pipeline output (parse + tashkeel + enrichment + author yml)
+    if args.dump:
+        dump_dir = Path(args.dump)
+        full = {
+            **json.loads(result.model_dump_json()),
+            "enrichment": {
+                "book": enriched_book,
+                "author": enriched_author,
+            },
+            "author_data": author_data,
+        }
+        (dump_dir / f"{uri}.enriched.json").write_text(
+            json.dumps(full, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        logger.info(f"Wrote: {dump_dir / f'{uri}.enriched.json'}")
+
     # Stage 4: Upload
     if not args.dry_run and client:
         from ingestion.upload import upload_book
-
-        author_data = {}
-        author_yml = find_author_metadata(result.metadata.author_openiti_id, corpus)
-        if author_yml:
-            with open(author_yml, encoding="utf-8") as f:
-                author_data = parse_author_yml(f.readlines())
-
         upload_book(
             result, author_data, client,
             has_tashkeel=engine is not None,

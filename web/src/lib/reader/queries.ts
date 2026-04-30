@@ -7,9 +7,12 @@ import type { Author, Book, BookListItem, Chapter, Page } from "./types";
 type PageRange = { volume: number; page_number: number };
 
 // Reader reads from local JSON dumps produced by:
-//   python -m ingestion ingest <uri> --dump web/data --dry-run --skip-enrich
-// Files are <openiti_id>.parsed.json (raw parse) and <openiti_id>.tashkeeled.json
-// (with diacritization). Tashkeeled wins when both exist.
+//   python -m ingestion ingest <uri> --dump web/data --dry-run
+// Three suffix tiers, in preference order:
+//   <openiti_id>.enriched.json   — full pipeline (parse + tashkeel + Claude)
+//   <openiti_id>.tashkeeled.json — parse + tashkeel
+//   <openiti_id>.parsed.json     — parse only
+// Reader picks the highest-tier file present.
 const DATA_DIR = path.join(process.cwd(), "data");
 
 /** If real chapters exist, return them. Otherwise generate one synthetic
@@ -81,6 +84,36 @@ type RawChapter = {
   parent_index?: number | null;
 };
 
+type EnrichedBookData = {
+  title_en?: string | null;
+  description?: string | null;
+  genres?: string[] | null;
+  composition_date_ah?: number | null;
+  commentary_on?: string | null;
+  abridgement_of?: string | null;
+};
+
+type EnrichedAuthorData = {
+  full_name_en?: string | null;
+  bio_en?: string | null;
+  birth_ah?: number | null;
+  death_ah?: number | null;
+  primary_fields?: string[] | null;
+};
+
+// Author yml (parsed by ingestion/metadata.py). Field names mirror the
+// `_AUTH_FIELD_MAP` in that module; OpenITI's `_AR` keys map to our `_lat`.
+type AuthorYmlData = {
+  shuhra_lat?: string;
+  ism_lat?: string;
+  nasab_lat?: string;
+  kunya_lat?: string;
+  laqab_lat?: string;
+  nisba_lat?: string;
+  birth_ah?: number;
+  death_ah?: number;
+};
+
 type LocalBookFile = {
   metadata: {
     openiti_id: string;
@@ -94,7 +127,15 @@ type LocalBookFile = {
   };
   pages: Page[];
   chapters: RawChapter[];
+  // Only present in enriched.json
+  enrichment?: {
+    book?: EnrichedBookData;
+    author?: EnrichedAuthorData;
+  };
+  author_data?: AuthorYmlData;
 };
+
+type LoadTier = "enriched" | "tashkeeled" | "parsed";
 
 async function readFileIfExists(p: string): Promise<string | null> {
   try {
@@ -107,18 +148,15 @@ async function readFileIfExists(p: string): Promise<string | null> {
 
 const _loadBookFile = cache(async (
   openitiId: string,
-): Promise<{ data: LocalBookFile; tashkeeled: boolean } | null> => {
-  const tashkeeled = await readFileIfExists(
-    path.join(DATA_DIR, `${openitiId}.tashkeeled.json`),
-  );
-  if (tashkeeled) {
-    return { data: JSON.parse(tashkeeled) as LocalBookFile, tashkeeled: true };
-  }
-  const parsed = await readFileIfExists(
-    path.join(DATA_DIR, `${openitiId}.parsed.json`),
-  );
-  if (parsed) {
-    return { data: JSON.parse(parsed) as LocalBookFile, tashkeeled: false };
+): Promise<{ data: LocalBookFile; tier: LoadTier } | null> => {
+  const tiers: { suffix: string; tier: LoadTier }[] = [
+    { suffix: ".enriched.json", tier: "enriched" },
+    { suffix: ".tashkeeled.json", tier: "tashkeeled" },
+    { suffix: ".parsed.json", tier: "parsed" },
+  ];
+  for (const { suffix, tier } of tiers) {
+    const raw = await readFileIfExists(path.join(DATA_DIR, `${openitiId}${suffix}`));
+    if (raw) return { data: JSON.parse(raw) as LocalBookFile, tier };
   }
   return null;
 });
@@ -133,11 +171,18 @@ const _listDataIds = cache(async (): Promise<string[]> => {
   }
   const ids = new Set<string>();
   for (const filename of entries) {
-    const m = filename.match(/^(.+?)\.(tashkeeled|parsed)\.json$/);
+    const m = filename.match(/^(.+?)\.(enriched|tashkeeled|parsed)\.json$/);
     if (m) ids.add(m[1]);
   }
   return [...ids].sort();
 });
+
+function authorDisplayAr(data: LocalBookFile): string | null {
+  const yml = data.author_data;
+  if (!yml) return null;
+  const parts = [yml.kunya_lat, yml.ism_lat, yml.nasab_lat, yml.shuhra_lat].filter(Boolean);
+  return parts.length > 0 ? parts.join(" ") : (yml.shuhra_lat ?? null);
+}
 
 function maxVolume(pages: Page[]): number {
   return pages.length > 0 ? Math.max(...pages.map((p) => p.volume)) : 0;
@@ -151,15 +196,21 @@ export async function listBooks(): Promise<BookListItem[]> {
   for (const id of ids) {
     const loaded = await _loadBookFile(id);
     if (!loaded) continue;
-    const { data, tashkeeled } = loaded;
+    const { data, tier } = loaded;
+    const enrichedBook = data.enrichment?.book ?? {};
+    const enrichedAuthor = data.enrichment?.author ?? {};
     items.push({
       openiti_id: id,
       title_ar: data.metadata.title_ar,
       title_lat: data.metadata.title_lat ?? null,
+      title_en: enrichedBook.title_en ?? null,
+      description: enrichedBook.description ?? null,
+      genres: enrichedBook.genres ?? data.metadata.genres ?? null,
       total_pages: data.pages.length,
       total_volumes: maxVolume(data.pages),
-      has_tashkeel: tashkeeled,
-      author_name_ar: data.metadata.author_openiti_id,
+      has_tashkeel: tier === "enriched" || tier === "tashkeeled",
+      author_name_ar: authorDisplayAr(data) ?? data.metadata.author_openiti_id,
+      author_name_en: enrichedAuthor.full_name_en ?? null,
     });
   }
   return items;
@@ -170,25 +221,38 @@ export async function getBook(
 ): Promise<{ book: Book; author: Author | null } | null> {
   const loaded = await _loadBookFile(openitiId);
   if (!loaded) return null;
-  const { data, tashkeeled } = loaded;
+  const { data, tier } = loaded;
+  const enrichedBook = data.enrichment?.book ?? {};
+  const enrichedAuthor = data.enrichment?.author ?? {};
+  const yml = data.author_data ?? {};
+
   const book: Book = {
     id: openitiId,
     openiti_id: openitiId,
     title_ar: data.metadata.title_ar,
     title_lat: data.metadata.title_lat ?? null,
-    description: null,
-    genres: data.metadata.genres ?? null,
+    title_en: enrichedBook.title_en ?? null,
+    description: enrichedBook.description ?? null,
+    genres: enrichedBook.genres ?? data.metadata.genres ?? null,
+    composition_date_ah: enrichedBook.composition_date_ah ?? null,
+    commentary_on: enrichedBook.commentary_on ?? null,
+    abridgement_of: enrichedBook.abridgement_of ?? null,
     total_pages: data.pages.length,
     total_volumes: maxVolume(data.pages),
-    has_tashkeel: tashkeeled,
+    has_tashkeel: tier === "enriched" || tier === "tashkeeled",
     language: data.metadata.language ?? null,
     author_id: data.metadata.author_openiti_id,
   };
   const author: Author = {
     id: data.metadata.author_openiti_id,
     openiti_id: data.metadata.author_openiti_id,
-    full_name_ar: null,
-    shuhra_ar: null,
+    full_name_ar: authorDisplayAr(data),
+    shuhra_ar: yml.shuhra_lat ?? null,
+    full_name_en: enrichedAuthor.full_name_en ?? null,
+    bio_en: enrichedAuthor.bio_en ?? null,
+    birth_ah: enrichedAuthor.birth_ah ?? yml.birth_ah ?? null,
+    death_ah: enrichedAuthor.death_ah ?? yml.death_ah ?? null,
+    primary_fields: enrichedAuthor.primary_fields ?? null,
   };
   return { book, author };
 }
