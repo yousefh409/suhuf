@@ -103,7 +103,9 @@ def _ingest_one(uri: str, args, engine, client):
 
 def run_ingest(args):
     """Execute the ingest command."""
-    load_dotenv()
+    # override=True lets the project .env beat empty/stale shell-inherited
+    # values (e.g. ANTHROPIC_API_KEY="" leaking from a parent process).
+    load_dotenv(override=True)
 
     if not args.uri and not args.starter:
         logger.error("Provide a URI or use --starter")
