@@ -7,6 +7,7 @@ from pydantic import BaseModel, computed_field
 class Token(BaseModel):
     id: str          # "p42_b1_w0"
     text: str        # "حَدَّثَنَا"
+    text_raw: str | None = None  # original pre-tashkeel form, set only when diacritization changed text
 
 
 class Block(BaseModel):
