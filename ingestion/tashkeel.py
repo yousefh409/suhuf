@@ -72,7 +72,12 @@ def _diacritize_block(block: Block, engine: TashkeelEngine | None, page_num: int
             for hemistich in verse:
                 new_h = []
                 for token in hemistich:
-                    new_h.append(Token(id=token.id, text=result_words[idx]))
+                    w = result_words[idx]
+                    new_h.append(Token(
+                        id=token.id,
+                        text=w,
+                        text_raw=token.text if token.text != w else None,
+                    ))
                     idx += 1
                 new_verse.append(new_h)
             new_hemistichs.append(new_verse)
@@ -87,7 +92,10 @@ def _diacritize_block(block: Block, engine: TashkeelEngine | None, page_num: int
         )
         return block
 
-    new_tokens = [Token(id=t.id, text=w) for t, w in zip(block.tokens, result_words)]
+    new_tokens = [
+        Token(id=t.id, text=w, text_raw=t.text if t.text != w else None)
+        for t, w in zip(block.tokens, result_words)
+    ]
     return Block(key=block.key, type=block.type, tokens=new_tokens, metadata=block.metadata)
 
 
