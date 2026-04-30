@@ -22,11 +22,17 @@
 
 ## Packages
 
-- `web/` — Next.js (lint, tsc --noEmit, build)
+- `web/` — Next.js (lint, tsc --noEmit, vitest, build)
 - `ingestion/` — Python (compileall, pytest --co)
 - `recitation/` — Python (compileall, pytest --co)
 
 Python dirs currently have no real tests; `pytest --co` tolerates exit code 5 so CI stays green until tests are added.
+
+## Current focus: ingestion + format + reader
+
+We're iterating on the ingestion pipeline, book format, and the internal web reader together so the public reader can land on a stable foundation. Dev loop and architecture: [docs/reader/dev-loop.md](docs/reader/dev-loop.md).
+
+TL;DR: edit ingestion → `python -m ingestion ingest <uri> --dump web/data --dry-run --skip-enrich` → refresh `/internal/library`. No DB in the dev loop.
 
 ## Destructive actions
 
