@@ -28,6 +28,7 @@ export type Action =
   | { type: "connection"; state: ConnectionState }
   | { type: "error"; event: ServerErrorEvent }
   | { type: "passage_loaded"; wordIndexToTokenId: string[] }
+  | { type: "extend_passage"; wordIndexToTokenId: string[] }
   | { type: "reset" };
 
 export function recitationReducer(
@@ -77,6 +78,8 @@ export function recitationReducer(
         matchedPhraseIdx: a.event.matched_phrase_idx,
       };
     }
+    case "extend_passage":
+      return { ...s, wordIndexToTokenId: a.wordIndexToTokenId };
     case "connection":
       return { ...s, connectionState: a.state };
     case "error":

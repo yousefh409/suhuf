@@ -50,4 +50,32 @@ describe("recitationReducer", () => {
     expect(next.status.size).toBe(0);
     expect(next.cursorTokenId).toBeNull();
   });
+
+  it("extend_passage extends token ids without clearing status", () => {
+    // Score a word to populate status
+    const withScore = recitationReducer(
+      { ...initialRecitationState, wordIndexToTokenId: ["t0", "t1"] },
+      {
+        type: "score",
+        event: {
+          words: [{ idx: 0, word: "a", status: "correct", error_type: null, error_detail: null }],
+          matched_phrase_idx: 0,
+        },
+      },
+    );
+    expect(withScore.status.get("t0")).toBe("correct");
+
+    // Now extend the passage
+    const extended = recitationReducer(withScore, {
+      type: "extend_passage",
+      wordIndexToTokenId: ["t0", "t1", "t2", "t3"],
+    });
+
+    // Tokens are extended
+    expect(extended.wordIndexToTokenId).toEqual(["t0", "t1", "t2", "t3"]);
+    // Status is preserved — score highlights not wiped
+    expect(extended.status.get("t0")).toBe("correct");
+    // Cursor is preserved
+    expect(extended.cursorTokenId).toBe(withScore.cursorTokenId);
+  });
 });

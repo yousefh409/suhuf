@@ -6,6 +6,7 @@ import { buildPassage } from "./passage";
 import { RecitationClient } from "./client";
 import { recitationReducer, initialRecitationState } from "./state";
 import type { ScoreEvent } from "./types";
+import type { AudioCapture } from "./audio";
 
 const APPEND_BATCH = 10;
 const APPEND_WATERMARK = 0.7;
@@ -20,9 +21,12 @@ export function useRecitation({ chapterBlocks, wsUrl, tokenProvider }: Opts) {
   const [state, dispatch] = useReducer(recitationReducer, initialRecitationState);
   const clientRef = useRef<RecitationClient | null>(null);
   const captureRef = useRef<{ stop: () => Promise<void> } | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const allUnitsRef = useRef<{ phrases: string[]; tokenIds: string[][] } | null>(null);
+  const tokenIdsRef = useRef<string[]>([]);
   const sentPhraseCountRef = useRef(0);
+
+  useEffect(() => {
+    tokenIdsRef.current = state.wordIndexToTokenId;
+  }, [state.wordIndexToTokenId]);
   const [anchorBlockKey, setAnchorBlockKey] = useState<string | null>(null);
 
   const start = useCallback(
@@ -65,23 +69,15 @@ export function useRecitation({ chapterBlocks, wsUrl, tokenProvider }: Opts) {
           );
           if (nextSlice.length > 0) {
             client.appendPhrases(nextSlice);
-            // Extend wordIndexToTokenId
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const startTok = fullPassage.wordIndexToTokenId.indexOf(
-              fullPassage.phrases.slice(0, sentPhraseCountRef.current).join(" ").split(" ").length === 0
-                ? fullPassage.wordIndexToTokenId[0]
-                : fullPassage.wordIndexToTokenId[
-                    fullPassage.phrases.slice(0, sentPhraseCountRef.current).flatMap((p) => p.split(" ")).length
-                  ],
-            );
+            const currentTokenIds = tokenIdsRef.current;
             const newWordCount = nextSlice.flatMap((p) => p.split(" ")).length;
             const newTokenIds = fullPassage.wordIndexToTokenId.slice(
-              state.wordIndexToTokenId.length,
-              state.wordIndexToTokenId.length + newWordCount,
+              currentTokenIds.length,
+              currentTokenIds.length + newWordCount,
             );
             dispatch({
-              type: "passage_loaded",
-              wordIndexToTokenId: [...state.wordIndexToTokenId, ...newTokenIds],
+              type: "extend_passage",
+              wordIndexToTokenId: [...currentTokenIds, ...newTokenIds],
             });
             sentPhraseCountRef.current += nextSlice.length;
           }
@@ -97,7 +93,17 @@ export function useRecitation({ chapterBlocks, wsUrl, tokenProvider }: Opts) {
 
       // Start audio capture and forward to client
       const { startCapture } = await import("./audio");
-      const cap = await startCapture();
+      let cap: AudioCapture;
+      try {
+        cap = await startCapture();
+      } catch {
+        dispatch({
+          type: "error",
+          event: { type: "error", code: "mic_denied", message: "Microphone access denied." },
+        });
+        client.close();
+        return;
+      }
       captureRef.current = cap;
       (async () => {
         for await (const chunk of cap.chunks) {
@@ -105,7 +111,7 @@ export function useRecitation({ chapterBlocks, wsUrl, tokenProvider }: Opts) {
         }
       })();
     },
-    [chapterBlocks, wsUrl, tokenProvider, state.wordIndexToTokenId],
+    [chapterBlocks, wsUrl, tokenProvider],
   );
 
   const stop = useCallback(async () => {
