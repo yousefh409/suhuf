@@ -12,9 +12,12 @@ export default async function LibraryPage() {
       <p className="text-sm text-zinc-500 mb-6">{books.length} ingested book{books.length === 1 ? "" : "s"}</p>
 
       {books.length === 0 ? (
-        <p className="text-zinc-500">
-          No books ingested yet. Run <code>python -m ingestion ingest &lt;uri&gt;</code>.
-        </p>
+        <div className="text-sm text-zinc-600 space-y-2">
+          <p>No books in <code>web/data/</code>. Dump one with:</p>
+          <pre className="bg-zinc-50 border border-zinc-200 rounded p-3 text-xs overflow-x-auto">{`python -m ingestion ingest <openiti-uri> \\
+  --dump web/data --dry-run --skip-enrich \\
+  --tashkeel-engine shakkala`}</pre>
+        </div>
       ) : (
         <ul className="space-y-3">
           {books.map((b) => {
