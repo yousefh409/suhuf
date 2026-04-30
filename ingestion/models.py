@@ -10,12 +10,31 @@ class Token(BaseModel):
     text_raw: str | None = None  # original pre-tashkeel form, set only when diacritization changed text
 
 
+class Span(BaseModel):
+    """Inline annotation over a contiguous range of tokens within a block.
+
+    Token range is inclusive on both ends. Labels come from the v2 annotation
+    pass; renderer uses them to wrap matched ranges with span classes.
+    """
+    start_token_id: str            # first token id, e.g. "p3_b5_w2"
+    end_token_id: str              # last token id (inclusive)
+    label: str                     # qur_quote | hadith_quote | book_title | personal_name | place_name | date_hijri
+    sub_label: str | None = None   # e.g. companion / tabii / scholar / prophet for personal_name
+    ref: str | None = None         # e.g. sura:ayah for qur_quote
+    confidence: float | None = None
+
+
 class Block(BaseModel):
     key: str         # "b0", "b1", ...
-    type: str        # prose | hadith | isnad | matn | poetry | biography | heading
+    type: str        # prose | hadith | isnad | matn | takhrij | poetry | biography | heading | commentary | quoted_text | editor_note
     tokens: list[Token] = []
     hemistichs: list[list[list[Token]]] = []
     metadata: dict | None = None
+    # Set by the annotation pass when the model overrides the parser's guess.
+    # Preserved so downstream tooling can audit/diff annotation drift.
+    parser_type: str | None = None
+    spans: list[Span] = []
+    flags: list[str] = []
 
 
 class Page(BaseModel):

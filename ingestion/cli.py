@@ -15,6 +15,8 @@ def build_parser() -> argparse.ArgumentParser:
     ingest.add_argument("--dump", help="Write intermediate JSON to this directory")
     ingest.add_argument("--dry-run", action="store_true", help="Parse and tashkeel but skip upload")
     ingest.add_argument("--skip-enrich", action="store_true", help="Skip AI metadata enrichment")
+    ingest.add_argument("--skip-annotate", action="store_true", help="Skip Claude annotation pass (block relabel + spans + quality flags)")
+    ingest.add_argument("--force-annotate", action="store_true", help="Run annotation pass even if the source already has native structural tags")
 
     # parse command
     parse_cmd = sub.add_parser("parse", help="Run parse stage only")

@@ -8,8 +8,9 @@ type PageRange = { volume: number; page_number: number };
 
 // Reader reads from local JSON dumps produced by:
 //   python -m ingestion ingest <uri> --dump web/data --dry-run
-// Three suffix tiers, in preference order:
-//   <openiti_id>.enriched.json   — full pipeline (parse + tashkeel + Claude)
+// Suffix tiers, in preference order:
+//   <openiti_id>.enriched.json   — full pipeline (parse + tashkeel + annotate + Claude meta)
+//   <openiti_id>.annotated.json  — parse + tashkeel + Claude annotation pass
 //   <openiti_id>.tashkeeled.json — parse + tashkeel
 //   <openiti_id>.parsed.json     — parse only
 // Reader picks the highest-tier file present.
@@ -129,7 +130,7 @@ type LocalBookFile = {
   author_data?: AuthorYmlData;
 };
 
-type LoadTier = "enriched" | "tashkeeled" | "parsed";
+type LoadTier = "enriched" | "annotated" | "tashkeeled" | "parsed";
 
 async function readFileIfExists(p: string): Promise<string | null> {
   try {
@@ -145,6 +146,7 @@ const _loadBookFile = cache(async (
 ): Promise<{ data: LocalBookFile; tier: LoadTier } | null> => {
   const tiers: { suffix: string; tier: LoadTier }[] = [
     { suffix: ".enriched.json", tier: "enriched" },
+    { suffix: ".annotated.json", tier: "annotated" },
     { suffix: ".tashkeeled.json", tier: "tashkeeled" },
     { suffix: ".parsed.json", tier: "parsed" },
   ];
@@ -165,7 +167,7 @@ const _listDataIds = cache(async (): Promise<string[]> => {
   }
   const ids = new Set<string>();
   for (const filename of entries) {
-    const m = filename.match(/^(.+?)\.(enriched|tashkeeled|parsed)\.json$/);
+    const m = filename.match(/^(.+?)\.(enriched|annotated|tashkeeled|parsed)\.json$/);
     if (m) ids.add(m[1]);
   }
   return [...ids].sort();
@@ -202,7 +204,7 @@ export async function listBooks(): Promise<BookListItem[]> {
       genres: enrichedBook.genres ?? data.metadata.genres ?? null,
       total_pages: data.pages.length,
       total_volumes: maxVolume(data.pages),
-      has_tashkeel: tier === "enriched" || tier === "tashkeeled",
+      has_tashkeel: tier === "enriched" || tier === "annotated" || tier === "tashkeeled",
       author_name_ar: authorDisplayAr(data) ?? data.metadata.author_openiti_id,
       author_name_en: enrichedAuthor.full_name_en ?? null,
     });
@@ -233,7 +235,7 @@ export async function getBook(
     abridgement_of: enrichedBook.abridgement_of ?? null,
     total_pages: data.pages.length,
     total_volumes: maxVolume(data.pages),
-    has_tashkeel: tier === "enriched" || tier === "tashkeeled",
+    has_tashkeel: tier === "enriched" || tier === "annotated" || tier === "tashkeeled",
     language: data.metadata.language ?? null,
     author_id: data.metadata.author_openiti_id,
   };

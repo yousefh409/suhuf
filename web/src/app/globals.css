@@ -138,6 +138,43 @@ body {
   color: var(--reader-accent);
 }
 
+/* Inline span labels produced by the v2 annotation pass.
+   Each annotated token gets `reader-span` plus a label-specific class.
+   Keep effects subtle — these run inline through running prose. */
+.reader-span {
+  cursor: help;
+  transition: background-color 120ms ease;
+}
+.reader-span-qur_quote {
+  background: rgba(180, 125, 58, 0.12);
+  box-shadow: 0 1px 0 0 rgba(180, 125, 58, 0.35);
+}
+[data-reader-theme="night"] .reader-span-qur_quote {
+  background: rgba(212, 160, 90, 0.10);
+  box-shadow: 0 1px 0 0 rgba(212, 160, 90, 0.35);
+}
+.reader-span-hadith_quote {
+  font-style: italic;
+  border-bottom: 1px dotted var(--reader-accent, currentColor);
+}
+.reader-span-book_title {
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 4px;
+  text-decoration-color: color-mix(in srgb, var(--reader-fg, currentColor) 35%, transparent);
+}
+.reader-span-personal_name {
+  border-bottom: 1px dotted color-mix(in srgb, var(--reader-fg, currentColor) 35%, transparent);
+}
+.reader-span-place_name {
+  font-variant: small-caps;
+}
+.reader-span-date_hijri {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-feature-settings: "tnum" 1;
+}
+
 /* Hadith card grouping — only rendered when the user enables it. */
 .reader-hadith-card {
   position: relative;
