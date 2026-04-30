@@ -54,6 +54,11 @@ export type Author = {
   openiti_id: string;
   full_name_ar?: string | null;
   shuhra_ar?: string | null;
+  full_name_en?: string | null;
+  bio_en?: string | null;
+  birth_ah?: number | null;
+  death_ah?: number | null;
+  primary_fields?: string[] | null;
 };
 
 export type Book = {
@@ -61,8 +66,12 @@ export type Book = {
   openiti_id: string;
   title_ar: string;
   title_lat?: string | null;
+  title_en?: string | null;
   description?: string | null;
   genres?: string[] | null;
+  composition_date_ah?: number | null;
+  commentary_on?: string | null;
+  abridgement_of?: string | null;
   total_pages?: number | null;
   total_volumes?: number | null;
   has_tashkeel?: boolean | null;
@@ -72,9 +81,18 @@ export type Book = {
 
 export type BookListItem = Pick<
   Book,
-  "openiti_id" | "title_ar" | "title_lat" | "total_pages" | "total_volumes" | "has_tashkeel"
+  | "openiti_id"
+  | "title_ar"
+  | "title_lat"
+  | "title_en"
+  | "description"
+  | "genres"
+  | "total_pages"
+  | "total_volumes"
+  | "has_tashkeel"
 > & {
   author_name_ar: string | null;
+  author_name_en: string | null;
 };
 
 export type ReaderMode = "reader" | "inspector";

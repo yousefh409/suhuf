@@ -9,18 +9,49 @@ changes to write it, and the reader changes to render it.
 
 ```
 edit ingestion code  →  python -m ingestion ingest <uri>  \
-  --dump web/data --dry-run --skip-enrich --tashkeel-engine shakkala
+  --dump web/data --dry-run --tashkeel-engine shakkala
                         ↓
-                        web/data/<uri>.{parsed,tashkeeled}.json
+                        web/data/<uri>.{parsed,tashkeeled,enriched}.json
                         ↓
                         refresh /internal/library  →  inspect rendering
 ```
 
-No DB in the dev loop. No Claude API calls (`--skip-enrich`). No upload
-(`--dry-run`). Just: parse → tashkeel → JSON file → render.
+Full pipeline runs: parse → tashkeel → Claude enrichment → JSON files.
+`--dry-run` skips only the Supabase upload (transport, not data shape).
 
-The reader prefers `*.tashkeeled.json` over `*.parsed.json` for the
-same `openiti_id`. Both live under `web/data/` (gitignored).
+Files written, in pipeline order:
+- `<uri>.parsed.json`     — after parse (no diacritics, no enrichment)
+- `<uri>.tashkeeled.json` — after tashkeel
+- `<uri>.enriched.json`   — after Claude enrichment (full output)
+
+The reader picks the highest tier that exists:
+**enriched > tashkeeled > parsed**.
+
+`enriched.json` extends ParseResult with:
+```jsonc
+{
+  "metadata": {...}, "pages": [...], "chapters": [...],
+  "enrichment": {
+    "book":   { title_en, description, genres, composition_date_ah, commentary_on, abridgement_of },
+    "author": { full_name_en, bio_en, birth_ah, death_ah, primary_fields }
+  },
+  "author_data": { /* parsed OpenITI author yml */ }
+}
+```
+
+All three suffixes live under `web/data/` (gitignored).
+
+### Required env
+
+- `ANTHROPIC_API_KEY` — for Claude enrichment. Without it, enrichment
+  fails gracefully (returns `{}`) and the dump still completes; the
+  reader will just show the un-enriched book.
+
+### Skipping stages for fast iteration
+
+If you're iterating on parsing only and don't need tashkeel/enrichment:
+- `python -m ingestion parse <uri> --dump web/data` (parse only)
+- Or add `--tashkeel-engine none --skip-enrich` to skip the slow stages.
 
 ## Where things live
 
