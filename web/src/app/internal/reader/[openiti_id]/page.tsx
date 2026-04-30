@@ -13,6 +13,11 @@ import { PageMarkersToggle } from "@/components/reader/PageMarkersToggle";
 import { ThemeToggle } from "@/components/reader/ThemeToggle";
 import { HadithCardToggle } from "@/components/reader/HadithCardToggle";
 import { ReaderThemeShell } from "@/components/reader/ReaderThemeShell";
+import {
+  ReciteShell,
+  ReciteShellToggle,
+  ReciteShellContent,
+} from "@/components/reader/recite/ReciteShell";
 
 export const dynamic = "force-dynamic";
 
@@ -31,33 +36,52 @@ export default async function ReaderPage({
     getAllPagesForBook(result.book.id),
   ]);
 
+  const TASHKEEL_RE = /[\u064B-\u065F\u0670]/u;
+  const recitable = pages.some((page) =>
+    page.content_blocks.some((b) => {
+      if (b.type === "poetry") {
+        return b.hemistichs
+          .flat()
+          .flat()
+          .some((t) => TASHKEEL_RE.test(t.text));
+      }
+      return b.tokens.some((t) => TASHKEEL_RE.test(t.text));
+    }),
+  );
+  const chapterBlocks = pages.flatMap((p) => p.content_blocks);
+
   return (
     <ReaderThemeShell>
-      <header
-        className="sticky top-0 z-10 backdrop-blur px-4 py-2 flex items-center gap-3 flex-wrap border-b"
-        style={{
-          background: "var(--reader-chrome-bg)",
-          borderColor: "var(--reader-rule)",
-        }}
-      >
-        <Link
-          href="/internal/library"
-          className="text-xs font-mono hover:opacity-80"
-          style={{ color: "var(--reader-fg-muted)" }}
+      <ReciteShell chapterBlocks={chapterBlocks} recitable={recitable}>
+        <header
+          className="sticky top-0 z-10 backdrop-blur px-4 py-2 flex items-center gap-3 flex-wrap border-b"
+          style={{
+            background: "var(--reader-chrome-bg)",
+            borderColor: "var(--reader-rule)",
+          }}
         >
-          ← library
-        </Link>
-        <div className="text-sm" dir="rtl">{result.book.title_ar}</div>
-        <div className="flex-1" />
-        <ChapterDrawer chapters={chapters} pages={pages} />
-        <ThemeToggle />
-        <TashkeelToggle />
-        <PageMarkersToggle />
-        <HadithCardToggle />
-        <ModeToggle mode="reader" />
-      </header>
+          <Link
+            href="/internal/library"
+            className="text-xs font-mono hover:opacity-80"
+            style={{ color: "var(--reader-fg-muted)" }}
+          >
+            ← library
+          </Link>
+          <div className="text-sm" dir="rtl">{result.book.title_ar}</div>
+          <div className="flex-1" />
+          <ChapterDrawer chapters={chapters} pages={pages} />
+          <ThemeToggle />
+          <TashkeelToggle />
+          <PageMarkersToggle />
+          <HadithCardToggle />
+          <ReciteShellToggle />
+          <ModeToggle mode="reader" />
+        </header>
 
-      <ChapterScroll pages={pages} chapters={chapters} mode="reader" />
+        <ReciteShellContent>
+          <ChapterScroll pages={pages} chapters={chapters} mode="reader" />
+        </ReciteShellContent>
+      </ReciteShell>
     </ReaderThemeShell>
   );
 }
