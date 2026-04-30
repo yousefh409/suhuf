@@ -1,10 +1,12 @@
 """Recitation assessment server — serves the UI and scores audio."""
 import asyncio
 import json
+import logging
 import os
 import sys
 import tempfile
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -28,6 +30,16 @@ ALLOWED_ORIGINS = (
 )
 ALLOW_DEBUG = os.getenv("RECITATION_ALLOW_DEBUG") == "1"
 MAX_SESSION_SEC = int(os.getenv("RECITATION_MAX_SESSION_SEC", "600"))
+
+LOG_STREAMING = os.getenv("LOG_STREAMING") == "1"
+log = logging.getLogger("recitation")
+logging.basicConfig(format='{"ts":"%(asctime)s","level":"%(levelname)s","msg":%(message)s}',
+                    level=logging.INFO)
+
+
+def jlog(event: str, **fields):
+    if LOG_STREAMING:
+        log.info(json.dumps({"event": event, **fields}, ensure_ascii=False))
 
 # ── Error classifier (GBM) for low-eff fallback ──
 _error_classifier = None
@@ -831,11 +843,33 @@ async def ws_score(websocket: WebSocket):
     first_score_sent = False
     scoring_lock = asyncio.Lock()
     session_start = time.time()
+    session_id = uuid.uuid4().hex[:8]
+    last_client_msg = time.time()
+    PING_INTERVAL = 30
+    IDLE_TIMEOUT = 60
+
+    jlog("session_start", session_id=session_id, origin=origin, passage_phrases=len(phrases))
+
+    async def pinger():
+        while True:
+            await asyncio.sleep(PING_INTERVAL)
+            try:
+                await websocket.send_json({"type": "ping"})
+            except Exception:
+                break
+
+    ping_task = asyncio.create_task(pinger())
 
     try:
         while True:
             msg = await websocket.receive()
             if msg["type"] == "websocket.disconnect":
+                break
+
+            last_client_msg = time.time()
+
+            # Idle timeout check
+            if time.time() - last_client_msg > IDLE_TIMEOUT:
                 break
 
             # Session cap check
@@ -847,6 +881,10 @@ async def ws_score(websocket: WebSocket):
 
             raw = msg.get("bytes")
             text = msg.get("text")
+
+            # Client pong → noop
+            if text == "pong":
+                continue
 
             # "done" signal from client → final scoring with batch thresholds
             if text == "done":
@@ -911,6 +949,9 @@ async def ws_score(websocket: WebSocket):
                         "matched_phrase_idx": session.cursor_phrase,
                     }
                     await websocket.send_json(resp)
+                    jlog("score_cycle", session_id=session_id,
+                         audio_bytes=session.total_audio_bytes,
+                         cursor=session.cursor_phrase)
                     if log_dir:
                         score_log.append({
                             "type": "streaming",
@@ -927,6 +968,9 @@ async def ws_score(websocket: WebSocket):
         except Exception:
             pass
     finally:
+        ping_task.cancel()
+        jlog("session_end", session_id=session_id,
+             duration_sec=int(time.time() - session_start))
         if audio_log:
             audio_log.close()
         if log_dir and score_log:
