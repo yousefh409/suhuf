@@ -14,16 +14,6 @@ export const PACKAGES = [
     ],
   },
   {
-    name: "reader",
-    path: "reader",
-    prefix: "reader/",
-    kind: "node",
-    steps: [
-      { kind: "typecheck", cmd: "npx tsc --noEmit" },
-      { kind: "test",      cmd: "npm test -- --passWithNoTests" },
-    ],
-  },
-  {
     name: "ingestion",
     path: "ingestion",
     prefix: "ingestion/",

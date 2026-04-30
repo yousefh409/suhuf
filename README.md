@@ -1,6 +1,6 @@
 # Suhuf
 
-Suhuf is a reading and recitation platform for classical Arabic and Islamic texts. It combines a catalog of fully-diacritized books, an offline-first reader with word-level i'rab analysis, and a live read-along engine that corrects mistakes in tashkeel, i'rab, and wrong words as a student reads aloud.
+Suhuf is a reading and recitation platform for classical Arabic and Islamic texts. It combines a catalog of fully-diacritized books with a live read-along engine that corrects mistakes in tashkeel, i'rab, and wrong words as a student reads aloud.
 
 Think Tarteel, but for any Arabic text — not just Quran.
 
@@ -9,13 +9,11 @@ Think Tarteel, but for any Arabic text — not just Quran.
 | Package | Stack | Purpose |
 |---|---|---|
 | [`web/`](web) | Next.js 16, React 19, Tailwind, Cloudflare (OpenNext) | Marketing site + future web surfaces. |
-| [`reader/`](reader) | Expo SDK 54, Expo Router v6, TypeScript, Supabase, SQLite | Universal iOS reader app for classical Arabic texts. Offline-first — books download to local SQLite and read without a connection. Tap any word to see its **English translation, i'rab (grammatical case), and morphological breakdown**, generated on-demand by Claude via a Supabase Edge Function and cached for offline reuse. |
 | [`ingestion/`](ingestion) | Python | Pipeline that parses OpenITI mARkdown → adds tashkeel (Mishkal/Shakkala) → AI enrichment → uploads to Supabase. |
 | [`recitation/`](recitation) | Python, PyTorch, FastAPI | Live read-along engine built on a fine-tuned XLS-R 300M CTC model (`models/ssl_xls_r_v5/`). Scores audio against known diacritized text to flag wrong words, i'rab errors, and tashkeel errors. |
 | [`supabase/`](supabase) | SQL | Schema and migrations for the shared backend. |
 | [`scripts/suhuf/`](scripts/suhuf) | Node | Internal shipping CLI (see below). |
 
-Reader technical spec: [`reader/TECHNICAL_SPEC.md`](reader/TECHNICAL_SPEC.md).
 Recitation product brief: [`recitation/ONE-PAGER.md`](recitation/ONE-PAGER.md).
 Longer-form docs: [`docs/`](docs).
 
@@ -42,7 +40,6 @@ suhuf sync-worktrees          Rebase every non-current worktree onto origin/main
 Per-package steps are declared in [`scripts/suhuf/src/lib/packages.mjs`](scripts/suhuf/src/lib/packages.mjs):
 
 - `web/` — `npm run lint`, `tsc --noEmit`, `npm run build`
-- `reader/` — `tsc --noEmit`, `jest`
 - `ingestion/` — `python -m compileall`, `pytest --co`
 - `recitation/` — `python -m compileall`, `pytest --co`
 
@@ -53,9 +50,6 @@ Python packages tolerate `pytest` exit code 5 (no tests collected) until real te
 ```bash
 # Web
 cd web && npm install && npm run dev
-
-# Reader
-cd reader && npm install && npm start
 
 # Ingestion / recitation
 cd ingestion    # or recitation
