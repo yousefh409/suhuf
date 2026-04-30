@@ -47,6 +47,9 @@ export type Chapter = {
   volume: number;
   sort_order: number;
   synthesized?: boolean;
+  // Index of the heading block within its page's content_blocks; lets the
+  // reader split a single physical page that contains several chapter starts.
+  block_index?: number | null;
 };
 
 export type Author = {

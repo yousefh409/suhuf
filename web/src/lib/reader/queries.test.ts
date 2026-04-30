@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { synthesizeChapters, pagesInChapter } from "./queries";
-import type { Chapter, Page } from "./types";
+import { synthesizeChapters, chapterAnchorMap } from "./queries";
+import type { Chapter } from "./types";
 
 describe("synthesizeChapters", () => {
   it("returns real chapters unchanged when present", () => {
@@ -52,50 +52,30 @@ describe("synthesizeChapters", () => {
   });
 });
 
-describe("pagesInChapter", () => {
-  const mkPage = (volume: number, page_number: number): Page => ({
-    volume,
-    page_number,
-    content_blocks: [],
+describe("chapterAnchorMap", () => {
+  it("indexes real chapters by (page_number, block_index) → sort_order", () => {
+    const chapters: Chapter[] = [
+      { title: "A", level: 1, page_number: 5, volume: 1, sort_order: 1, block_index: 0 },
+      { title: "B", level: 1, page_number: 5, volume: 1, sort_order: 2, block_index: 4 },
+      { title: "C", level: 1, page_number: 7, volume: 1, sort_order: 3, block_index: 0 },
+    ];
+    const map = chapterAnchorMap(chapters);
+    expect(map.get(5)?.get(0)).toBe(1);
+    expect(map.get(5)?.get(4)).toBe(2);
+    expect(map.get(7)?.get(0)).toBe(3);
   });
 
-  it("returns only the volume's pages for a synthesized chapter", () => {
-    const all = [mkPage(1, 1), mkPage(1, 2), mkPage(2, 1), mkPage(2, 2)];
-    const ch: Chapter = {
-      title: "Volume 2",
-      level: 0,
-      page_number: 1,
-      volume: 2,
-      sort_order: 2,
-      synthesized: true,
-    };
-    const next: Chapter = {
-      title: "Volume 3",
-      level: 0,
-      page_number: 1,
-      volume: 3,
-      sort_order: 3,
-      synthesized: true,
-    };
-    expect(pagesInChapter(all, ch, next)).toEqual([mkPage(2, 1), mkPage(2, 2)]);
+  it("skips synthesized chapters (no real heading block to anchor)", () => {
+    const chapters: Chapter[] = [
+      { title: "Volume 1", level: 0, page_number: 1, volume: 1, sort_order: 1, synthesized: true },
+    ];
+    expect(chapterAnchorMap(chapters).size).toBe(0);
   });
 
-  it("slices real chapter by [start, next.start) on the same volume", () => {
-    const all = [mkPage(1, 1), mkPage(1, 2), mkPage(1, 3), mkPage(1, 4)];
-    const ch: Chapter = { title: "A", level: 1, page_number: 1, volume: 1, sort_order: 1 };
-    const next: Chapter = { title: "B", level: 1, page_number: 3, volume: 1, sort_order: 2 };
-    expect(pagesInChapter(all, ch, next)).toEqual([mkPage(1, 1), mkPage(1, 2)]);
-  });
-
-  it("returns all pages from start to end when nextChapter is null", () => {
-    const all = [mkPage(1, 1), mkPage(1, 2), mkPage(1, 3)];
-    const ch: Chapter = { title: "A", level: 1, page_number: 2, volume: 1, sort_order: 1 };
-    expect(pagesInChapter(all, ch, null)).toEqual([mkPage(1, 2), mkPage(1, 3)]);
-  });
-
-  it("respects volume boundary on real chapter — does not bleed into next volume", () => {
-    const all = [mkPage(1, 1), mkPage(1, 2), mkPage(2, 1)];
-    const ch: Chapter = { title: "A", level: 1, page_number: 1, volume: 1, sort_order: 1 };
-    expect(pagesInChapter(all, ch, null)).toEqual([mkPage(1, 1), mkPage(1, 2)]);
+  it("skips chapters without block_index (older dumps)", () => {
+    const chapters: Chapter[] = [
+      { title: "Legacy", level: 1, page_number: 5, volume: 1, sort_order: 1 },
+    ];
+    expect(chapterAnchorMap(chapters).size).toBe(0);
   });
 });

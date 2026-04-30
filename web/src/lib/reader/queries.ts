@@ -45,33 +45,26 @@ export function synthesizeChapters(
     }));
 }
 
-/** Filter all pages of a book to those that belong to the given chapter.
- *  - Synthesized chapter: one volume == one chapter, return all of that volume.
- *  - Real chapter: return same-volume pages with page_number in
- *    [chapter.page_number, nextChapter.page_number) on the same volume.
- *    If nextChapter is null, return through end of that volume.
- *    Real chapters spanning volumes are out of scope for v1; we cut at the
- *    volume boundary. */
-export function pagesInChapter(
-  allPages: Page[],
-  chapter: Chapter,
-  nextChapter: Chapter | null,
-): Page[] {
-  if (chapter.synthesized) {
-    return allPages.filter((p) => p.volume === chapter.volume);
-  }
-  return allPages.filter((p) => {
-    if (p.volume !== chapter.volume) return false;
-    if (p.page_number < chapter.page_number) return false;
-    if (
-      nextChapter &&
-      nextChapter.volume === chapter.volume &&
-      p.page_number >= nextChapter.page_number
-    ) {
-      return false;
+/** Build a lookup so the renderer can stamp chapter anchors on heading
+ *  blocks without scanning the chapter list per block.
+ *  Map shape: page_number → block_index → sort_order.
+ *  Synthesized chapters are skipped — they have no real heading block to
+ *  anchor onto (volume markers, not in-text headings). */
+export function chapterAnchorMap(
+  chapters: Chapter[],
+): Map<number, Map<number, number>> {
+  const out = new Map<number, Map<number, number>>();
+  for (const c of chapters) {
+    if (c.synthesized) continue;
+    if (typeof c.block_index !== "number") continue;
+    let inner = out.get(c.page_number);
+    if (!inner) {
+      inner = new Map();
+      out.set(c.page_number, inner);
     }
-    return true;
-  });
+    inner.set(c.block_index, c.sort_order);
+  }
+  return out;
 }
 
 // ---------- local file loading ----------
@@ -82,6 +75,7 @@ type RawChapter = {
   page_number: number;
   sort_order: number;
   parent_index?: number | null;
+  block_index?: number | null;
 };
 
 type EnrichedBookData = {
@@ -271,6 +265,7 @@ export async function getEffectiveChapters(bookId: string): Promise<Chapter[]> {
     page_number: c.page_number,
     volume: 1,
     sort_order: c.sort_order,
+    block_index: c.block_index ?? null,
   }));
 
   const pageRanges: PageRange[] = data.pages.map((p) => ({

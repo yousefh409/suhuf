@@ -11,6 +11,10 @@ _HEADING_RE = re.compile(r"^###\s+(\|+)\s+(.*)")
 _EDITOR_RE = re.compile(r"^###\s+\|EDITOR\|")
 _HADITH_RE = re.compile(r"^\$RWY\$\s*(.*)")
 _BIO_RE = re.compile(r"^###\s+\$(?:BIO_MAN|BIO_WOM|\$?)\$?\s*(.*)")
+# OpenITI milestone tokens (msNN) split each printed page into ~300-word chunks
+# for the project's NLP alignment tooling. They have no meaning for human
+# readers; strip them inline before tokenization.
+_MILESTONE_RE = re.compile(r"\bms\d+\b")
 
 
 def _tokenize(text: str, page_num: int, block_idx: int) -> list[Token]:
@@ -67,7 +71,10 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
         """Process a complete content line (after stripping prefix and joining continuations)."""
         nonlocal in_hadith, hadith_words, chapter_sort
 
-        if not line_text.strip():
+        # Drop OpenITI milestone markers (msNN); they are tooling artifacts, not text.
+        line_text = _MILESTONE_RE.sub("", line_text)
+        line_text = re.sub(r"\s{2,}", " ", line_text).strip()
+        if not line_text:
             return
 
         # Editor lines - skip
@@ -89,6 +96,7 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
                 level=level,
                 page_number=current_page_num,
                 sort_order=chapter_sort,
+                block_index=block_idx,
             ))
             return
 

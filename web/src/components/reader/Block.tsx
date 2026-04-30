@@ -8,13 +8,20 @@ type Props = {
   mode: ReaderMode;
   showTashkeel: boolean;
   showDiff: boolean;
+  // When set, this block hosts a chapter anchor; the wrapper gets the id and
+  // a scroll-mt offset so deep links land below the sticky header.
+  anchorId?: string;
 };
 
-export function Block({ block, pageNumber, mode, showTashkeel, showDiff }: Props) {
+export function Block({ block, pageNumber, mode, showTashkeel, showDiff, anchorId }: Props) {
   const inner = renderInner(block, mode, showTashkeel, showDiff);
 
   if (mode === "reader") {
-    return <div data-block-key={block.key}>{inner}</div>;
+    return (
+      <div data-block-key={block.key} id={anchorId} className={anchorId ? "scroll-mt-16" : undefined}>
+        {inner}
+      </div>
+    );
   }
 
   // Inspector: add bordered wrapper + badge
@@ -22,7 +29,8 @@ export function Block({ block, pageNumber, mode, showTashkeel, showDiff }: Props
     <div
       data-block-key={block.key}
       data-block-type={block.type}
-      className={`relative my-3 border-r-2 pr-3 ${BLOCK_BORDER[block.type]}`}
+      id={anchorId}
+      className={`relative my-3 border-r-2 pr-3 ${BLOCK_BORDER[block.type]} ${anchorId ? "scroll-mt-16" : ""}`}
     >
       <span
         className={`absolute -left-2 -top-3 px-1.5 py-0.5 rounded text-[10px] font-mono ${BLOCK_BADGE[block.type]}`}
