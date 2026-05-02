@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { synthesizeChapters, chapterAnchorMap } from "./queries";
-import type { Chapter } from "./types";
+import { synthesizeChapters, chapterAnchorMap, hasTashkeel } from "./queries";
+import type { Chapter, Page } from "./types";
 
 describe("synthesizeChapters", () => {
   it("returns real chapters unchanged when present", () => {
@@ -77,5 +77,59 @@ describe("chapterAnchorMap", () => {
       { title: "Legacy", level: 1, page_number: 5, volume: 1, sort_order: 1 },
     ];
     expect(chapterAnchorMap(chapters).size).toBe(0);
+  });
+});
+
+describe("hasTashkeel", () => {
+  const pageWith = (text: string): Page => ({
+    volume: 1,
+    page_number: 1,
+    content_blocks: [{
+      type: "prose",
+      key: "b0",
+      tokens: [{ id: "t0", text }],
+    }],
+  });
+
+  it("returns true when any token has a diacritic codepoint", () => {
+    expect(hasTashkeel([pageWith("أَحْمَدُهُ")])).toBe(true);
+  });
+
+  it("returns false when no token has diacritics", () => {
+    expect(hasTashkeel([pageWith("أحمده")])).toBe(false);
+  });
+
+  it("returns false on empty input", () => {
+    expect(hasTashkeel([])).toBe(false);
+  });
+
+  it("scans poetry hemistichs", () => {
+    const poetry: Page = {
+      volume: 1,
+      page_number: 1,
+      content_blocks: [{
+        type: "poetry",
+        key: "p0",
+        hemistichs: [[
+          [{ id: "a", text: "بَيْتٌ" }, { id: "b", text: "أَوَّلُ" }],
+          [{ id: "c", text: "ثَانٍ" }],
+        ]],
+      }],
+    };
+    expect(hasTashkeel([poetry])).toBe(true);
+  });
+
+  it("respects the sample budget (returns false after N tokens)", () => {
+    const undiac = "أحمده";
+    const pages: Page[] = [{
+      volume: 1,
+      page_number: 1,
+      content_blocks: [{
+        type: "prose",
+        key: "b0",
+        tokens: Array.from({ length: 50 }, (_, i) => ({ id: `t${i}`, text: undiac })),
+      }],
+    }];
+    expect(hasTashkeel(pages, 5)).toBe(false);
   });
 });
