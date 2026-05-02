@@ -17,6 +17,30 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
+_TASHKEEL_RE = __import__("re").compile(r"[\u064B-\u065F\u0670]")
+
+
+def _pages_have_tashkeel(result, sample_budget: int = 100) -> bool:
+    """Sample tokens until we find a diacritic or exhaust the budget."""
+    sampled = 0
+    for page in result.pages:
+        for block in page.content_blocks:
+            tokens = []
+            if block.type == "poetry":
+                for verse in block.hemistichs:
+                    for hemistich in verse:
+                        tokens.extend(hemistich)
+            else:
+                tokens = block.tokens
+            for t in tokens:
+                if _TASHKEEL_RE.search(t.text):
+                    return True
+                sampled += 1
+                if sampled >= sample_budget:
+                    return False
+    return False
+
+
 def _ingest_one(uri: str, args, engine, client):
     """Run the full pipeline for a single book."""
     import json
@@ -47,6 +71,15 @@ def _ingest_one(uri: str, args, engine, client):
     if engine:
         result.pages = diacritize_blocks(result.pages, engine)
         logger.info("Tashkeel complete")
+
+        if not _pages_have_tashkeel(result):
+            # Engine ran but produced no diacritics. Loud warning so the
+            # operator notices — a tashkeel-less enriched.json silently
+            # shadows a good prior tashkeeled.json on the reader side.
+            logger.warning(
+                "Tashkeel engine ran but no diacritics were added. "
+                "The enriched.json dump will be missing tashkeel."
+            )
 
         if args.dump:
             dump_dir = Path(args.dump)

@@ -39,15 +39,26 @@ export function ReciteToggle({ onStart, onStop, disabled, isActive }: Props) {
 
   const handle = () => {
     if (disabled) return;
-    if (isActive) onStop();
-    else if (topVisibleKey) onStart(topVisibleKey);
+    if (isActive) {
+      onStop();
+      return;
+    }
+    // Prefer the topmost block visible in the viewport. If the
+    // IntersectionObserver hasn't fired yet (initial render, very short
+    // chapter, headless viewport), fall back to the first block on the
+    // page so the user can still start.
+    const anchor =
+      topVisibleKey ??
+      (document.querySelector("[data-block-key]") as HTMLElement | null)?.dataset
+        .blockKey;
+    if (anchor) onStart(anchor);
   };
 
   return (
     <button
       type="button"
       onClick={handle}
-      disabled={disabled || (!isActive && !topVisibleKey)}
+      disabled={disabled}
       className={`text-xs px-2 py-1 rounded font-mono ${
         isActive
           ? "bg-red-100 text-red-800 animate-pulse"

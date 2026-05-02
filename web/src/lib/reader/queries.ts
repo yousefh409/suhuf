@@ -132,6 +132,26 @@ type LocalBookFile = {
 
 type LoadTier = "enriched" | "annotated" | "tashkeeled" | "parsed";
 
+const TASHKEEL_RE = /[\u064B-\u065F\u0670]/u;
+
+/** Sample tokens until we find tashkeel or hit a budget. */
+export function hasTashkeel(pages: Page[], budget = 100): boolean {
+  let sampled = 0;
+  for (const page of pages) {
+    for (const block of page.content_blocks) {
+      const tokens =
+        block.type === "poetry"
+          ? block.hemistichs.flat().flat()
+          : block.tokens;
+      for (const t of tokens) {
+        if (TASHKEEL_RE.test(t.text)) return true;
+        if (++sampled >= budget) return false;
+      }
+    }
+  }
+  return false;
+}
+
 async function readFileIfExists(p: string): Promise<string | null> {
   try {
     return await fs.readFile(p, "utf-8");
@@ -144,15 +164,44 @@ async function readFileIfExists(p: string): Promise<string | null> {
 const _loadBookFile = cache(async (
   openitiId: string,
 ): Promise<{ data: LocalBookFile; tier: LoadTier } | null> => {
-  const tiers: { suffix: string; tier: LoadTier }[] = [
-    { suffix: ".enriched.json", tier: "enriched" },
-    { suffix: ".annotated.json", tier: "annotated" },
-    { suffix: ".tashkeeled.json", tier: "tashkeeled" },
-    { suffix: ".parsed.json", tier: "parsed" },
-  ];
-  for (const { suffix, tier } of tiers) {
-    const raw = await readFileIfExists(path.join(DATA_DIR, `${openitiId}${suffix}`));
-    if (raw) return { data: JSON.parse(raw) as LocalBookFile, tier };
+  // Read all tiers in parallel; missing files just return null.
+  const [enrichedRaw, annotatedRaw, tashkeeledRaw, parsedRaw] = await Promise.all([
+    readFileIfExists(path.join(DATA_DIR, `${openitiId}.enriched.json`)),
+    readFileIfExists(path.join(DATA_DIR, `${openitiId}.annotated.json`)),
+    readFileIfExists(path.join(DATA_DIR, `${openitiId}.tashkeeled.json`)),
+    readFileIfExists(path.join(DATA_DIR, `${openitiId}.parsed.json`)),
+  ]);
+
+  // Defense: a higher-tier file from a run where tashkeel was skipped
+  // (no engine, or engine failed) silently shadows a good lower-tier
+  // file with diacritics. If the chosen tier is missing tashkeel, splice
+  // pages from the highest lower tier that has it — we keep the higher
+  // tier's metadata *and* the diacritics.
+  const lowerRawsWithTashkeel = [annotatedRaw, tashkeeledRaw];
+  const trySplice = (data: LocalBookFile): LocalBookFile => {
+    if (hasTashkeel(data.pages)) return data;
+    for (const lowerRaw of lowerRawsWithTashkeel) {
+      if (!lowerRaw) continue;
+      const lower = JSON.parse(lowerRaw) as LocalBookFile;
+      if (hasTashkeel(lower.pages)) {
+        data.pages = lower.pages;
+        return data;
+      }
+    }
+    return data;
+  };
+
+  if (enrichedRaw) {
+    return { data: trySplice(JSON.parse(enrichedRaw) as LocalBookFile), tier: "enriched" };
+  }
+  if (annotatedRaw) {
+    return { data: trySplice(JSON.parse(annotatedRaw) as LocalBookFile), tier: "annotated" };
+  }
+  if (tashkeeledRaw) {
+    return { data: JSON.parse(tashkeeledRaw) as LocalBookFile, tier: "tashkeeled" };
+  }
+  if (parsedRaw) {
+    return { data: JSON.parse(parsedRaw) as LocalBookFile, tier: "parsed" };
   }
   return null;
 });
@@ -192,7 +241,7 @@ export async function listBooks(): Promise<BookListItem[]> {
   for (const id of ids) {
     const loaded = await _loadBookFile(id);
     if (!loaded) continue;
-    const { data, tier } = loaded;
+    const { data } = loaded;
     const enrichedBook = data.enrichment?.book ?? {};
     const enrichedAuthor = data.enrichment?.author ?? {};
     items.push({
@@ -204,7 +253,7 @@ export async function listBooks(): Promise<BookListItem[]> {
       genres: enrichedBook.genres ?? data.metadata.genres ?? null,
       total_pages: data.pages.length,
       total_volumes: maxVolume(data.pages),
-      has_tashkeel: tier === "enriched" || tier === "annotated" || tier === "tashkeeled",
+      has_tashkeel: hasTashkeel(data.pages),
       author_name_ar: authorDisplayAr(data) ?? data.metadata.author_openiti_id,
       author_name_en: enrichedAuthor.full_name_en ?? null,
     });
@@ -217,7 +266,7 @@ export async function getBook(
 ): Promise<{ book: Book; author: Author | null } | null> {
   const loaded = await _loadBookFile(openitiId);
   if (!loaded) return null;
-  const { data, tier } = loaded;
+  const { data } = loaded;
   const enrichedBook = data.enrichment?.book ?? {};
   const enrichedAuthor = data.enrichment?.author ?? {};
   const yml = data.author_data ?? {};
@@ -235,7 +284,7 @@ export async function getBook(
     abridgement_of: enrichedBook.abridgement_of ?? null,
     total_pages: data.pages.length,
     total_volumes: maxVolume(data.pages),
-    has_tashkeel: tier === "enriched" || tier === "annotated" || tier === "tashkeeled",
+    has_tashkeel: hasTashkeel(data.pages),
     language: data.metadata.language ?? null,
     author_id: data.metadata.author_openiti_id,
   };
