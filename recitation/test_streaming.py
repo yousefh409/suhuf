@@ -17,6 +17,13 @@ import tempfile
 import time
 from pathlib import Path
 
+import pytest
+
+# TTS + numpy + websockets — skip cleanly under CI's slim env.
+pytest.importorskip("edge_tts")
+pytest.importorskip("numpy")
+pytest.importorskip("websockets")
+
 import edge_tts
 import numpy as np
 import websockets

@@ -4,6 +4,11 @@
 import sys, json
 from pathlib import Path
 
+import pytest
+
+# engine imports torch + numpy. Skip cleanly under CI's slim env.
+pytest.importorskip("torch")
+
 # Run from recitation/ dir
 BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
