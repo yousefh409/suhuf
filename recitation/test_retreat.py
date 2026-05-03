@@ -12,6 +12,12 @@ blocks — no real model needed.
 """
 import sys
 from pathlib import Path
+
+import pytest
+
+# engine imports torch + numpy. Skip cleanly under CI's slim env.
+pytest.importorskip("torch")
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 from engine import StreamingSession

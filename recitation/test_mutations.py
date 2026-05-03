@@ -13,6 +13,13 @@ because the audio doesn't match the mutated text.
 import sys
 import json
 import random
+
+import pytest
+
+# Heavy deps — skip cleanly under CI's slim env where they aren't installed.
+pytest.importorskip("numpy")
+pytest.importorskip("torch")
+
 import numpy as np
 import torch
 from pathlib import Path

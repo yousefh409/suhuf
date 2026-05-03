@@ -1,7 +1,10 @@
 """Unit tests for parse_ws_init — inline passage and passage_id forms."""
 import pytest
 
-# Import will fail until parse_ws_init is defined in server.py
+# server transitively imports torch via engine. Skip cleanly under CI's
+# slim env where torch isn't installed.
+pytest.importorskip("torch")
+
 from server import parse_ws_init
 
 
