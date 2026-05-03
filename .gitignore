@@ -33,8 +33,9 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 
-# Models & large files (entire directory — multi-GB weights)
+# Models & large files (entire directory — multi-GB weights, or a dev symlink)
 recitation/models/
+recitation/models
 
 # TTS synthesis cache (600MB+)
 recitation/.tts_cache/
