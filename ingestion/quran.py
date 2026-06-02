@@ -19,7 +19,6 @@ import json
 import re
 import unicodedata
 from pathlib import Path
-from typing import Optional
 
 # ---------------------------------------------------------------------------
 # Normalization
@@ -43,6 +42,10 @@ def normalize(text: str) -> str:
     - U+0671 alef wasla (ٱ) → ا
     - U+06E1 Uthmani sukun (ۡ) → removed
     - U+0670 superscript alef (ٰ) → ا  (marks long-vowel alef in Uthmani spelling)
+
+    Stripping scope: all characters outside the Arabic Unicode block (U+0600–U+06FF)
+    and outside ASCII/Unicode whitespace are removed. This means Latin letters,
+    digits, and punctuation are stripped entirely, not transliterated.
     """
     text = unicodedata.normalize("NFC", text)
     # Uthmani-specific: alef wasla → alef, Uthmani sukun → removed
@@ -64,6 +67,9 @@ def normalize(text: str) -> str:
 
 _DATA_FILE = Path(__file__).parent / "data" / "quran.json"
 
+if not _DATA_FILE.exists():
+    raise FileNotFoundError(f"Quran data file not found: {_DATA_FILE}")
+
 with _DATA_FILE.open(encoding="utf-8") as _f:
     _raw = json.load(_f)
 
@@ -83,7 +89,7 @@ for _norm, _s, _a in _ayat_list:
 # Lookup
 # ---------------------------------------------------------------------------
 
-def lookup(quote: str) -> Optional[tuple[int, int]]:
+def lookup(quote: str) -> tuple[int, int] | None:
     """Resolve *quote* to (sura, ayah), or None if not found / ambiguous.
 
     Priority:
