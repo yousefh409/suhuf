@@ -74,3 +74,6 @@ ingestion/output/
 .claude/plans/
 .claude/scheduled_tasks.lock
 .claude/launch.json
+
+# Visual brainstorming scratch
+.superpowers/
