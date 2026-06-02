@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from anthropic import Anthropic
 
+from ingestion._client import create_client, parse_json_response
 from ingestion.models import Block, Span, ParseResult, Token
 
 logger = logging.getLogger(__name__)
@@ -174,18 +175,6 @@ def _chunk(items: list, size: int) -> list[list]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
-def _parse_response(text: str) -> dict:
-    text = text.strip()
-    if text.startswith("```"):
-        lines = [l for l in text.split("\n") if not l.strip().startswith("```")]
-        text = "\n".join(lines)
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as e:
-        logger.warning(f"Annotation JSON parse failed: {e}; first 200 chars: {text[:200]}")
-        return {}
-
-
 def _apply_block_annotation(block: Block, ann: dict) -> tuple[bool, int, int]:
     """Mutate block in place from one annotation dict.
 
@@ -244,11 +233,6 @@ def _apply_block_annotation(block: Block, ann: dict) -> tuple[bool, int, int]:
     flag_count = len(block.flags)
 
     return relabeled, span_count, flag_count
-
-
-def create_client() -> "Anthropic":
-    from anthropic import Anthropic
-    return Anthropic()
 
 
 def annotate_book(
@@ -318,7 +302,7 @@ def annotate_book(
             pass
 
         body = response.content[0].text if response.content else ""
-        parsed = _parse_response(body)
+        parsed = parse_json_response(body)
         annotations = parsed.get("blocks") or []
 
         applied_keys: set[str] = set()

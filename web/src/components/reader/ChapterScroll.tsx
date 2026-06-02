@@ -2,6 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Block as BlockT, Chapter, Page, ReaderMode } from "@/lib/reader/types";
+import { chapterAnchorMap } from "@/lib/reader/chapters";
+import {
+  TASHKEEL_KEY,
+  DIFF_KEY,
+  PAGE_MARKERS_KEY,
+  HADITH_CARD_KEY,
+} from "@/lib/reader/storageKeys";
 import { Block } from "./Block";
 import { PageBoundary } from "./PageBoundary";
 
@@ -10,31 +17,6 @@ type Props = {
   chapters: Chapter[];
   mode: ReaderMode;
 };
-
-// page_number → block_index → chapter sort_order. Lets the renderer stamp
-// `id="h-<sort_order>"` on the right heading block in O(1) without scanning
-// the chapter list for each block.
-function buildChapterAnchorMap(
-  chapters: Chapter[],
-): Map<number, Map<number, number>> {
-  const out = new Map<number, Map<number, number>>();
-  for (const c of chapters) {
-    if (c.synthesized) continue;
-    if (typeof c.block_index !== "number") continue;
-    let inner = out.get(c.page_number);
-    if (!inner) {
-      inner = new Map();
-      out.set(c.page_number, inner);
-    }
-    inner.set(c.block_index, c.sort_order);
-  }
-  return out;
-}
-
-const TASHKEEL_KEY = "suhuf.reader.tashkeel";
-const DIFF_KEY = "suhuf.reader.diff";
-const PAGE_MARKERS_KEY = "suhuf.reader.pageMarkers";
-const HADITH_CARD_KEY = "suhuf.reader.hadithCard";
 
 type RenderItem =
   | { kind: "block"; block: BlockT; blockIdx: number }
@@ -81,7 +63,7 @@ export function ChapterScroll({ pages, chapters, mode }: Props) {
   const [showDiff, setShowDiff] = useState(false);
   const [showPageMarkers, setShowPageMarkers] = useState(true);
   const [hadithCard, setHadithCard] = useState(false);
-  const anchors = useMemo(() => buildChapterAnchorMap(chapters), [chapters]);
+  const anchors = useMemo(() => chapterAnchorMap(chapters), [chapters]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

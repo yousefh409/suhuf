@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ArrowUp, Mic, BookOpen, Languages, ChevronRight, X } from "lucide-react";
+import { getReferralFromCookie } from "@/lib/referral";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 32 },
@@ -47,12 +48,6 @@ const upcomingFeatures = [
     description: "Bring any Arabic text \u2014 upload your own PDF or paste text to read with full suhuf features.",
   },
 ];
-
-function getReferralFromCookie(): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie.match(/suhuf_ref=([^;]+)/);
-  return match ? match[1] : null;
-}
 
 export default function Features() {
   const [votedFeatures, setVotedFeatures] = useState<Set<string>>(new Set());

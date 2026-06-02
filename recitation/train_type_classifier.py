@@ -37,7 +37,6 @@ def extract_features(s):
     feats = []
     for k in FEATURE_KEYS:
         if k == "i3rab_delta":
-            eff = s.get("eff", 0)
             alt_delta = s.get("i3rab_delta")
             feats.append(safe(alt_delta))
         elif k == "tash_delta":

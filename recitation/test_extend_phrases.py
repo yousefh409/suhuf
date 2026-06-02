@@ -1,6 +1,5 @@
 """Unit tests for StreamingSession.extend_phrases and the append_phrases WS routing."""
 import json
-import pytest
 
 # ---------------------------------------------------------------------------
 # Minimal fake engine — no model load required

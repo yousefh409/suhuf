@@ -7,7 +7,6 @@ is already known (which it would be in production by the time words are scored).
 """
 
 import sys, json, time, re
-import numpy as np
 import torch
 from pathlib import Path
 
@@ -16,7 +15,6 @@ sys.path.insert(0, str(BASE))
 
 from engine import RecitationEngine, StreamingSession
 from server import classify_words
-from arabic import strip_diacritics
 
 MODEL_PATH = BASE / "models" / "ssl_xls_r_v5"
 PASSAGES_FILE = BASE / "passage.json"

@@ -12,7 +12,7 @@ import json
 import numpy as np
 from pathlib import Path
 
-from arabic import FATHA, DAMMA, KASRA, FATHATAN, DAMMATAN, KASRATAN, SUKOON, HARAKAT, SHADDA
+from arabic import FATHA, DAMMA, KASRA, FATHATAN, DAMMATAN, KASRATAN
 
 # Layers to extract (0-indexed from hidden_states tuple, where 0=embedding)
 MIX_LAYERS = [14, 16, 18]

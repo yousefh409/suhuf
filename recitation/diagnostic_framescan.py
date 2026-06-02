@@ -13,14 +13,12 @@ from pathlib import Path
 BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
 
-from engine import RecitationEngine, StreamingSession
-from server import classify_words
+from engine import RecitationEngine
 from arabic import strip_diacritics
 from test_mutations import (
     find_best_sessions, _extract_phrase_segments,
     mutate_i3rab, mutate_tashkeel, mutate_word,
     _score_phrase_with_whisper,
-    SAMPLE_RATE,
 )
 
 MODEL_PATH = BASE / "models" / "ssl_xls_r_v5"

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const KEY = "suhuf.reader.pageMarkers";
+import { PAGE_MARKERS_KEY as KEY } from "@/lib/reader/storageKeys";
 
 export function PageMarkersToggle() {
   const [on, setOn] = useState(true);

@@ -2,21 +2,17 @@
 """Check impact of tightening rules to fix specific FPs."""
 import sys
 import random
-import numpy as np
 import torch
 from pathlib import Path
-from collections import defaultdict
 
 BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
 
 from engine import RecitationEngine, StreamingSession
-from server import classify_words
 from arabic import strip_diacritics
 from test_mutations import (
     find_best_sessions, _extract_phrase_segments,
     mutate_i3rab, mutate_tashkeel, mutate_word,
-    _score_phrase_with_whisper,
     SAMPLE_RATE,
 )
 

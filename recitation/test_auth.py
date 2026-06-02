@@ -1,4 +1,3 @@
-import time
 from auth import sign, verify
 
 

@@ -11,7 +11,6 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-import torch
 
 from fastapi import FastAPI, File, Form, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse

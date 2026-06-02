@@ -13,7 +13,7 @@ from arabic import (
     FATHA, DAMMA, KASRA, FATHATAN, DAMMATAN, KASRATAN,
     make_sukoon_variant, generate_i3rab_alternatives,
     generate_tashkeel_alternatives,
-    get_final_diacritic, replace_final_diacritic, strip_diacritics,
+    get_final_diacritic, strip_diacritics,
 )
 
 # Diacritic comparison groups for per-char analysis
@@ -1536,7 +1536,6 @@ class RecitationEngine:
         T = log_probs.shape[0]
 
         # Build a map from phrase_idx -> global word offset
-        all_words = full_text.split()
         phrase_offsets = []  # (global_start_word_idx, phrase_text)
         offset = 0
         for ph in phrases:

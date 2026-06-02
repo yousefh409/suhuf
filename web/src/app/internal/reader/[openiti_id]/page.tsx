@@ -4,6 +4,7 @@ import {
   getBook,
   getEffectiveChapters,
   getAllPagesForBook,
+  hasTashkeel,
 } from "@/lib/reader/queries";
 import { ChapterScroll } from "@/components/reader/ChapterScroll";
 import { ChapterDrawer } from "@/components/reader/ChapterDrawer";
@@ -36,18 +37,7 @@ export default async function ReaderPage({
     getAllPagesForBook(result.book.id),
   ]);
 
-  const TASHKEEL_RE = /[\u064B-\u065F\u0670]/u;
-  const recitable = pages.some((page) =>
-    page.content_blocks.some((b) => {
-      if (b.type === "poetry") {
-        return b.hemistichs
-          .flat()
-          .flat()
-          .some((t) => TASHKEEL_RE.test(t.text));
-      }
-      return b.tokens.some((t) => TASHKEEL_RE.test(t.text));
-    }),
-  );
+  const recitable = hasTashkeel(pages, Number.POSITIVE_INFINITY);
   const chapterBlocks = pages.flatMap((p) => p.content_blocks);
 
   return (

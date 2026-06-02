@@ -54,6 +54,9 @@ recitation/samples/
 recitation/eval_recall_results.json
 recitation/eval_clartts_results.json
 
+# Supabase CLI local state
+supabase/.temp/
+
 # Playwright
 .playwright-mcp/
 

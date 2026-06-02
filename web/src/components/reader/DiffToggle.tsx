@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const KEY = "suhuf.reader.diff";
+import { DIFF_KEY as KEY } from "@/lib/reader/storageKeys";
 
 export function DiffToggle() {
   const [on, setOn] = useState(false);

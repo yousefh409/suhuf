@@ -193,7 +193,6 @@ async def main():
         pid = passage["id"]
         phrases = passage["phrases"]
         full_text = " ".join(phrases)
-        all_words = full_text.split()
 
         print(f"\nProcessing: {pid} ({len(phrases)} phrases)")
 

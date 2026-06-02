@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const KEY = "suhuf.reader.tashkeel";
+import { TASHKEEL_KEY as KEY } from "@/lib/reader/storageKeys";
 
 export function TashkeelToggle() {
   const [on, setOn] = useState(true);

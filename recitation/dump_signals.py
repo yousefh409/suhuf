@@ -8,19 +8,15 @@ re-running the expensive CTC scoring (~10 min).
 import sys
 import json
 import random
-import numpy as np
 import torch
 from pathlib import Path
-from collections import defaultdict
 
 BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
 
 from engine import RecitationEngine, StreamingSession
-from server import classify_words
 from arabic import (
-    FATHA, DAMMA, KASRA, FATHATAN, DAMMATAN, KASRATAN, SUKOON, SHADDA,
-    HARAKAT, strip_diacritics,
+    strip_diacritics,
 )
 from test_mutations import (
     find_best_sessions, _extract_phrase_segments,
@@ -113,7 +109,6 @@ def main():
         phrases = si["meta"]["phrases"]
         audio = si["audio"]
         full_text = " ".join(phrases)
-        all_words = full_text.split()
 
         print(f"\nSession: {pid} ({si['duration']:.1f}s)")
 

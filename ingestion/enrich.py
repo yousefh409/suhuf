@@ -1,13 +1,12 @@
 """AI metadata enrichment using Claude API."""
 from __future__ import annotations
-import json
 import logging
-import os
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from anthropic import Anthropic
 
+from ingestion._client import create_client, parse_json_response
 from ingestion.models import ParseResult
 
 logger = logging.getLogger(__name__)
@@ -83,27 +82,6 @@ Given the following author identifier and any existing metadata, provide enriche
 Return ONLY valid JSON, no markdown fences, no explanation."""
 
 
-def _parse_json_response(text: str) -> dict:
-    """Extract JSON from Claude's response, handling markdown fences."""
-    text = text.strip()
-    # Strip markdown code fences if present
-    if text.startswith("```"):
-        lines = text.split("\n")
-        lines = [l for l in lines if not l.strip().startswith("```")]
-        text = "\n".join(lines)
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        logger.warning(f"Failed to parse JSON response: {text[:200]}...")
-        return {}
-
-
-def create_client() -> "Anthropic":
-    """Create an Anthropic client from environment."""
-    from anthropic import Anthropic
-    return Anthropic()  # reads ANTHROPIC_API_KEY from env
-
-
 def enrich_book_metadata(
     result: ParseResult,
     client: "Anthropic | None" = None,
@@ -124,7 +102,7 @@ def enrich_book_metadata(
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
-        return _parse_json_response(response.content[0].text)
+        return parse_json_response(response.content[0].text)
     except Exception as e:
         logger.warning(f"Book enrichment failed: {e}")
         return {}
@@ -151,7 +129,7 @@ def enrich_author_metadata(
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
-        return _parse_json_response(response.content[0].text)
+        return parse_json_response(response.content[0].text)
     except Exception as e:
         logger.warning(f"Author enrichment failed: {e}")
         return {}

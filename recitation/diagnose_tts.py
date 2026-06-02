@@ -200,7 +200,6 @@ DIAC_NAMES = {FATHA: "fatha", DAMMA: "damma", KASRA: "kasra"}
 
 async def main():
     process_all = "--all" in sys.argv
-    verbose = "-v" in sys.argv or "--verbose" in sys.argv
 
     # Load engine
     from engine import RecitationEngine
@@ -213,7 +212,6 @@ async def main():
     passage = next(p for p in data["passages"] if p["id"] == "ajrumiyyah")
     phrases = passage["phrases"]
     full_text = " ".join(phrases)
-    all_words = full_text.split()
 
     if not process_all:
         phrases = phrases[:5]

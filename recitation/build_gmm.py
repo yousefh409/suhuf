@@ -23,7 +23,7 @@ BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
 
 from engine import RecitationEngine
-from scorer import MixGoPScorer, MIX_LAYERS, _ALL_DIACS, _DIAC_NAMES
+from scorer import MixGoPScorer, _ALL_DIACS, _DIAC_NAMES
 from arabic import HARAKAT, SHADDA
 
 CACHE_DIR = BASE / ".tts_cache"
@@ -131,10 +131,8 @@ def extract_diac_features(engine, waveform, phrase_text):
 
         # Find last consonant index to skip final diacritics (i3rab)
         chars = list(word)
-        last_cons = -1
         for i in range(len(chars) - 1, -1, -1):
             if chars[i] not in HARAKAT:
-                last_cons = i
                 break
 
         # Map each char position in the word to its token index in char_spans

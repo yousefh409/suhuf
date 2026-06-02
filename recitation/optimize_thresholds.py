@@ -5,7 +5,6 @@ Loads signal_dump.json and tries many classify_words configurations
 to find the best FP/detection tradeoff.
 """
 import json
-import sys
 from pathlib import Path
 from collections import defaultdict
 

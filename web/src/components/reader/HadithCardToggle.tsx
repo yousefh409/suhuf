@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const KEY = "suhuf.reader.hadithCard";
+import { HADITH_CARD_KEY as KEY } from "@/lib/reader/storageKeys";
 
 export function HadithCardToggle() {
   const [on, setOn] = useState(false);

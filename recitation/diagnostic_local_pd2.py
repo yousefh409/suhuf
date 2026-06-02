@@ -2,10 +2,8 @@
 """Deeper combo analysis: local_pd combined with existing signals at eff <= -1.5."""
 import sys
 import random
-import numpy as np
 import torch
 from pathlib import Path
-from collections import defaultdict
 
 BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))

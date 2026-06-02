@@ -3,12 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence, useScroll, useTransform, useInView } from "motion/react";
-
-function getReferralFromCookie(): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie.match(/suhuf_ref=([^;]+)/);
-  return match ? match[1] : null;
-}
+import { getReferralFromCookie } from "@/lib/referral";
 
 /* ─── iPad screen content ─── */
 

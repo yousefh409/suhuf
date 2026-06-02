@@ -17,7 +17,6 @@ import hashlib
 import json
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import edge_tts

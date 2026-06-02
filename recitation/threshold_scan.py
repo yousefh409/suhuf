@@ -8,7 +8,6 @@ detection_rate - 5 * false_positive_rate.
 Uses the same infrastructure as test_mutations.py.
 """
 import sys
-import json
 import random
 import numpy as np
 import torch
@@ -19,11 +18,9 @@ from itertools import combinations
 BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
 
-from engine import RecitationEngine, StreamingSession
-from server import classify_words
+from engine import RecitationEngine
 from arabic import (
-    FATHA, DAMMA, KASRA, FATHATAN, DAMMATAN, KASRATAN, SUKOON, SHADDA,
-    HARAKAT, strip_diacritics, generate_i3rab_alternatives, generate_tashkeel_alternatives,
+    strip_diacritics,
 )
 
 MODEL_PATH = BASE / "models" / "ssl_xls_r_v5"

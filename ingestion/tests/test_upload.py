@@ -1,5 +1,5 @@
 # ingestion/tests/test_upload.py
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 from ingestion.upload import upload_book
 from ingestion.models import Token, Block, Page, Chapter, BookMetadata, ParseResult
 

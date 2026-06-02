@@ -1,4 +1,3 @@
-import unicodedata
 from ingestion.tashkeel import has_diacritics, diacritize_blocks
 from ingestion.models import Token, Block, Page
 

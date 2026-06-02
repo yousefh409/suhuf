@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
-const KEY = "suhuf.reader.theme";
+import { THEME_KEY as KEY } from "@/lib/reader/storageKeys";
 const VALID = ["paper", "sepia", "night"] as const;
 export type ReaderTheme = (typeof VALID)[number];
 

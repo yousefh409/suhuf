@@ -2,12 +2,7 @@
 
 import { useState, useEffect } from "react";
 import PaperShader from "@/components/PaperShader";
-
-function getReferralFromCookie(): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie.match(/suhuf_ref=([^;]+)/);
-  return match ? match[1] : null;
-}
+import { getReferralFromCookie } from "@/lib/referral";
 
 
 type WaitlistUser = {

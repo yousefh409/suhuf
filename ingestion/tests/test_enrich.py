@@ -1,6 +1,6 @@
 """Tests for AI metadata enrichment stage."""
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from ingestion.enrich import enrich_book_metadata, enrich_author_metadata, _build_book_prompt, _build_author_prompt
 from ingestion.models import Token, Block, Page, Chapter, BookMetadata, ParseResult
 

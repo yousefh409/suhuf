@@ -31,8 +31,8 @@ sys.path.insert(0, str(BASE))
 from engine import RecitationEngine, StreamingSession
 from server import classify_words
 from arabic import (
-    FATHA, DAMMA, KASRA, FATHATAN, DAMMATAN, KASRATAN, SUKOON, SHADDA,
-    HARAKAT, strip_diacritics, generate_i3rab_alternatives, generate_tashkeel_alternatives,
+    FATHA, DAMMA, KASRA, FATHATAN, DAMMATAN, KASRATAN, SHADDA,
+    HARAKAT, strip_diacritics,
 )
 
 MODEL_PATH = BASE / "models" / "ssl_xls_r_v5"

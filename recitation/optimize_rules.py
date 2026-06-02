@@ -68,8 +68,6 @@ def current_rules(s):
     tash_delta = safe(s.get("tash_delta"))
     pc = safe(s.get("pc"), 999.0)
     sf = safe(s.get("sf"), 999.0)
-    mg = safe(s.get("mg"), 999.0)
-    gdm = s.get("gdm", 0)
     gfm = s.get("gfm", False)
     pd_i3 = safe(s.get("pd_i3rab"))
     pd_t = safe(s.get("pd_tashkeel"))
@@ -283,7 +281,6 @@ def main():
     correct = [r for r in dump if r["label"] == "correct"]
 
     # Build candidate rules and test them
-    from arabic import strip_diacritics
     candidates = []
 
     # Rule: sf-based with different thresholds at eff < -1.5

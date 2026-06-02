@@ -16,7 +16,6 @@ import sys
 import json
 import numpy as np
 import torch
-import torch.nn.functional as F
 from pathlib import Path
 
 BASE = Path(__file__).parent
@@ -356,7 +355,6 @@ def analyze_local_posterior_scoring(engine, log_probs, phrase_text, word_bounds)
 
     # Build word -> final diacritic span mapping
     # We need to find which span corresponds to the final diacritic of each word
-    token_chars = [engine.id2char.get(t, "") for t in tokens]
 
     # Map target_idx -> word_idx
     word_idx_for_token = {}
@@ -655,7 +653,6 @@ def main():
     print("Force-aligning full text...")
     all_spans = engine.forced_align(log_probs, full_tokens)
     all_word_bounds = engine.word_boundaries_from_alignment(all_spans, full_tokens)
-    all_words = full_text.split()
     print(f"Aligned {len(all_word_bounds)} words total")
 
     # Now map word bounds to phrases

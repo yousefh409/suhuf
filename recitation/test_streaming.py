@@ -13,7 +13,6 @@ import asyncio
 import json
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -25,7 +24,6 @@ pytest.importorskip("numpy")
 pytest.importorskip("websockets")
 
 import edge_tts
-import numpy as np
 import websockets
 
 BASE = Path(__file__).parent
@@ -411,8 +409,6 @@ async def test_tashkeel_error(server_url: str, verbose: bool = False):
     phrase = passage["phrases"][0]
 
     # Swap an internal fatha (U+064E) to kasra (U+0650) on المُرَكَّبُ → المُرِكَّبُ
-    FATHA = '\u064e'
-    KASRA = '\u0650'
     # Find المُرَكَّبُ and change the fatha after ra to kasra
     modified = phrase.replace('\u0631\u064e\u0643', '\u0631\u0650\u0643')  # رَك → رِك
     if modified == phrase:
