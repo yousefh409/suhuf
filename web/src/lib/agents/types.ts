@@ -11,7 +11,7 @@ export type IrabResult = {
   meaning: string;
 };
 
-export type TranslateRequest = { sentence: string };
+export type TranslateRequest = { sentence: string; word: string };
 export type RelatedWord = { word: string; root: string; meaning: string };
 export type TranslateResult = { translation: string; related_words: RelatedWord[] };
 

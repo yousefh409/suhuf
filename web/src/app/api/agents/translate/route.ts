@@ -2,15 +2,17 @@ import { NextResponse } from "next/server";
 import { callAnthropic, AgentError } from "@/lib/agents/anthropic";
 import type { TranslateRequest } from "@/lib/agents/types";
 
-const SYSTEM = `You are an expert translator of classical Arabic texts. Translate the given Arabic sentence to English, preserving the scholarly register.
+const SYSTEM = `You are an expert translator of classical Arabic texts. You are given a full Arabic sentence and one focus word from within it (the word the reader tapped).
 
-Also identify the primary root (جذر) of the most significant content word in the sentence and provide 4-6 related words from the same root.
+Translate the full sentence to English, preserving the scholarly register.
+
+Then take the FOCUS WORD specifically: identify its root (جذر) and provide 4-6 related words that share that same root. The related words MUST derive from the focus word's root, not from any other word in the sentence.
 
 For Islamic/Arabic terms that are commonly transliterated (e.g., hadith, fiqh, sunnah, i'rab), transliterate them and add a brief parenthetical gloss on first use.
 
 Return a JSON object with:
-- translation: the English translation
-- related_words: array of objects with { word (Arabic with tashkeel), root (Arabic letters spaced), meaning (English) }
+- translation: the English translation of the full sentence
+- related_words: array of objects with { word (Arabic with tashkeel), root (Arabic letters spaced), meaning (English) }, all sharing the focus word's root
 
 Return ONLY valid JSON, no markdown fences.`;
 
@@ -22,16 +24,19 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
   }
 
-  const { sentence } = body;
-  if (!sentence) {
-    return NextResponse.json({ error: "sentence is required" }, { status: 400 });
+  const { sentence, word } = body;
+  if (!sentence || !word) {
+    return NextResponse.json({ error: "sentence and word are required" }, { status: 400 });
   }
 
   try {
     const text = await callAnthropic({
       system: SYSTEM,
       messages: [
-        { role: "user", content: `Translate this Arabic sentence and provide related vocabulary:\n\n${sentence}` },
+        {
+          role: "user",
+          content: `Focus word: ${word}\nFull sentence: ${sentence}\n\nTranslate the sentence and provide related vocabulary from the focus word's root.`,
+        },
       ],
       maxTokens: 600,
     });

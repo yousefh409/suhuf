@@ -81,7 +81,7 @@ export function WordPopover() {
         </div>
         <div className="word-popover__body">
           {tab === "irab" && <IrabTab word={selection.word} sentence={selection.sentence} position={selection.position} />}
-          {tab === "translate" && <TranslateTab sentence={selection.sentence} />}
+          {tab === "translate" && <TranslateTab word={selection.word} sentence={selection.sentence} />}
           {tab === "ask" && <AskTab word={selection.word} sentence={selection.sentence} />}
         </div>
       </div>
@@ -156,10 +156,10 @@ function Row({ k, v }: { k: string; v: string }) {
   );
 }
 
-function TranslateTab({ sentence }: { sentence: string }) {
+function TranslateTab({ word, sentence }: { word: string; sentence: string }) {
   const { data, error, loading, retry } = useLazy<TranslateResult>(
-    () => fetchTranslation({ sentence }),
-    [sentence],
+    () => fetchTranslation({ word, sentence }),
+    [word, sentence],
   );
   if (loading) return <div>Translating…</div>;
   if (error) return <ErrorRow error={error} retry={retry} />;
