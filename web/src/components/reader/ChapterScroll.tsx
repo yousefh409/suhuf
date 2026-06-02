@@ -97,7 +97,7 @@ export function ChapterScroll({ pages, chapters, mode }: Props) {
 
   const articleClass =
     mode === "reader"
-      ? "reader-article text-[20px] leading-[2] max-w-[640px] mx-auto px-4 py-10"
+      ? "reader-article text-[21px] leading-[1.95] max-w-[44rem] mx-auto px-6 py-12"
       : "font-arabic text-lg leading-loose text-zinc-900 max-w-[720px] mx-auto px-4 py-8";
 
   return (

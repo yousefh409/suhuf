@@ -243,7 +243,7 @@ body {
 }
 .reader-footnote {
   font-size: 0.82em;
-  line-height: 1.9;
+  line-height: 2;
   color: var(--reader-fg-muted);
   margin: 0.2rem 0;
 }

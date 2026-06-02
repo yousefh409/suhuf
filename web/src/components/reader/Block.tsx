@@ -94,11 +94,11 @@ function renderInner(
 ) {
   if (block.type === "poetry") {
     return (
-      <div className="my-5 space-y-3">
+      <div className="my-6 space-y-2.5">
         {block.hemistichs.map((verse, vi) => (
           <div
             key={vi}
-            className="grid grid-cols-[1fr_auto_1fr] items-baseline gap-x-6"
+            className="grid grid-cols-[1fr_auto_1fr] items-baseline gap-x-8"
           >
             {/* First hemistich → visually the right side under RTL grid flow. */}
             <div className="text-left">
@@ -119,7 +119,7 @@ function renderInner(
             <span
               aria-hidden
               className="text-[0.6em] self-center"
-              style={{ color: "var(--reader-rule)" }}
+              style={{ color: "var(--reader-fg-faint)" }}
             >
               ◆
             </span>
