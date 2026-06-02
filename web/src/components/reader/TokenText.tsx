@@ -3,6 +3,8 @@
 import type { Token, ReaderMode, SpanLabel } from "@/lib/reader/types";
 import { stripTashkeel } from "@/lib/reader/tashkeel";
 import { useRecitationStatus } from "./recite/RecitationProvider";
+import { useWordPopover } from "./word/WordPopoverProvider";
+import type { WordSelection } from "@/lib/reader/sentences";
 import "./recite/recite.css";
 
 type Props = {
@@ -13,9 +15,10 @@ type Props = {
   accentClass?: string;    // optional class applied in reader mode (e.g. transmission-verb accent)
   spanLabel?: SpanLabel;   // when this token sits inside an annotated span
   spanRef?: string | null; // ref payload (e.g. "51:56" for qur_quote) — exposed via title attr
+  selection?: WordSelection;   // reader-mode tap target; absent → not tappable
 };
 
-export function TokenText({ token, mode, showTashkeel, showDiff, accentClass, spanLabel, spanRef }: Props) {
+export function TokenText({ token, mode, showTashkeel, showDiff, accentClass, spanLabel, spanRef, selection }: Props) {
   const display = showTashkeel ? token.text : stripTashkeel(token.text);
   const raw = token.text_raw ?? null;
   const showRawAbove = mode === "inspector" && showDiff && raw && raw !== token.text;
@@ -23,12 +26,23 @@ export function TokenText({ token, mode, showTashkeel, showDiff, accentClass, sp
   const recitationStatus = useRecitationStatus(token.id);
   const recitationClass = recitationStatus ? `tok--${recitationStatus}` : undefined;
   const title = spanRef ?? undefined;
+  const popover = useWordPopover();
 
   if (mode === "reader") {
+    const tappable = !!selection && !!popover;
     const className =
-      [accentClass, spanClass, recitationClass].filter(Boolean).join(" ") || undefined;
-    if (className) {
-      return <span className={className} title={title}>{display} </span>;
+      [accentClass, spanClass, recitationClass, tappable ? "reader-word" : null]
+        .filter(Boolean)
+        .join(" ") || undefined;
+    const onClick = tappable
+      ? (e: React.MouseEvent<HTMLSpanElement>) => popover!.open(selection!, e.currentTarget)
+      : undefined;
+    if (className || onClick) {
+      return (
+        <span className={className} title={title} onClick={onClick}>
+          {display}{" "}
+        </span>
+      );
     }
     return <span>{display} </span>;
   }
