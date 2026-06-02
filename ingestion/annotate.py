@@ -63,7 +63,8 @@ QUALITY_FLAGS = [
 MIN_RELABEL_CONFIDENCE = 0.7
 
 # If the parser already produced >= this many isnad/matn blocks
-# the source is already annotated; skip the structural relabel pass.
+# the source is already annotated; skip the structural relabel sub-pass
+# (spans and flags still apply).
 MIN_NATIVE_TAGS = 10
 
 # Send blocks to the model in chunks of this size. Keeps output well under
@@ -146,7 +147,7 @@ def _resolve_token_id(block: Block, idx: int) -> str | None:
 
 def _has_native_tags(parse_result: ParseResult) -> bool:
     """True iff the parser already produced enough structural blocks
-    that we don't need a relabel pass."""
+    that we should skip the structural relabel sub-pass (spans and flags still apply)."""
     n = 0
     for page in parse_result.pages:
         for block in page.content_blocks:
@@ -168,7 +169,7 @@ def _chunk(items: list, size: int) -> list[list]:
 
 
 def _apply_block_annotation(
-    block: Block, ann: dict, allow_relabel: bool = True
+    block: Block, ann: dict, allow_relabel: bool = False
 ) -> tuple[bool, int, int]:
     """Mutate block in place from one annotation dict.
 
@@ -236,6 +237,10 @@ def annotate_book(
     force: bool = False,
 ) -> dict:
     """Run the annotation pass on a parsed book, mutating blocks in-place.
+
+    When the parser already produced >= MIN_NATIVE_TAGS structural blocks and
+    force is False, relabel_allowed is False and block types are left unchanged,
+    but spans and flags are still detected and written.
 
     Returns a stats dict for logging.
     """
