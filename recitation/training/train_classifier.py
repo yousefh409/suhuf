@@ -10,7 +10,7 @@ import numpy as np
 from pathlib import Path
 from collections import defaultdict
 
-BASE = Path(__file__).parent
+BASE = Path(__file__).resolve().parent.parent  # recitation/ (this tool lives in training/)
 
 # Features to use (carefully selected for low-eff regime)
 FEATURE_KEYS = [
