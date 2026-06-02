@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from ingestion.models import Token, Block, Page, Chapter, ParseResult
+from ingestion.models import Token, Block, Footnote, Page, Chapter, ParseResult, Span
 from ingestion.metadata import parse_file_header
 
 _PAGE_RE = re.compile(r"PageV(\d+)P(\d+)")
@@ -18,6 +18,29 @@ _ORDINAL_RE = re.compile(r"^([\u0660-\u06690-9]+)\s*[-.)،]\s*")
 # for the project's NLP alignment tooling. They have no meaning for human
 # readers; strip them inline before tokenization.
 _MILESTONE_RE = re.compile(r"\bms\d+\b")
+
+# ---------------------------------------------------------------------------
+# Footnote extraction — provisional, conservative, correlation-gated.
+#
+# Cleaned OpenITI corpora strip footnotes, so these structures will almost
+# always be EMPTY.  The primary design goal is zero false positives on real
+# body text: a stray parenthesised number must NEVER be mis-classified as a
+# footnote anchor.
+#
+# Convention (both conditions must hold on the SAME PAGE to activate):
+#   1. Definition line: a content line whose cleaned text matches
+#      _FOOTNOTE_DEF_RE (starts with a parenthesised number then note text).
+#      Such a line is held as a pending definition and NOT emitted as a block.
+#   2. Inline marker token: a body token whose text equals or ends with (N).
+#      Detected during page-flush correlation after all blocks are built.
+#
+# If only one side exists, nothing is recorded (dropped silently).
+# ---------------------------------------------------------------------------
+_FOOTNOTE_DEF_RE = re.compile(
+    r"^\(([0-9\u0660-\u0669]+)\)\s+(.+)$"
+)
+# Matches a token that IS a footnote marker or ENDS with one, e.g. "عظيم(١)"
+_FOOTNOTE_MARKER_RE = re.compile(r"\(([0-9\u0660-\u0669]+)\)$")
 
 # First-word keywords that identify a takhrij (source-attribution) line.
 # Matched against the first whitespace-delimited token only.
@@ -78,6 +101,9 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
     hadith_number: str | None = None
     pending_text = ""
     chapter_sort = 0
+    # Footnote definitions collected during current page (marker -> note_text).
+    # Resolved at _flush_page via correlation with inline markers in body tokens.
+    pending_fn_defs: dict[str, str] = {}
 
     def _flush_hadith():
         """Flush accumulated hadith words as an isnad block."""
@@ -98,7 +124,7 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
 
     def _dispatch(line_text: str):
         """Process a complete content line (after stripping prefix and joining continuations)."""
-        nonlocal in_hadith, hadith_words, hadith_number, chapter_sort
+        nonlocal in_hadith, hadith_words, hadith_number, chapter_sort, pending_fn_defs
 
         # Drop OpenITI milestone markers (msNN); they are tooling artifacts, not text.
         line_text = _MILESTONE_RE.sub("", line_text)
@@ -226,6 +252,13 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
                 current_blocks.append(Block(key=f"b{block_idx}", type="takhrij", tokens=tokens, number=takhrij_number))
             return
 
+        # Footnote definition line: (N) note text — hold as pending, do NOT emit a block.
+        # Correlated with inline markers at page flush; unmatched definitions are dropped.
+        m = _FOOTNOTE_DEF_RE.match(line_text.strip())
+        if m:
+            pending_fn_defs[m.group(1)] = m.group(2)
+            return
+
         # Default: prose
         prose_text = line_text.strip()
         prose_number, prose_text = _extract_leading_ordinal(prose_text)
@@ -241,15 +274,48 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
             pending_text = ""
 
     def _flush_page():
-        nonlocal current_blocks
+        nonlocal current_blocks, pending_fn_defs
         _flush_pending()
         _flush_hadith()
         if current_blocks and current_page_num > 0:
+            # Correlation-gated footnote resolution.
+            # Walk all body tokens; for each token whose text ends with (N),
+            # check whether a pending definition for N exists on this page.
+            # Only correlated pairs produce a Footnote + span; unmatched sides
+            # are silently dropped (prevents false positives on cleaned corpora).
+            page_footnotes: list[Footnote] = []
+            fn_idx = 0  # 1-based index within this page, incremented on match
+
+            for block in current_blocks:
+                for token in block.tokens:
+                    m = _FOOTNOTE_MARKER_RE.search(token.text)
+                    if not m:
+                        continue
+                    marker = m.group(1)
+                    if marker not in pending_fn_defs:
+                        continue
+                    # Correlated match: build Footnote and attach Span
+                    fn_idx += 1
+                    note_text = pending_fn_defs.pop(marker)
+                    fn_tokens = [
+                        Token(id=f"p{current_page_num}_fn{fn_idx}_w{i}", text=w)
+                        for i, w in enumerate(note_text.split())
+                    ]
+                    page_footnotes.append(Footnote(marker=marker, tokens=fn_tokens))
+                    block.spans.append(Span(
+                        start_token_id=token.id,
+                        end_token_id=token.id,
+                        label="footnote",
+                        ref=marker,
+                    ))
+
             pages.append(Page(
                 page_number=current_page_num,
                 volume=current_volume,
                 content_blocks=current_blocks,
+                footnotes=page_footnotes,
             ))
+        pending_fn_defs = {}
         current_blocks = []
 
     # Main loop over body lines
