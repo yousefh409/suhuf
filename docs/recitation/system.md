@@ -350,14 +350,14 @@ Accuracy is measured by `eval.py` (single source of truth) and stored in
 is mutation-based: real audio is held fixed while the reference text is mutated
 (i3rab / tashkeel / word) to induce errors on demand.
 
-| Source | Speaker | FP rate | Detection |
-|---|---|---|---|
-| `sessions` | in-domain human, real audio | ~1.8% | ~93% |
-| `corpus` (Arabic Speech Corpus) | held-out 2nd MSA speaker | low | high (see `eval_baseline.json`) |
-
-The low FP on an unseen speaker is the key generalization signal. Mutation-based
-detection is inherently easier than real human mispronunciations, so treat the
-detection figure as an upper bound, not field accuracy.
+See `recitation/eval_baseline.json` for current per-source figures (FP rate,
+detection-by-type, and a per-sub-type breakdown). The mutation suite is wide
+(every i3rab case ending, every internal tashkeel position/vowel incl.
+dropped-vowel, and multi-change combos), so the detection number is an honest
+upper bound that deliberately includes hard cases and exposes blind spots (e.g.
+internal dropped-vowel, which the sukoon-lenient policy currently misses). The
+low FP on the unseen corpus speaker is the key generalization signal; treat
+mutation detection as an upper bound, not field accuracy.
 
 ### Streaming (`test_streaming.py`)
 
