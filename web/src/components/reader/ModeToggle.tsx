@@ -8,7 +8,7 @@ type Props = { mode: "reader" | "inspector" };
 export function ModeToggle({ mode }: Props) {
   const pathname = usePathname();
   const other = mode === "reader" ? "inspector" : "reader";
-  const target = pathname.replace(/^\/internal\/(reader|inspector)/, `/internal/${other}`);
+  const target = pathname.replace(/^\/(reader|inspector)/, `/${other}`);
 
   const ActiveChip = (
     <span className="px-2 py-1 rounded bg-zinc-900 text-white">

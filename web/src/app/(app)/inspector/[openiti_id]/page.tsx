@@ -33,7 +33,7 @@ export default async function InspectorPage({
   return (
     <>
       <header className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-zinc-200 px-4 py-2 flex items-center gap-3 flex-wrap">
-        <Link href="/internal/library" className="text-xs font-mono text-zinc-600 hover:text-zinc-900">
+        <Link href="/library" className="text-xs font-mono text-zinc-600 hover:text-zinc-900">
           ← library
         </Link>
         <div className="text-sm" dir="rtl">{result.book.title_ar}</div>
