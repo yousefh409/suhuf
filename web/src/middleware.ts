@@ -69,11 +69,21 @@ export async function middleware(req: NextRequest) {
   }
 
   // App routes: refresh the Supabase session and gate protected paths.
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // If Supabase isn't configured in this environment, do NOT take the whole
+  // site down. Skip gating (fail open) so public pages still render. Set
+  // NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY to enable the gate.
+  if (!supabaseUrl || !supabaseKey) {
+    return NextResponse.next();
+  }
+
   let response = NextResponse.next({ request: req });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseKey,
     {
       cookies: {
         getAll() {
