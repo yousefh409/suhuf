@@ -85,9 +85,10 @@ export async function proxy(req: NextRequest) {
   );
 
   // Do not insert code between createServerClient and getUser().
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // On a refresh/network failure, treat the request as logged-out rather than
+  // 500-ing every page.
+  const result = await supabase.auth.getUser().catch(() => null);
+  const user = result?.data.user ?? null;
 
   if (!user && isProtectedPath(pathname)) {
     const url = new URL(
