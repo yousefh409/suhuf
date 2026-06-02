@@ -93,16 +93,16 @@ def _ingest_one(uri: str, args, engine, client):
         from ingestion.annotate import annotate_book
         logger.info("Running annotation pass...")
         annotate_stats = annotate_book(result, force=getattr(args, "force_annotate", False))
-        if annotate_stats.get("skipped_native_tags"):
-            logger.info("Annotation skipped (source already has native tags)")
-        else:
-            logger.info(
-                f"Annotated: {annotate_stats.get('relabeled', 0)} relabeled, "
-                f"{annotate_stats.get('spans_total', 0)} spans, "
-                f"{annotate_stats.get('flags_total', 0)} flags "
-                f"({annotate_stats.get('input_tokens', 0)} in / "
-                f"{annotate_stats.get('output_tokens', 0)} out tokens)"
-            )
+        relabel_allowed = annotate_stats.get("relabel_allowed", True)
+        relabel_note = "" if relabel_allowed else " (relabel suppressed — native tags)"
+        logger.info(
+            f"Annotated: {annotate_stats.get('relabeled', 0)} relabeled, "
+            f"{annotate_stats.get('spans_total', 0)} spans, "
+            f"{annotate_stats.get('flags_total', 0)} flags "
+            f"({annotate_stats.get('input_tokens', 0)} in / "
+            f"{annotate_stats.get('output_tokens', 0)} out tokens)"
+            f"{relabel_note}"
+        )
 
         if args.dump:
             dump_dir = Path(args.dump)
