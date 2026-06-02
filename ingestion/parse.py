@@ -19,6 +19,10 @@ _ORDINAL_RE = re.compile(r"^([\u0660-\u06690-9]+)\s*[-.)،]\s*")
 # readers; strip them inline before tokenization.
 _MILESTONE_RE = re.compile(r"\bms\d+\b")
 
+# First-word keywords that identify a takhrij (source-attribution) line.
+# Matched against the first whitespace-delimited token only.
+_TAKHRIJ_KEYWORDS: tuple[str, ...] = ("رواه", "أخرجه", "أخرجها", "رواها", "متفق")
+
 
 def _extract_leading_ordinal(text: str) -> tuple[str | None, str]:
     """Extract a leading printed ordinal from text.
@@ -191,6 +195,17 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
         # Accumulate text in hadith mode
         if in_hadith:
             hadith_words.extend(line_text.strip().split())
+            return
+
+        # Takhrij: source-attribution line identified by its first word
+        candidate = line_text.strip()
+        first_word = candidate.split()[0] if candidate.split() else ""
+        if first_word in _TAKHRIJ_KEYWORDS:
+            takhrij_number, takhrij_text = _extract_leading_ordinal(candidate)
+            block_idx = len(current_blocks)
+            tokens = _tokenize(takhrij_text, current_page_num, block_idx)
+            if tokens:
+                current_blocks.append(Block(key=f"b{block_idx}", type="takhrij", tokens=tokens, number=takhrij_number))
             return
 
         # Default: prose

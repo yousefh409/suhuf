@@ -1,4 +1,4 @@
-"""Tests for heading-level propagation using the taxonomy fixture."""
+"""Tests for heading-level propagation and takhrij detection using the taxonomy fixture."""
 from pathlib import Path
 
 import pytest
@@ -48,4 +48,28 @@ def test_isnad_ordinal_extracted():
     assert isnad.number == "١", f"Expected number='١', got {isnad.number!r}"
     assert isnad.tokens[0].text == "عن", (
         f"Expected first token 'عن', got {isnad.tokens[0].text!r}"
+    )
+
+
+def _takhrij_blocks(result):
+    blocks = []
+    for page in result.pages:
+        for block in page.content_blocks:
+            if block.type == "takhrij":
+                blocks.append(block)
+    return blocks
+
+
+def test_takhrij_detected():
+    """Line starting with رواه after the matn must be classified as takhrij,
+    not prose, and its first token must be the keyword itself."""
+    result = parse_file(FIXTURE, "0000Sample.Taxonomy")
+    takhrijat = _takhrij_blocks(result)
+    assert len(takhrijat) >= 1, (
+        f"Expected at least 1 takhrij block, got {len(takhrijat)}; "
+        f"all block types: {[b.type for p in result.pages for b in p.content_blocks]}"
+    )
+    takhrij = takhrijat[0]
+    assert takhrij.tokens[0].text == "رواه", (
+        f"Expected first token 'رواه', got {takhrij.tokens[0].text!r}"
     )
