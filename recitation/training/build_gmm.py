@@ -19,7 +19,7 @@ import torch
 from pathlib import Path
 from collections import defaultdict
 
-BASE = Path(__file__).parent
+BASE = Path(__file__).resolve().parent.parent  # recitation/ (this tool lives in training/)
 sys.path.insert(0, str(BASE))
 
 from engine import RecitationEngine
