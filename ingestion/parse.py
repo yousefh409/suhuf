@@ -7,6 +7,9 @@ from ingestion.models import Token, Block, Footnote, Page, Chapter, ParseResult,
 from ingestion.metadata import parse_file_header
 
 _PAGE_RE = re.compile(r"PageV(\d+)P(\d+)")
+# Matches a PageVxxPyyy token anywhere in a string (with word boundary awareness).
+# Used by the normalization pre-pass.
+_PAGE_TOKEN_RE = re.compile(r"(PageV\d+P\d+)")
 _HEADING_RE = re.compile(r"^###\s+(\|+)\s+(.*)")
 _EDITOR_RE = re.compile(r"^###\s+\|EDITOR\|")
 _HADITH_RE = re.compile(r"^\$RWY\$\s*(.*)")
@@ -49,6 +52,91 @@ _TAKHRIJ_KEYWORDS: tuple[str, ...] = ("رواه", "أخرجه", "أخرجها", 
 # Ornate Quranic bracket glyphs.
 _QURAN_OPEN = "\uFD3F"   # ﴿ U+FD3F ORNATE RIGHT PARENTHESIS — opens the ayah
 _QURAN_CLOSE = "\uFD3E"  # ﴾ U+FD3E ORNATE LEFT PARENTHESIS  — closes the ayah
+
+
+def _normalize_body_lines(lines: list[str]) -> list[str]:
+    """Expand lines that contain embedded page markers into multiple lines.
+
+    The main parse loop only recognises page markers when they are the ENTIRE
+    content of a line (after stripping a ``# `` prefix).  Many real OpenITI
+    books embed markers inside content lines, e.g.:
+
+        ~~نص أول PageV01P002 نص ثانٍ
+
+    This function performs a pre-pass over the body lines and splits any such
+    line at each embedded marker so the existing standalone-marker logic handles
+    them unchanged.
+
+    Normalization rules for a single line:
+    - Determine the line's leading prefix (``~~``, ``# ``, ``### ``, or none).
+    - If the line is ALREADY a standalone marker (whole content = page marker),
+      pass it through unchanged.
+    - Otherwise split on each ``PageVxxPyyy`` token left-to-right:
+        * Emit the before-segment (with original prefix) if non-whitespace.
+        * Emit ``# PageVxxPyyy`` as a standalone marker line.
+        * Continue with the remaining text.
+      The final after-segment (text after the last marker) is emitted as ``# ``
+      if non-whitespace (new paragraph on the new page).
+    - ``PageV00P000`` null markers are emitted as ``# PageV00P000`` standalone
+      lines; the main loop already skips them without flushing — behaviour is
+      preserved.
+    """
+    result: list[str] = []
+    for line in lines:
+        # Fast path: no page marker token at all.
+        if "PageV" not in line:
+            result.append(line)
+            continue
+
+        # Detect leading prefix and the bare content without it.
+        if line.startswith("~~"):
+            prefix = "~~"
+            content = line[2:]
+        elif line.startswith("# "):
+            prefix = "# "
+            content = line[2:]
+        elif line.startswith("### "):
+            prefix = "### "
+            content = line[4:]
+        else:
+            prefix = ""
+            content = line
+
+        # Check if this is ALREADY a standalone marker: content (stripped) is
+        # exactly a page token and nothing else.
+        content_stripped = content.strip()
+        if _PAGE_RE.fullmatch(content_stripped):
+            # Already standalone — emit unchanged so the main loop handles it.
+            result.append(line)
+            continue
+
+        # Split the content on embedded page tokens.
+        parts = _PAGE_TOKEN_RE.split(content)
+        # _PAGE_TOKEN_RE.split gives: [before, token, after, token, after, ...]
+        # Odd-indexed parts are the captured page token strings.
+
+        is_first_before = True
+        i = 0
+        while i < len(parts):
+            if i % 2 == 0:
+                # Text segment (before/after/between markers)
+                seg = parts[i]
+                if seg.strip():
+                    if is_first_before:
+                        # First before-segment keeps the ORIGINAL prefix.
+                        result.append(prefix + seg.strip())
+                    else:
+                        # Subsequent text segments: new paragraph on new page.
+                        result.append("# " + seg.strip())
+                is_first_before = False
+            else:
+                # Page marker token
+                page_token = parts[i]
+                result.append("# " + page_token)
+                is_first_before = False
+            i += 1
+
+    return result
 
 
 def _extract_leading_ordinal(text: str) -> tuple[str | None, str]:
@@ -318,7 +406,10 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
         current_blocks = []
 
     # Main loop over body lines
-    for line in lines[body_start:]:
+    # Run normalization pre-pass first so embedded page markers are expanded
+    # into standalone marker lines that the existing loop logic can handle.
+    body_lines = _normalize_body_lines(lines[body_start:])
+    for line in body_lines:
         stripped = line.strip()
 
         # Skip blank lines and metadata remnants in body
