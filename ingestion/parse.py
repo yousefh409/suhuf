@@ -11,10 +11,26 @@ _HEADING_RE = re.compile(r"^###\s+(\|+)\s+(.*)")
 _EDITOR_RE = re.compile(r"^###\s+\|EDITOR\|")
 _HADITH_RE = re.compile(r"^\$RWY\$\s*(.*)")
 _BIO_RE = re.compile(r"^###\s+\$(?:BIO_MAN|BIO_WOM|\$?)\$?\s*(.*)")
+# Matches a leading printed ordinal: one or more digits (Arabic-Indic U+0660–U+0669
+# or ASCII 0–9) optionally followed by a separator (-, ., ), ،) with surrounding spaces.
+_ORDINAL_RE = re.compile(r"^([\u0660-\u06690-9]+)\s*[-.)،]\s*")
 # OpenITI milestone tokens (msNN) split each printed page into ~300-word chunks
 # for the project's NLP alignment tooling. They have no meaning for human
 # readers; strip them inline before tokenization.
 _MILESTONE_RE = re.compile(r"\bms\d+\b")
+
+
+def _extract_leading_ordinal(text: str) -> tuple[str | None, str]:
+    """Extract a leading printed ordinal from text.
+
+    Returns (digit_string, remaining_text) if an ordinal prefix is found,
+    or (None, original_text) if not.  The digit string contains only the
+    digit characters (e.g. '١'), not the separator.
+    """
+    m = _ORDINAL_RE.match(text)
+    if m:
+        return m.group(1), text[m.end():]
+    return None, text
 
 
 def _tokenize(text: str, page_num: int, block_idx: int) -> list[Token]:
@@ -49,27 +65,30 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
     current_volume = 1
     in_hadith = False
     hadith_words: list[str] = []
+    hadith_number: str | None = None
     pending_text = ""
     chapter_sort = 0
 
     def _flush_hadith():
         """Flush accumulated hadith words as an isnad block."""
-        nonlocal hadith_words, in_hadith
+        nonlocal hadith_words, in_hadith, hadith_number
         if not hadith_words:
             in_hadith = False
+            hadith_number = None
             return
         block_idx = len(current_blocks)
         tokens = [
             Token(id=f"p{current_page_num}_b{block_idx}_w{i}", text=w)
             for i, w in enumerate(hadith_words)
         ]
-        current_blocks.append(Block(key=f"b{block_idx}", type="isnad", tokens=tokens))
+        current_blocks.append(Block(key=f"b{block_idx}", type="isnad", tokens=tokens, number=hadith_number))
         hadith_words = []
         in_hadith = False
+        hadith_number = None
 
     def _dispatch(line_text: str):
         """Process a complete content line (after stripping prefix and joining continuations)."""
-        nonlocal in_hadith, hadith_words, chapter_sort
+        nonlocal in_hadith, hadith_words, hadith_number, chapter_sort
 
         # Drop OpenITI milestone markers (msNN); they are tooling artifacts, not text.
         line_text = _MILESTONE_RE.sub("", line_text)
@@ -106,9 +125,12 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
             _flush_hadith()
             in_hadith = True
             hadith_words = []
+            hadith_number = None
             remainder = m.group(1).strip()
             if remainder:
-                hadith_words.extend(remainder.split())
+                hadith_number, remainder = _extract_leading_ordinal(remainder)
+                if remainder:
+                    hadith_words.extend(remainder.split())
             return
 
         # Poetry (check before @MATN@ since %~% is unambiguous)
@@ -144,9 +166,10 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
                 Token(id=f"p{current_page_num}_b{block_idx}_w{i}", text=w)
                 for i, w in enumerate(hadith_words)
             ]
-            current_blocks.append(Block(key=f"b{block_idx}", type="isnad", tokens=tokens))
+            current_blocks.append(Block(key=f"b{block_idx}", type="isnad", tokens=tokens, number=hadith_number))
             hadith_words = []
             in_hadith = False
+            hadith_number = None
             # Create matn block from text after @MATN@
             if after.strip():
                 block_idx = len(current_blocks)
@@ -171,10 +194,12 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
             return
 
         # Default: prose
+        prose_text = line_text.strip()
+        prose_number, prose_text = _extract_leading_ordinal(prose_text)
         block_idx = len(current_blocks)
-        tokens = _tokenize(line_text.strip(), current_page_num, block_idx)
+        tokens = _tokenize(prose_text, current_page_num, block_idx)
         if tokens:
-            current_blocks.append(Block(key=f"b{block_idx}", type="prose", tokens=tokens))
+            current_blocks.append(Block(key=f"b{block_idx}", type="prose", tokens=tokens, number=prose_number))
 
     def _flush_pending():
         nonlocal pending_text

@@ -17,6 +17,15 @@ def _heading_blocks(result):
     return blocks
 
 
+def _isnad_blocks(result):
+    blocks = []
+    for page in result.pages:
+        for block in page.content_blocks:
+            if block.type == "isnad":
+                blocks.append(block)
+    return blocks
+
+
 def test_heading_levels():
     result = parse_file(FIXTURE, "0000Sample.Taxonomy")
     headings = _heading_blocks(result)
@@ -27,3 +36,16 @@ def test_heading_levels():
 
     assert level1.level == 1, f"Expected level 1, got {level1.level}"
     assert level2.level == 2, f"Expected level 2, got {level2.level}"
+
+
+def test_isnad_ordinal_extracted():
+    """The leading ordinal '١ - ' must be extracted into block.number,
+    not left as tokens."""
+    result = parse_file(FIXTURE, "0000Sample.Taxonomy")
+    isnads = _isnad_blocks(result)
+    assert len(isnads) == 1, f"Expected 1 isnad block, got {len(isnads)}"
+    isnad = isnads[0]
+    assert isnad.number == "١", f"Expected number='١', got {isnad.number!r}"
+    assert isnad.tokens[0].text == "عن", (
+        f"Expected first token 'عن', got {isnad.tokens[0].text!r}"
+    )
