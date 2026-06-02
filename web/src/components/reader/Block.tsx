@@ -174,10 +174,14 @@ function renderInner(
   switch (block.type) {
     case "heading": {
       const lvl = block.level ?? 2;
-      const sizeReader = lvl === 1 ? "text-[1.35em]" : lvl === 2 ? "text-[1.15em]" : "text-[1.02em]";
+      const headingClass = lvl === 1 ? "reader-h1" : lvl === 2 ? "reader-h2" : "reader-h3";
       return isReader ? (
-        <h2 className={`font-bold ${sizeReader} leading-snug mt-8 mb-3 text-center`} style={{ color: "var(--reader-fg)" }}>
-          {numberPrefix}{tokens}
+        <h2 className={headingClass}>
+          {lvl === 1 ? (
+            <span className="reader-h1-rule">{numberPrefix}{tokens}</span>
+          ) : (
+            <>{numberPrefix}{tokens}</>
+          )}
         </h2>
       ) : (
         <h2 className="font-bold text-xl mt-6 mb-2">{tokens}</h2>
