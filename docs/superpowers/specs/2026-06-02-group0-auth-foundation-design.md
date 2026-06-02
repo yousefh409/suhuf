@@ -38,8 +38,15 @@ Out of scope (deferred to a later group):
   require login.
 - **Open signup** — anyone with the URL can sign up with email + password. Can
   be locked down later before going public.
-- **Email confirmation disabled** — signup returns a session immediately and
-  redirects into the app. No confirmation callback route or email templates.
+- **Email confirmation ON, via 6-digit OTP code** (revised 2026-06-02 during
+  verification — the project requires confirmation, and we chose to build it in
+  rather than disable it). Signup does not return a session; instead the user
+  enters a 6-digit code emailed by Supabase, verified in-app via
+  `verifyOtp({ email, token, type: 'email' })`, which establishes the session.
+  A "Resend code" action calls `auth.resend({ type: 'signup', email })`. No
+  callback route is needed (code is typed in-app, not a clicked link).
+  **Dashboard dependency:** the Supabase "Confirm signup" email template must
+  include `{{ .Token }}` so the email carries the code.
 - **One `/login` page** with a login / signup tab toggle on a shared form.
 - **`/internal` is renamed by moving to the site root** — it is no longer
   "internal", it is the real (gated) app. The "INTERNAL" banner is dropped.
