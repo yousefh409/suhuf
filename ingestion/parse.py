@@ -187,15 +187,18 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
                 current_blocks.append(Block(key=f"b{block_idx}", type="matn", tokens=tokens))
             return
 
-        # Biography markers
+        # Biography markers — "biography" is a CUT type; fall back to prose.
+        # Strip the $BIO_MAN$/$BIO_WOM$ marker prefix and emit the remainder as prose.
         m = _BIO_RE.match(line_text)
         if m:
             _flush_hadith()
             remainder = m.group(1).strip()
             if remainder:
+                prose_number, remainder = _extract_leading_ordinal(remainder)
                 block_idx = len(current_blocks)
                 tokens = _tokenize(remainder, current_page_num, block_idx)
-                current_blocks.append(Block(key=f"b{block_idx}", type="biography", tokens=tokens))
+                if tokens:
+                    current_blocks.append(Block(key=f"b{block_idx}", type="prose", tokens=tokens, number=prose_number))
             return
 
         # Accumulate text in hadith mode
