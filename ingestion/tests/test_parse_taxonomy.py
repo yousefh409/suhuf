@@ -101,3 +101,43 @@ def test_takhrij_detected():
     assert takhrij.tokens[0].text == "رواه", (
         f"Expected first token 'رواه', got {takhrij.tokens[0].text!r}"
     )
+
+
+def test_biography_marker_emits_prose_not_biography(tmp_path):
+    """biography is a CUT block type. A $BIO_MAN$ marker line must produce a
+    prose block (marker prefix stripped, name text preserved) — never biography."""
+    src = tmp_path / "bio.mARkdown"
+    src.write_text(
+        "######OpenITI#\n"
+        "#META# 020.BookTITLE\t:: اختبار\n"
+        "#META# 00#VERS#LENGTH###\t:: 5\n"
+        "#META#Header#End#\n"
+        "# PageV01P001\n"
+        "### $BIO_MAN$ محمد بن إسماعيل البخاري إمام\n",
+        encoding="utf-8",
+    )
+    result = parse_file(src, "0100Test.BioBook")
+    all_blocks = [block for page in result.pages for block in page.content_blocks]
+
+    # No block may have type "biography"
+    bio_blocks = [b for b in all_blocks if b.type == "biography"]
+    assert bio_blocks == [], (
+        f"Expected no biography blocks, got {len(bio_blocks)}: {bio_blocks}"
+    )
+
+    # The content must appear as a prose block
+    prose_blocks = [b for b in all_blocks if b.type == "prose"]
+    assert len(prose_blocks) >= 1, (
+        f"Expected at least 1 prose block, got {len(prose_blocks)}; "
+        f"all types: {[b.type for b in all_blocks]}"
+    )
+
+    all_tokens = [t.text for b in prose_blocks for t in b.tokens]
+    # The name text is preserved
+    assert "محمد" in all_tokens, (
+        f"Expected 'محمد' in prose tokens, got {all_tokens}"
+    )
+    # The marker prefix is stripped (no $BIO_MAN$ or ### in any token)
+    for tok in all_tokens:
+        assert "$BIO_MAN$" not in tok, f"Marker prefix leaked into token: {tok!r}"
+        assert tok != "###", f"Heading marker leaked into token: {tok!r}"
