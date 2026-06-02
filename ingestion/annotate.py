@@ -62,7 +62,7 @@ QUALITY_FLAGS = [
 # the parser's type and log the model's suggestion as a metadata hint.
 MIN_RELABEL_CONFIDENCE = 0.7
 
-# If the parser already produced >= this many isnad/matn/biography blocks
+# If the parser already produced >= this many isnad/matn blocks
 # the source is already annotated; skip the structural relabel pass.
 MIN_NATIVE_TAGS = 10
 
@@ -167,7 +167,9 @@ def _chunk(items: list, size: int) -> list[list]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
-def _apply_block_annotation(block: Block, ann: dict) -> tuple[bool, int, int]:
+def _apply_block_annotation(
+    block: Block, ann: dict, allow_relabel: bool = True
+) -> tuple[bool, int, int]:
     """Mutate block in place from one annotation dict.
 
     Returns (relabeled, span_count, flag_count) for accounting.
@@ -179,7 +181,8 @@ def _apply_block_annotation(block: Block, ann: dict) -> tuple[bool, int, int]:
     new_type = ann.get("type")
     conf = ann.get("confidence", 1.0)
     if (
-        isinstance(new_type, str)
+        allow_relabel
+        and isinstance(new_type, str)
         and new_type in BLOCK_TYPES
         and new_type != block.type
         and conf is not None
@@ -236,6 +239,8 @@ def annotate_book(
 
     Returns a stats dict for logging.
     """
+    allow_relabel = force or not _has_native_tags(parse_result)
+
     stats = {
         "model": os.environ.get("SUHUF_ANNOTATE_MODEL", DEFAULT_MODEL),
         "prompt_version": PROMPT_VERSION,
@@ -247,13 +252,8 @@ def annotate_book(
         "errors": 0,
         "input_tokens": 0,
         "output_tokens": 0,
-        "skipped_native_tags": False,
+        "relabel_allowed": allow_relabel,
     }
-
-    if not force and _has_native_tags(parse_result):
-        logger.info("Source already has native tags — skipping annotate pass.")
-        stats["skipped_native_tags"] = True
-        return stats
 
     if client is None:
         try:
@@ -308,7 +308,7 @@ def annotate_book(
             if key in applied_keys:
                 continue
             applied_keys.add(key)
-            relabeled, sc, fc = _apply_block_annotation(by_key[key], ann)
+            relabeled, sc, fc = _apply_block_annotation(by_key[key], ann, allow_relabel=allow_relabel)
             if relabeled:
                 stats["relabeled"] += 1
             stats["spans_total"] += sc
