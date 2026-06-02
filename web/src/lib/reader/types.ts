@@ -3,25 +3,21 @@
 
 export type BlockType =
   | "prose"
-  | "hadith"
+  | "heading"
+  | "poetry"
   | "isnad"
   | "matn"
   | "takhrij"
-  | "hadith_grading"
-  | "biography"
-  | "commentary"
-  | "quoted_text"
-  | "editor_note"
-  | "poetry"
-  | "heading";
+  | "quran";
 
 export type SpanLabel =
-  | "qur_quote"
-  | "hadith_quote"
-  | "book_title"
-  | "personal_name"
-  | "place_name"
-  | "date_hijri";
+  | "quran"
+  | "person"
+  | "place"
+  | "book_ref"
+  | "hadith_ref"
+  | "date_hijri"
+  | "footnote";
 
 export type QualityFlag =
   | "parse_error"
@@ -49,6 +45,8 @@ type BlockBase = {
   parser_type?: string | null;
   spans?: Span[];
   flags?: QualityFlag[];
+  level?: number | null;
+  number?: string | null;
 };
 
 export type ProseLikeBlock = BlockBase & {
@@ -63,10 +61,16 @@ export type PoetryBlock = BlockBase & {
 
 export type Block = ProseLikeBlock | PoetryBlock;
 
+export type Footnote = {
+  marker: string;
+  tokens: Token[];
+};
+
 export type Page = {
   page_number: number;
   volume: number;
   content_blocks: Block[];
+  footnotes?: Footnote[];
 };
 
 export type Chapter = {
