@@ -23,7 +23,7 @@ recitation/
 ├── test_streaming.py    # Automated streaming tests (TTS via edge-tts + WebSocket)
 ├── test_auth.py         # Auth unit test
 ├── passage.json         # Diacritized passages (ajrumiyyah, daa-dawa, ihya)
-├── training/            # Build tools (not runtime): build_gmm, train_classifier, train_type_classifier
+├── training/            # Build tool (not runtime): build_gmm.py regenerates models/gmm/
 ├── models/
 │   ├── ssl_xls_r_v5/    # Fine-tuned XLS-R 300M CTC model (HuggingFace format)
 │   ├── gmm/             # MixGoP GMMs (loaded by scorer.py if present)

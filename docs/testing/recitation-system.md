@@ -145,15 +145,13 @@ The simulator sends audio in 1-second chunks at half real-time speed and collect
 
 ## Build Tools (not tests)
 
-`recitation/training/` holds offline tools that regenerate model artifacts; they are not part of the test path:
+`recitation/training/` holds one offline tool that regenerates a model artifact; it is not part of the test path:
 
 | Script | Role |
 |---|---|
 | `training/build_gmm.py` | Regenerates `models/gmm/` (MixGoP GMMs, loaded by `scorer.py`). |
-| `training/train_classifier.py` | Trains `models/error_classifier.pkl` (GBM fallback). |
-| `training/train_type_classifier.py` | Trains `models/type_classifier.pkl` (error-type GBM). |
 
-The live `.pkl`/GMM artifacts in `models/` are committed and loaded at runtime. Note: `train_classifier.py` and `train_type_classifier.py` previously consumed a `signal_dump.json` produced by a now-removed dumper, so they need their input regenerated before they can run again (a likely Phase 2 task, since the decision layer is slated for rework).
+The live `.pkl` GBM classifiers (`models/error_classifier.pkl`, `models/type_classifier.pkl`) and the GMMs are committed and loaded at runtime. Their original training scripts were removed because their input pipeline (`signal_dump.json` via a now-deleted dumper) no longer exists; the decision layer is slated for rework in Phase 2, which will rebuild any needed trainers from scratch.
 
 ---
 
