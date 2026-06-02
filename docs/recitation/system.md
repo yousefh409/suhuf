@@ -384,7 +384,7 @@ detection figure as an upper bound, not field accuracy.
 | `recitation/eval.py` | Unified mutation-based evaluation; single source of truth. Sources: saved sessions + external MSA corpus. |
 | `recitation/eval_corpus.py` | Arabic Speech Corpus loader (Buckwalter→Arabic, project mark order). |
 | `recitation/eval_baseline.json` | Committed honest baseline report, per source/speaker. |
-| `recitation/training/` | Build tools (not runtime): `build_gmm`, `train_classifier`, `train_type_classifier`. |
+| `recitation/training/` | Build tool (not runtime): `build_gmm.py` regenerates `models/gmm/`. |
 | `recitation/test_streaming.py` | Automated streaming tests via TTS (edge-tts) and WebSocket. |
 | `recitation/test_data/manifest.jsonl` | Recording metadata: file, passage_id, phrase_idx, notes, timestamp. |
 | `recitation/test_data/sessions/` | Saved streaming sessions: `audio.raw`, `meta.json`, `scores.json`. |
