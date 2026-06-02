@@ -16,6 +16,7 @@
   "dependencies": {
     "@floating-ui/react": "^0.27.19",
     "@paper-design/shaders-react": "^0.0.75",
+    "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.103.0",
     "lucide-react": "^1.8.0",
     "motion": "^12.38.0",
