@@ -10,7 +10,8 @@
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview"
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "seed:sample": "node scripts/seed-sample.mjs"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.19",
