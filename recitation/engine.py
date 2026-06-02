@@ -1408,7 +1408,7 @@ class RecitationEngine:
 
         return results
 
-    def score_phrase(self, waveform, phrase_text, compute_pd=True):
+    def score_phrase(self, waveform, phrase_text, compute_pd=True, model_out=None):
         """Score an entire phrase.
 
         Args:
@@ -1416,13 +1416,18 @@ class RecitationEngine:
             phrase_text: diacritized Arabic text
             compute_pd: whether to compute phrase-differential signals
                 (expensive for long texts, skip for alignment-only passes)
+            model_out: optional precomputed get_model_outputs() result for this
+                waveform. When the same audio is scored against many texts (e.g.
+                eval mutations), pass it to skip the repeated model forward pass.
+                Must include hidden_states. Results are identical to recomputing.
 
         Returns:
             results: list of per-word assessment dicts
             greedy: greedy decoded text
             alignment_score: overall forced-alignment score (normalised)
         """
-        model_out = self.get_model_outputs(waveform, output_hidden_states=True)
+        if model_out is None:
+            model_out = self.get_model_outputs(waveform, output_hidden_states=True)
         log_probs = model_out['log_probs']
         logits = model_out['logits']
         hidden_states = model_out.get('hidden_states')
