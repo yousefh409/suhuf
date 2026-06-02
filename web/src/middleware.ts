@@ -2,7 +2,13 @@ import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { isProtectedPath, loginRedirectTarget } from "@/lib/proxy-paths";
 
-// ---- In-memory rate limiter (carried over from middleware.ts) ----
+// NOTE: This stays as `middleware.ts` (not Next 16's `proxy.ts`) on purpose.
+// `proxy.ts` defaults to the Node.js runtime, which @opennextjs/cloudflare does
+// not support ("Node.js middleware is not currently supported"). The
+// `middleware` convention defaults to the Edge runtime that the Cloudflare
+// adapter requires.
+
+// ---- In-memory rate limiter ----
 // Not perfect across Cloudflare isolates, but catches basic abuse.
 const hits = new Map<string, { count: number; resetAt: number }>();
 
@@ -54,7 +60,7 @@ function rateLimitApi(req: NextRequest): NextResponse | null {
   return null;
 }
 
-export async function proxy(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // API routes: rate-limit only (no auth gating).
