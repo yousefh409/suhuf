@@ -138,42 +138,58 @@ body {
   color: var(--reader-accent);
 }
 
-/* Inline span labels produced by the v2 annotation pass.
-   Each annotated token gets `reader-span` plus a label-specific class.
-   Keep effects subtle — these run inline through running prose. */
+/* Inline span labels. Only quran tokens get a tinted style; all other
+   reference labels (names, places, dates, etc.) render plain with data
+   attributes only. Each annotated token gets `reader-span` plus a
+   label-specific class. Keep effects subtle — these run inline through
+   running prose. */
 .reader-span {
   cursor: help;
   transition: background-color 120ms ease;
 }
-.reader-span-qur_quote {
-  background: rgba(180, 125, 58, 0.12);
-  box-shadow: 0 1px 0 0 rgba(180, 125, 58, 0.35);
+.reader-span-quran {
+  background: rgba(26, 122, 70, 0.10);
+  box-shadow: 0 1px 0 0 rgba(26, 122, 70, 0.35);
+  color: var(--reader-quran, #1a6b46);
 }
-[data-reader-theme="night"] .reader-span-qur_quote {
-  background: rgba(212, 160, 90, 0.10);
-  box-shadow: 0 1px 0 0 rgba(212, 160, 90, 0.35);
+[data-reader-theme="night"] .reader-span-quran {
+  background: rgba(80, 200, 140, 0.10);
+  box-shadow: 0 1px 0 0 rgba(80, 200, 140, 0.30);
 }
-.reader-span-hadith_quote {
-  font-style: italic;
-  border-bottom: 1px dotted var(--reader-accent, currentColor);
+
+/* Standalone ayah block. */
+.reader-quran-block {
+  color: var(--reader-quran, #1a6b46);
 }
-.reader-span-book_title {
-  font-weight: 600;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 4px;
-  text-decoration-color: color-mix(in srgb, var(--reader-fg, currentColor) 35%, transparent);
-}
-.reader-span-personal_name {
-  border-bottom: 1px dotted color-mix(in srgb, var(--reader-fg, currentColor) 35%, transparent);
-}
-.reader-span-place_name {
-  font-variant: small-caps;
-}
-.reader-span-date_hijri {
+[data-reader-theme="night"] .reader-quran-block { color: #6fd6a0; }
+
+/* Faint printed item ordinal before a hadith/heading. */
+.reader-item-number {
+  color: var(--reader-fg-faint);
   font-family: var(--font-sans), system-ui, sans-serif;
-  font-feature-settings: "tnum" 1;
+  font-size: 0.8em;
 }
+
+/* Footnote superscript marker in running text. */
+.reader-footnote-ref {
+  color: var(--reader-accent);
+  font-size: 0.62em;
+  cursor: default;
+}
+
+/* Footnote list at the bottom of a section. */
+.reader-footnotes {
+  margin-top: 1.5rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--reader-rule);
+}
+.reader-footnote {
+  font-size: 0.82em;
+  line-height: 1.9;
+  color: var(--reader-fg-muted);
+  margin: 0.2rem 0;
+}
+.reader-footnote-marker { color: var(--reader-accent); }
 
 /* Hadith card grouping — only rendered when the user enables it. */
 .reader-hadith-card {
