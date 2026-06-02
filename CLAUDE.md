@@ -32,7 +32,9 @@ Python dirs currently have no real tests; `pytest --co` tolerates exit code 5 so
 
 We're iterating on the ingestion pipeline, book format, and the internal web reader together so the public reader can land on a stable foundation. Dev loop and architecture: [docs/reader/dev-loop.md](docs/reader/dev-loop.md).
 
-TL;DR: edit ingestion → `python -m ingestion ingest <uri> --dump web/data --dry-run --tashkeel-engine shakkala` → refresh `/internal/library`. Full pipeline (parse + tashkeel + Claude enrichment) runs; `--dry-run` only skips the Supabase upload. Requires `ANTHROPIC_API_KEY`.
+TL;DR: edit ingestion → `python -m ingestion ingest <uri> --dump web/data --dry-run --tashkeel-engine shakkala` → open the dumped book directly at `/reader/<openiti_id>` (or `/inspector/<openiti_id>`). Full pipeline (parse + tashkeel + Claude enrichment) runs; `--dry-run` only skips the Supabase upload. Requires `ANTHROPIC_API_KEY`.
+
+Note: `/library` is now the product Discover screen (mock-backed catalog browse, part of the dashboard), not the old local-data book index. The dev book-list that listed `web/data/*.json` has been removed — reach an ingested book by its `openiti_id` URL as above.
 
 ## Destructive actions
 

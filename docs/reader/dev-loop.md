@@ -13,8 +13,13 @@ edit ingestion code  →  python -m ingestion ingest <uri>  \
                         ↓
                         web/data/<uri>.{parsed,tashkeeled,enriched}.json
                         ↓
-                        refresh /internal/library  →  inspect rendering
+                        open /reader/<openiti_id>  →  inspect rendering
+                        (or /inspector/<openiti_id> for block borders + JSON)
 ```
+
+There is no local-book index UI anymore: `/library` is the product
+Discover screen (mock catalog browse, part of the dashboard). Open a
+freshly-dumped book by navigating directly to its `openiti_id` URL.
 
 Full pipeline runs: parse → tashkeel → Claude enrichment → JSON files.
 `--dry-run` skips only the Supabase upload (transport, not data shape).
@@ -74,12 +79,12 @@ If you're iterating on parsing only and don't need tashkeel/enrichment:
 - `web/src/lib/reader/tashkeel.ts` — `stripTashkeel` regex util.
 - `web/src/components/reader/` — block-rendering primitives shared
   by reader and inspector modes.
-- `web/src/app/internal/` — routes:
-  - `/internal/library` — book index from `web/data/*.json`
-  - `/internal/reader/[openiti_id]/[ch_index]` — clean reader
-  - `/internal/inspector/[openiti_id]/[ch_index]` — block borders +
-    type/key badges + token IDs + JSON drawer + tashkeel diff
-  - `/internal/layout.tsx` — INTERNAL badge, `noindex`, robots disallow
+- reader/inspector routes (open a dumped book by its `openiti_id`):
+  - `/reader/<openiti_id>` — clean reader
+  - `/inspector/<openiti_id>` — block borders + type/key badges +
+    token IDs + JSON drawer + tashkeel diff
+  - (the standalone `web/data` book-index page was removed; `/library`
+    is now the product Discover screen)
 
 **Specs / plans**
 - `docs/superpowers/specs/2026-04-29-internal-reader-design.md`
