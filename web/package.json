@@ -13,6 +13,7 @@
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview"
   },
   "dependencies": {
+    "@floating-ui/react": "^0.27.19",
     "@paper-design/shaders-react": "^0.0.75",
     "@supabase/supabase-js": "^2.103.0",
     "lucide-react": "^1.8.0",
