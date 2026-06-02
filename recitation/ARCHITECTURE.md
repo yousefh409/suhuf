@@ -15,13 +15,21 @@ recitation/
 ├── engine.py            # Core: both models, scoring logic, StreamingSession
 ├── arabic.py            # Arabic text utils: diacritics, i3rab/tashkeel alternatives
 ├── server.py            # FastAPI server: REST + WebSocket, error classification
-├── evaluate.py          # Batch evaluation harness (78 recordings)
+├── scorer.py            # MixGoP GMM scorer (lazy-loaded by engine if models/gmm/ exists)
+├── auth.py              # Token signing/verification for the API
+├── eval.py              # Unified evaluation — single source of truth (mutation-based)
+├── eval_corpus.py       # External MSA corpus loader (Arabic Speech Corpus; Buckwalter→Arabic)
+├── eval_baseline.json   # Committed honest baseline report, per source/speaker
 ├── test_streaming.py    # Automated streaming tests (TTS via edge-tts + WebSocket)
-├── measure_tashkeel.py  # TTS-based tashkeel detection measurement
-├── analyze_misses.py    # Diagnostic for missed tashkeel cases
+├── test_auth.py         # Auth unit test
 ├── passage.json         # Diacritized passages (ajrumiyyah, daa-dawa, ihya)
+├── training/            # Build tools (not runtime): build_gmm, train_classifier, train_type_classifier
 ├── models/
-│   └── ssl_xls_r_v5/    # Fine-tuned XLS-R 300M CTC model (HuggingFace format)
+│   ├── ssl_xls_r_v5/    # Fine-tuned XLS-R 300M CTC model (HuggingFace format)
+│   ├── gmm/             # MixGoP GMMs (loaded by scorer.py if present)
+│   ├── error_classifier.pkl  # GBM fallback classifier (loaded by server.py)
+│   └── type_classifier.pkl   # GBM error-type classifier
+├── data/                # External corpora cache (gitignored); e.g. data/asc/ = Arabic Speech Corpus
 ├── static/
 │   ├── index.html       # Live readalong UI (single-file, ~600 lines)
 │   └── record.html      # Test data recorder
@@ -182,19 +190,20 @@ Single-file HTML/CSS/JS (~600 lines). Key behaviors:
 
 ## Current Metrics
 
-### Batch (evaluate.py)
-- **FP rate: 1.8%** (12/652 words, target <2%)
-- **Detection: 76%** (4 NONE DETECTED: recordings 8, 11, 12, 13 — all subtle sukoon/tanween)
+Accuracy is measured by `eval.py` (the single source of truth) and recorded in
+`eval_baseline.json`, broken out **per source / speaker**. The methodology is
+mutation-based: real audio is held fixed and the reference text is mutated
+(i3rab / tashkeel / word) to induce errors on demand.
 
-### Streaming (test_streaming.py, 9/9 pass)
-- Correct readings: 0% FP
-- Error detection: i3rab and tashkeel errors caught
-- Latency: 1.2s to first scored response
-- No flicker (stable word states)
+- **sessions** (in-domain, single human speaker, real audio): ~1.8% FP, ~93% detection.
+- **corpus** (Arabic Speech Corpus — a held-out second MSA speaker): low FP with
+  high detection on an unseen speaker (see `eval_baseline.json` for current figures).
 
-### Session Replay (4 saved sessions)
-- Smooth cursor advancement, no wild jumps
-- Near-perfect phrase scoring (14/14, 13/13, 10/10, 11/11, etc.)
+Note: mutation-based detection is inherently easier than genuine human
+mispronunciations; the FP rate on an unseen speaker is the key generalization signal.
+
+### Streaming (test_streaming.py)
+- Correct readings: ~0% FP; i3rab/tashkeel errors caught; ~1.2s to first response; no flicker.
 
 ## How to Run
 
@@ -206,18 +215,21 @@ python -m uvicorn server:app --host 0.0.0.0 --port 8000
 
 Python: `/opt/homebrew/Caskroom/miniconda/base/bin/python3` (3.13)
 
-### Running Tests
+### Running Evaluation
 
 ```bash
-# Batch evaluation (CTC-only, no Whisper needed)
-python evaluate.py
+# Unified eval — single source of truth (sessions + external MSA corpus)
+python eval.py                    # all sources
+python eval.py --source sessions  # real-audio sessions only
+python eval.py --source corpus --limit 200
+python eval.py --report eval_baseline.json
 
-# Streaming tests (requires running server on port 8000)
+# Streaming behavior test (requires running server on port 8000)
 python test_streaming.py
-
-# Tashkeel detection measurement
-python measure_tashkeel.py
 ```
+
+The external corpus lives at `data/asc/` (Arabic Speech Corpus, gitignored). Download
+it from `https://en.arabicspeechcorpus.com/arabic-speech-corpus.zip` and unzip there.
 
 ## Key Design Decisions
 
