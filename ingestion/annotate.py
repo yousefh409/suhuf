@@ -29,30 +29,25 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 PROMPT_VERSION = "annotate-v1.0"
 
-# Block-type vocabulary v1. The model returns one of these or "keep" to
-# leave the parser type unchanged.
+# Block-type frozen vocabulary (7 types). The model returns one of these or
+# "keep" to leave the parser type unchanged.
 BLOCK_TYPES = [
     "prose",
+    "heading",
+    "poetry",
     "isnad",
     "matn",
     "takhrij",
-    "hadith_grading",
-    "biography",
-    "commentary",
-    "quoted_text",
-    "editor_note",
-    "heading",
-    "poetry",
-    "hadith",
+    "quran",
 ]
 
-# Span-label vocabulary v2.
+# Span-label frozen vocabulary (6 labels).
 SPAN_LABELS = [
-    "qur_quote",
-    "hadith_quote",
-    "book_title",
-    "personal_name",
-    "place_name",
+    "quran",
+    "person",
+    "place",
+    "book_ref",
+    "hadith_ref",
     "date_hijri",
 ]
 
@@ -92,23 +87,20 @@ For each block, return a JSON object with:
 - "flags": subset of {QUALITY_FLAGS}, empty array if none
 
 Block-type definitions:
+- "prose": general running text (default when no more specific type applies)
+- "heading": section or chapter heading
+- "poetry": verse in metered form; hemistichs separated by a caesura
 - "isnad": chain of transmitters, e.g. "حدثنا/أخبرنا … عن … عن …" leading into a hadith
 - "matn": the actual reported text of a hadith, often (but not always) wrapped in « » or "..."
 - "takhrij": source attribution after the matn naming which collections recorded it, e.g. "رواه البخاري في صحيحه"
-- "hadith_grading": authenticity verdict, e.g. "قال الشيخ الألباني: صحيح" — values reflected in confidence; sub-label optional
-- "biography": one entry in a tabaqat/rijal work — a scholar's profile
-- "commentary": exegesis/explanation in a sharḥ work
-- "quoted_text": the matn or verse the commentary is unpacking (only meaningful inside a sharḥ)
-- "editor_note": modern editor's brackets/footnotes mixed into the text
-- "heading", "poetry", "prose": leave as-is when the parser already chose them correctly
-- "hadith": fallback when the block is clearly hadith-related but you can't split isnad/matn
+- "quran": a block whose primary content is a Qur'anic verse or multi-verse passage (not an inline citation inside prose — use the quran span label for those)
 
 Span-label definitions:
-- "qur_quote": embedded Qur'anic verse. Provide "ref" as "sura:ayah" when confident, e.g. "51:56"
-- "hadith_quote": a hadith quoted inline in a non-hadith book
-- "book_title": referenced classical work, e.g. "صحيح البخاري", "رياض الصالحين"
-- "personal_name": companion / tabii / scholar / prophet name. Use "sub_label" with one of: companion, tabii, scholar, prophet
-- "place_name": geographical reference
+- "quran": embedded Qur'anic citation within a prose or matn block. Provide "ref" as "sura:ayah" when you can — this is your best guess and will be overridden by a deterministic verification pass later
+- "person": a named individual. Use "sub_label" with one of: companion, tabii, scholar, prophet, caliph
+- "place": geographical reference (city, region, land)
+- "book_ref": referenced classical work, e.g. "صحيح البخاري", "رياض الصالحين"
+- "hadith_ref": a hadith quoted inline in a non-hadith context
 - "date_hijri": explicit Hijri date in the text
 
 Quality flags:
@@ -158,7 +150,7 @@ def _has_native_tags(parse_result: ParseResult) -> bool:
     n = 0
     for page in parse_result.pages:
         for block in page.content_blocks:
-            if block.type in ("isnad", "matn", "biography"):
+            if block.type in ("isnad", "matn"):
                 n += 1
                 if n >= MIN_NATIVE_TAGS:
                     return True
