@@ -35,12 +35,20 @@ class Block(BaseModel):
     parser_type: str | None = None
     spans: list[Span] = []
     flags: list[str] = []
+    level: int | None = None       # heading depth 1/2/3, None for non-headings
+    number: str | None = None      # printed item ordinal as string to preserve fidelity
+
+
+class Footnote(BaseModel):
+    marker: str
+    tokens: list[Token] = []
 
 
 class Page(BaseModel):
     page_number: int
     volume: int = 1
     content_blocks: list[Block] = []
+    footnotes: list[Footnote] = []
 
     @computed_field
     @property
