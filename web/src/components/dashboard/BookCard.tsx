@@ -6,9 +6,10 @@ import BookCover from "./BookCover";
 interface BookCardProps {
   book: BookIdentity;
   percentBadge?: number;
+  meta?: string;
 }
 
-const BookCard: FC<BookCardProps> = ({ book, percentBadge }) => {
+const BookCard: FC<BookCardProps> = ({ book, percentBadge, meta }) => {
   const displayTitle = book.titleLat ?? book.titleEn ?? null;
   const isArabicTitle = displayTitle === null;
   const titleText = displayTitle ?? book.titleAr;
@@ -40,7 +41,7 @@ const BookCard: FC<BookCardProps> = ({ book, percentBadge }) => {
         >
           {titleText}
         </p>
-        <p className="text-xs text-ink/50 truncate">{book.authorName}</p>
+        <p className="text-xs text-ink/50 truncate">{meta ?? book.authorName}</p>
       </div>
     </Link>
   );
