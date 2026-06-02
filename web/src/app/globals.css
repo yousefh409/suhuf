@@ -209,11 +209,21 @@ body {
   color: var(--reader-fg);
 }
 
-/* Faint printed item ordinal before a hadith/heading. */
+/* Clean Edition hadith ordinal: a faint numeral hanging in the start margin
+   (right side in RTL) beside the first line, not inline before the text. The
+   .reader-numbered container reserves the margin room. */
 .reader-item-number {
   color: var(--reader-fg-faint);
   font-family: var(--font-sans), system-ui, sans-serif;
-  font-size: 0.8em;
+  font-size: 0.72em;
+  font-weight: 500;
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0.2em;
+}
+.reader-numbered {
+  position: relative;
+  padding-inline-start: 2.4em;
 }
 
 /* Footnote superscript marker in running text. */
