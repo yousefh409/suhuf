@@ -23,6 +23,12 @@ _MILESTONE_RE = re.compile(r"\bms\d+\b")
 # Matched against the first whitespace-delimited token only.
 _TAKHRIJ_KEYWORDS: tuple[str, ...] = ("رواه", "أخرجه", "أخرجها", "رواها", "متفق")
 
+# Ornate Quranic bracket glyphs.
+# U+FD3E = ORNATE LEFT PARENTHESIS  (﴿, appears at start of ayah in RTL text)
+# U+FD3F = ORNATE RIGHT PARENTHESIS (﴾, appears at end of ayah in RTL text)
+_QURAN_OPEN = "\uFD3F"
+_QURAN_CLOSE = "\uFD3E"
+
 
 def _extract_leading_ordinal(text: str) -> tuple[str | None, str]:
     """Extract a leading printed ordinal from text.
@@ -197,8 +203,17 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
             hadith_words.extend(line_text.strip().split())
             return
 
-        # Takhrij: source-attribution line identified by its first word
+        # Quran: standalone ayah line wrapped in ornate brackets ﴿…﴾
         candidate = line_text.strip()
+        if candidate.startswith(_QURAN_OPEN) and candidate.endswith(_QURAN_CLOSE):
+            quran_number, quran_text = _extract_leading_ordinal(candidate)
+            block_idx = len(current_blocks)
+            tokens = _tokenize(quran_text, current_page_num, block_idx)
+            if tokens:
+                current_blocks.append(Block(key=f"b{block_idx}", type="quran", tokens=tokens, number=quran_number))
+            return
+
+        # Takhrij: source-attribution line identified by its first word
         first_word = candidate.split()[0] if candidate.split() else ""
         if first_word in _TAKHRIJ_KEYWORDS:
             takhrij_number, takhrij_text = _extract_leading_ordinal(candidate)

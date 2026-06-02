@@ -51,6 +51,34 @@ def test_isnad_ordinal_extracted():
     )
 
 
+def _quran_blocks(result):
+    blocks = []
+    for page in result.pages:
+        for block in page.content_blocks:
+            if block.type == "quran":
+                blocks.append(block)
+    return blocks
+
+
+def test_quran_block_detected():
+    """A standalone ayah line wrapped in ﴿…﴾ must be classified as quran,
+    not prose. The bracket glyphs stay in the token text."""
+    result = parse_file(FIXTURE, "0000Sample.Taxonomy")
+    quran_blocks = _quran_blocks(result)
+    assert len(quran_blocks) >= 1, (
+        f"Expected at least 1 quran block, got {len(quran_blocks)}; "
+        f"all block types: {[b.type for p in result.pages for b in p.content_blocks]}"
+    )
+    block = quran_blocks[0]
+    # In the fixture the line is stored as U+FD3F … U+FD3E (RTL text order).
+    assert block.tokens[0].text.startswith("\uFD3F"), (
+        f"First token should start with ﴿ (U+FD3F), got {block.tokens[0].text!r}"
+    )
+    assert block.tokens[-1].text.endswith("\uFD3E"), (
+        f"Last token should end with ﴾ (U+FD3E), got {block.tokens[-1].text!r}"
+    )
+
+
 def _takhrij_blocks(result):
     blocks = []
     for page in result.pages:
