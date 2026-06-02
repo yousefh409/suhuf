@@ -19,6 +19,7 @@ import {
   ReciteShellToggle,
   ReciteShellContent,
 } from "@/components/reader/recite/ReciteShell";
+import { WordPopoverShell } from "@/components/reader/word/WordPopoverShell";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,9 @@ export default async function ReaderPage({
         </header>
 
         <ReciteShellContent>
-          <ChapterScroll pages={pages} chapters={chapters} mode="reader" />
+          <WordPopoverShell>
+            <ChapterScroll pages={pages} chapters={chapters} mode="reader" />
+          </WordPopoverShell>
         </ReciteShellContent>
       </ReciteShell>
     </ReaderThemeShell>
