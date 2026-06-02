@@ -46,12 +46,6 @@ function groupBlocks(blocks: BlockT[], counter: { n: number }): RenderItem[] {
         continue;
       }
     }
-    if (b.type === "hadith") {
-      counter.n += 1;
-      out.push({ kind: "card", blocks: [{ block: b, blockIdx: i }], number: counter.n });
-      i += 1;
-      continue;
-    }
     out.push({ kind: "block", block: b, blockIdx: i });
     i += 1;
   }

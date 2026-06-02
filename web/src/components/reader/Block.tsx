@@ -186,26 +186,26 @@ function renderInner(
     );
   });
 
+  const numberPrefix =
+    isReader && block.number ? (
+      <span className="reader-item-number" aria-hidden>{block.number} - </span>
+    ) : null;
+
   switch (block.type) {
-    case "heading":
+    case "heading": {
+      const lvl = block.level ?? 2;
+      const sizeReader = lvl === 1 ? "text-[1.35em]" : lvl === 2 ? "text-[1.15em]" : "text-[1.02em]";
       return isReader ? (
-        <h2
-          className="font-bold text-[1.2em] leading-snug mt-8 mb-3 text-center"
-          style={{ color: "var(--reader-fg)" }}
-        >
-          {tokens}
+        <h2 className={`font-bold ${sizeReader} leading-snug mt-8 mb-3 text-center`} style={{ color: "var(--reader-fg)" }}>
+          {numberPrefix}{tokens}
         </h2>
       ) : (
         <h2 className="font-bold text-xl mt-6 mb-2">{tokens}</h2>
       );
+    }
     case "isnad":
       return isReader ? (
-        <p
-          className="text-[0.92em] leading-[2] my-1"
-          style={{ color: "var(--reader-fg-muted)" }}
-        >
-          {tokens}
-        </p>
+        <p className="text-[0.92em] leading-[2] my-1" style={{ color: "var(--reader-fg-muted)" }}>{numberPrefix}{tokens}</p>
       ) : (
         <p className="text-zinc-600 leading-loose">{tokens}</p>
       );
@@ -217,78 +217,16 @@ function renderInner(
       );
     case "takhrij":
       return isReader ? (
-        <p
-          className="text-[0.88em] leading-[1.85] my-1 italic"
-          style={{ color: "var(--reader-fg-muted)" }}
-        >
-          {tokens}
-        </p>
+        <p className="text-[0.88em] leading-[1.85] my-1" style={{ color: "var(--reader-fg-muted)" }}>{tokens}</p>
       ) : (
         <p className="text-zinc-500 leading-loose">{tokens}</p>
       );
-    case "hadith_grading":
+    case "quran":
       return isReader ? (
-        <p
-          className="text-[0.85em] leading-snug my-1 font-mono tracking-wide"
-          style={{ color: "var(--reader-accent)" }}
-        >
-          {tokens}
-        </p>
+        <p className="reader-quran-block text-center leading-[2.2] my-4 text-[1.1em]">{tokens}</p>
       ) : (
-        <p className="text-amber-700 font-mono text-sm">{tokens}</p>
+        <p className="text-emerald-800 text-center leading-loose my-3">{tokens}</p>
       );
-    case "biography":
-      return isReader ? (
-        <aside
-          className="rounded p-3 my-3 leading-relaxed border"
-          style={{
-            background: "var(--reader-card-bg)",
-            borderColor: "var(--reader-card-border)",
-          }}
-        >
-          {tokens}
-        </aside>
-      ) : (
-        <aside className="bg-zinc-50 rounded p-3 my-3 italic leading-relaxed">
-          {tokens}
-        </aside>
-      );
-    case "commentary":
-      return isReader ? (
-        <p
-          className="text-[0.95em] leading-[1.95] my-2"
-          style={{ color: "var(--reader-fg-muted)" }}
-        >
-          {tokens}
-        </p>
-      ) : (
-        <p className="text-zinc-700 leading-loose">{tokens}</p>
-      );
-    case "quoted_text":
-      return isReader ? (
-        <blockquote
-          className="my-2 leading-[2] pr-3 border-r-2"
-          style={{ borderColor: "var(--reader-accent)", borderRightWidth: "2px" }}
-        >
-          {tokens}
-        </blockquote>
-      ) : (
-        <blockquote className="border-r-2 border-amber-400 pr-3 my-2 leading-loose">
-          {tokens}
-        </blockquote>
-      );
-    case "editor_note":
-      return isReader ? (
-        <p
-          className="text-[0.85em] leading-snug my-1"
-          style={{ color: "var(--reader-fg-faint)" }}
-        >
-          {tokens}
-        </p>
-      ) : (
-        <p className="text-zinc-400 text-sm leading-loose">{tokens}</p>
-      );
-    case "hadith":
     case "prose":
     default:
       return <p className="leading-[2] my-2">{tokens}</p>;
