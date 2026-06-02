@@ -10,7 +10,7 @@ _PAGE_RE = re.compile(r"PageV(\d+)P(\d+)")
 _HEADING_RE = re.compile(r"^###\s+(\|+)\s+(.*)")
 _EDITOR_RE = re.compile(r"^###\s+\|EDITOR\|")
 _HADITH_RE = re.compile(r"^\$RWY\$\s*(.*)")
-_BIO_RE = re.compile(r"^###\s+\$(?:BIO_MAN|BIO_WOM|\$?)\$?\s*(.*)")
+_BIO_MARKER_RE = re.compile(r"^###\s+\$(?:BIO_MAN|BIO_WOM|\$?)\$?\s*(.*)")
 # Matches a leading printed ordinal: one or more digits (Arabic-Indic U+0660–U+0669
 # or ASCII 0–9) optionally followed by a separator (-, ., ), ،) with surrounding spaces.
 _ORDINAL_RE = re.compile(r"^([\u0660-\u06690-9]+)\s*[-.)،]\s*")
@@ -47,10 +47,8 @@ _FOOTNOTE_MARKER_RE = re.compile(r"\(([0-9\u0660-\u0669]+)\)$")
 _TAKHRIJ_KEYWORDS: tuple[str, ...] = ("رواه", "أخرجه", "أخرجها", "رواها", "متفق")
 
 # Ornate Quranic bracket glyphs.
-# U+FD3E = ORNATE LEFT PARENTHESIS  (﴿, appears at start of ayah in RTL text)
-# U+FD3F = ORNATE RIGHT PARENTHESIS (﴾, appears at end of ayah in RTL text)
-_QURAN_OPEN = "\uFD3F"
-_QURAN_CLOSE = "\uFD3E"
+_QURAN_OPEN = "\uFD3F"   # ﴿ U+FD3F ORNATE RIGHT PARENTHESIS — opens the ayah
+_QURAN_CLOSE = "\uFD3E"  # ﴾ U+FD3E ORNATE LEFT PARENTHESIS  — closes the ayah
 
 
 def _extract_leading_ordinal(text: str) -> tuple[str | None, str]:
@@ -124,7 +122,7 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
 
     def _dispatch(line_text: str):
         """Process a complete content line (after stripping prefix and joining continuations)."""
-        nonlocal in_hadith, hadith_words, hadith_number, chapter_sort, pending_fn_defs
+        nonlocal in_hadith, hadith_words, hadith_number, chapter_sort
 
         # Drop OpenITI milestone markers (msNN); they are tooling artifacts, not text.
         line_text = _MILESTONE_RE.sub("", line_text)
@@ -215,7 +213,7 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
 
         # Biography markers — "biography" is a CUT type; fall back to prose.
         # Strip the $BIO_MAN$/$BIO_WOM$ marker prefix and emit the remainder as prose.
-        m = _BIO_RE.match(line_text)
+        m = _BIO_MARKER_RE.match(line_text)
         if m:
             _flush_hadith()
             remainder = m.group(1).strip()
@@ -243,7 +241,8 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
             return
 
         # Takhrij: source-attribution line identified by its first word
-        first_word = candidate.split()[0] if candidate.split() else ""
+        parts = candidate.split()
+        first_word = parts[0] if parts else ""
         if first_word in _TAKHRIJ_KEYWORDS:
             takhrij_number, takhrij_text = _extract_leading_ordinal(candidate)
             block_idx = len(current_blocks)
