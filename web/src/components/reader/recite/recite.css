@@ -5,3 +5,10 @@
 .tok--tashkeel     { border-bottom: 2px solid rgb(234, 88, 12); }
 .tok--skipped      { color: rgb(161, 161, 170); border-bottom: 2px dashed rgb(161, 161, 170); }
 .tok--current      { background: rgba(250, 204, 21, 0.25); border-radius: 2px; }
+.reader-word {
+  cursor: pointer;
+}
+.reader-word:hover {
+  background: var(--reader-card-bg, rgba(0, 0, 0, 0.05));
+  border-radius: 3px;
+}

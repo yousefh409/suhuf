@@ -1,6 +1,7 @@
 import type { Block as BlockT, ReaderMode, Token, Span, SpanLabel } from "@/lib/reader/types";
 import { BLOCK_BORDER, BLOCK_BADGE } from "@/lib/reader/colors";
 import { stripTashkeel } from "@/lib/reader/tashkeel";
+import { buildSelectionMap } from "@/lib/reader/sentences";
 import { TokenText } from "./TokenText";
 
 type Props = {
@@ -121,15 +122,19 @@ function renderInner(
           >
             {/* First hemistich → visually the right side under RTL grid flow. */}
             <div className="text-left">
-              {verse[0]?.map((t) => (
-                <TokenText
-                  key={t.id}
-                  token={t}
-                  mode={mode}
-                  showTashkeel={showTashkeel}
-                  showDiff={showDiff}
-                />
-              ))}
+              {(() => {
+                const selMap = mode === "reader" ? buildSelectionMap(verse[0] ?? []) : null;
+                return verse[0]?.map((t) => (
+                  <TokenText
+                    key={t.id}
+                    token={t}
+                    mode={mode}
+                    showTashkeel={showTashkeel}
+                    showDiff={showDiff}
+                    selection={selMap?.get(t.id)}
+                  />
+                ));
+              })()}
             </div>
             <span
               aria-hidden
@@ -139,15 +144,19 @@ function renderInner(
               ◆
             </span>
             <div className="text-right">
-              {verse[1]?.map((t) => (
-                <TokenText
-                  key={t.id}
-                  token={t}
-                  mode={mode}
-                  showTashkeel={showTashkeel}
-                  showDiff={showDiff}
-                />
-              ))}
+              {(() => {
+                const selMap = mode === "reader" ? buildSelectionMap(verse[1] ?? []) : null;
+                return verse[1]?.map((t) => (
+                  <TokenText
+                    key={t.id}
+                    token={t}
+                    mode={mode}
+                    showTashkeel={showTashkeel}
+                    showDiff={showDiff}
+                    selection={selMap?.get(t.id)}
+                  />
+                ));
+              })()}
             </div>
           </div>
         ))}
@@ -158,6 +167,7 @@ function renderInner(
   const isReader = mode === "reader";
   const isnadAccent = isReader && block.type === "isnad";
   const spanIndex = indexSpans(block.tokens, block.spans);
+  const selMap = isReader ? buildSelectionMap(block.tokens) : null;
 
   const tokens = block.tokens.map((t) => {
     const span = spanIndex.get(t.id);
@@ -171,6 +181,7 @@ function renderInner(
         accentClass={isnadAccent && isTransmissionVerb(t) ? "reader-isnad-verb" : undefined}
         spanLabel={span?.label}
         spanRef={span?.ref ?? undefined}
+        selection={selMap?.get(t.id)}
       />
     );
   });
