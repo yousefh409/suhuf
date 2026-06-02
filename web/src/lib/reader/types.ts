@@ -17,7 +17,10 @@ export type SpanLabel =
   | "book_ref"
   | "hadith_ref"
   | "date_hijri"
-  | "footnote";
+  | "footnote"
+  | "isnad"
+  | "matn"
+  | "takhrij";
 
 export type QualityFlag =
   | "parse_error"
