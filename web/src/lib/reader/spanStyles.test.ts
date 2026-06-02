@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { inlineSpanClass } from "./spanStyles";
+import { inlineSpanClass, isTransmissionVerb } from "./spanStyles";
 
 describe("inlineSpanClass", () => {
   it("returns the styled class for inline-styled labels", () => {
@@ -13,5 +13,15 @@ describe("inlineSpanClass", () => {
     expect(inlineSpanClass("person")).toBeUndefined();
     expect(inlineSpanClass("footnote")).toBeUndefined();
     expect(inlineSpanClass("date_hijri")).toBeUndefined();
+  });
+});
+
+describe("isTransmissionVerb", () => {
+  it("matches a vocalised transmission verb", () => {
+    expect(isTransmissionVerb({ id: "t1", text: "حَدَّثَنَا" })).toBe(true);
+  });
+
+  it("does not match a non-verb word", () => {
+    expect(isTransmissionVerb({ id: "t2", text: "محمد" })).toBe(false);
   });
 });

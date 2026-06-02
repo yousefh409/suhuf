@@ -139,11 +139,11 @@ body {
   color: var(--reader-accent);
 }
 
-/* Inline span labels. Only quran tokens get a tinted style; all other
-   reference labels (names, places, dates, etc.) render plain with data
-   attributes only. Each annotated token gets `reader-span` plus a
-   label-specific class. Keep effects subtle — these run inline through
-   running prose. */
+/* Inline span labels. Visually-styled labels are quran (tint), isnad (muted),
+   matn (bold), and takhrij (faint); all other reference labels (person, place,
+   book_ref, hadith_ref, date_hijri) render plain with data attributes only.
+   Each annotated token gets `reader-span` plus a label-specific class. Keep
+   effects subtle — these run inline through running prose. */
 .reader-span {
   cursor: help;
   transition: background-color 120ms ease;
@@ -156,6 +156,18 @@ body {
 [data-reader-theme="night"] .reader-span-quran {
   background: rgba(80, 200, 140, 0.10);
   box-shadow: 0 1px 0 0 rgba(80, 200, 140, 0.30);
+}
+/* Inline hadith spans — mirror the display-block visual language so a hadith
+   on one source line flows as one paragraph. No background/box-shadow. */
+.reader-span-isnad {
+  color: var(--reader-fg-muted);
+}
+.reader-span-matn {
+  font-weight: 700;
+}
+.reader-span-takhrij {
+  color: var(--reader-fg-faint);
+  font-size: 0.9em;
 }
 
 /* Standalone ayah block. */

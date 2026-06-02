@@ -1,7 +1,7 @@
 import type { Block as BlockT, ReaderMode, Token, Span, SpanLabel } from "@/lib/reader/types";
 import { BLOCK_BORDER, BLOCK_BADGE } from "@/lib/reader/colors";
-import { stripTashkeel } from "@/lib/reader/tashkeel";
 import { buildSelectionMap } from "@/lib/reader/sentences";
+import { isTransmissionVerb } from "@/lib/reader/spanStyles";
 import { TokenText } from "./TokenText";
 
 type Props = {
@@ -14,26 +14,6 @@ type Props = {
   // a scroll-mt offset so deep links land below the sticky header.
   anchorId?: string;
 };
-
-// Transmission verbs to faintly accent inside isnad blocks. Compared after
-// stripping tashkeel so vocalised forms like حَدَّثَنَا still match.
-const ISNAD_VERBS = new Set([
-  "حدثنا",
-  "حدثني",
-  "أخبرنا",
-  "أخبرني",
-  "أنبأنا",
-  "سمعت",
-  "عن",
-  "قال",
-  "قالت",
-  "روى",
-]);
-
-function isTransmissionVerb(token: Token): boolean {
-  const stripped = stripTashkeel(token.text).replace(/[^\u0600-\u06FF]/g, "");
-  return ISNAD_VERBS.has(stripped);
-}
 
 type SpanInfo = { label: SpanLabel; ref?: string | null };
 
