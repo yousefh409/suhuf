@@ -2,14 +2,11 @@
 
 import type { Token, ReaderMode, SpanLabel } from "@/lib/reader/types";
 import { stripTashkeel } from "@/lib/reader/tashkeel";
+import { inlineSpanClass, isTransmissionVerb } from "@/lib/reader/spanStyles";
 import { useRecitationStatus } from "./recite/RecitationProvider";
 import { useWordPopover } from "./word/WordPopoverProvider";
 import type { WordSelection } from "@/lib/reader/sentences";
 import "./recite/recite.css";
-
-// Only quran is visually styled inline. The rest are tagged in the DOM
-// (data attributes) for later tap-to-popup, but render as plain text.
-const STYLED_SPAN_LABELS = new Set<SpanLabel>(["quran"]);
 
 type Props = {
   token: Token;
@@ -33,8 +30,13 @@ export function TokenText({ token, mode, showTashkeel, showDiff, accentClass, sp
   const popover = useWordPopover();
 
   if (mode === "reader") {
-    const styled = spanLabel ? STYLED_SPAN_LABELS.has(spanLabel) : false;
-    const styledSpanClass = styled ? `reader-span reader-span-${spanLabel}` : undefined;
+    const inlineClass = spanLabel ? inlineSpanClass(spanLabel) : undefined;
+    const styled = !!inlineClass;
+    const verbClass =
+      spanLabel === "isnad" && isTransmissionVerb(token) ? "reader-isnad-verb" : undefined;
+    const styledSpanClass = inlineClass
+      ? ["reader-span", inlineClass, verbClass].filter(Boolean).join(" ")
+      : undefined;
     const tappable = !!selection && !!popover;
     const className =
       [accentClass, styledSpanClass, recitationClass, tappable ? "reader-word" : null]
