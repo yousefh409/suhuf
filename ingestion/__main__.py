@@ -129,6 +129,12 @@ def _ingest_one(uri: str, args, engine, client):
     else:
         logger.info("Skipping AI enrichment (--skip-enrich)")
 
+    # Resolve quran span refs — deterministic, no AI client needed.
+    # Runs regardless of --skip-enrich so resolved refs are always serialized.
+    from ingestion.enrich import resolve_spans
+    n = resolve_spans(result)
+    logger.info(f"Resolved {n} quran span refs")
+
     # Dump full pipeline output (parse + tashkeel + enrichment + author yml)
     if args.dump:
         dump_dir = Path(args.dump)
