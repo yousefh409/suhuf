@@ -44,4 +44,10 @@ describe("safeRedirect", () => {
     expect(safeRedirect(undefined)).toBe("/dashboard");
     expect(safeRedirect("")).toBe("/dashboard");
   });
+
+  it("rejects backslash tricks that browsers normalize to external origins", () => {
+    expect(safeRedirect("/\\evil.com")).toBe("/dashboard");
+    expect(safeRedirect("/\\/evil.com")).toBe("/dashboard");
+    expect(safeRedirect("/reader/\\evil")).toBe("/dashboard");
+  });
 });

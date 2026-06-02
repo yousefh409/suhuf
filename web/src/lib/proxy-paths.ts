@@ -17,6 +17,11 @@ export function loginRedirectTarget(pathname: string, search = ""): string {
 }
 
 export function safeRedirect(to: string | undefined): string {
-  if (to && to.startsWith("/") && !to.startsWith("//")) return to;
+  // Only allow same-origin paths. Reject protocol-relative ("//evil.com") and
+  // backslash tricks ("/\\evil.com") — browsers normalize "\" to "/", so a
+  // leading "/\\" resolves to an external origin.
+  if (to && to.startsWith("/") && !to.startsWith("//") && !to.includes("\\")) {
+    return to;
+  }
   return "/dashboard";
 }
