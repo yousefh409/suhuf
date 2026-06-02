@@ -176,6 +176,39 @@ body {
 }
 [data-reader-theme="night"] .reader-quran-block { color: #6fd6a0; }
 
+/* Clean Edition heading hierarchy — driven by size/weight/space, not color.
+   Level 1 (book/كتاب) is largest with a hairline rule under just the title
+   text; Level 2 (chapter/باب) is smaller with no rule; Level 3+ sits near
+   body size. Sizes are em-relative to the article font-size. Weight is always
+   700 (real Scheherazade New bold) — never 600. */
+.reader-h1 {
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.5em;
+  letter-spacing: 0.01em;
+  margin: 2.2rem 0 1.4rem;
+  color: var(--reader-fg);
+}
+.reader-h1-rule {
+  display: inline-block;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--reader-rule);
+}
+.reader-h2 {
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.22em;
+  margin: 2.6rem 0 1.1rem;
+  color: var(--reader-fg);
+}
+.reader-h3 {
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.05em;
+  margin: 1.9rem 0 0.75rem;
+  color: var(--reader-fg);
+}
+
 /* Faint printed item ordinal before a hadith/heading. */
 .reader-item-number {
   color: var(--reader-fg-faint);
