@@ -168,7 +168,7 @@ function renderInner(
 
   const numberPrefix =
     isReader && block.number ? (
-      <span className="reader-item-number" aria-hidden>{block.number} - </span>
+      <span className="reader-item-number" aria-hidden>{block.number}</span>
     ) : null;
 
   switch (block.type) {
@@ -176,7 +176,7 @@ function renderInner(
       const lvl = block.level ?? 2;
       const headingClass = lvl === 1 ? "reader-h1" : lvl === 2 ? "reader-h2" : "reader-h3";
       return isReader ? (
-        <h2 className={headingClass}>
+        <h2 className={`${headingClass}${block.number ? " reader-numbered" : ""}`}>
           {lvl === 1 ? (
             <span className="reader-h1-rule">{numberPrefix}{tokens}</span>
           ) : (
@@ -189,7 +189,7 @@ function renderInner(
     }
     case "isnad":
       return isReader ? (
-        <p className="text-[0.92em] leading-[2] my-1" style={{ color: "var(--reader-fg-muted)" }}>{numberPrefix}{tokens}</p>
+        <p className={`text-[0.92em] leading-[2] my-1 ${block.number ? "reader-numbered" : ""}`} style={{ color: "var(--reader-fg-muted)" }}>{numberPrefix}{tokens}</p>
       ) : (
         <p className="text-zinc-600 leading-loose">{tokens}</p>
       );
