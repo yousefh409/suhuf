@@ -345,26 +345,27 @@ Each entry in the `words` array:
 
 ## Current Metrics
 
-### Batch (`evaluate.py`, 78 recordings)
+Accuracy is measured by `eval.py` (single source of truth) and stored in
+`recitation/eval_baseline.json`, broken out **per source / speaker**. Methodology
+is mutation-based: real audio is held fixed while the reference text is mutated
+(i3rab / tashkeel / word) to induce errors on demand.
 
-| Metric | Value |
-|---|---|
-| False positive rate | 1.8% (12/652 correct words flagged) |
-| Detection rate | 76% (4 undetected: recordings 8, 11, 12, 13 -- subtle sukoon/tanween errors) |
-| Target FP | < 2% |
+| Source | Speaker | FP rate | Detection |
+|---|---|---|---|
+| `sessions` | in-domain human, real audio | ~1.8% | ~93% |
+| `corpus` (Arabic Speech Corpus) | held-out 2nd MSA speaker | low | high (see `eval_baseline.json`) |
+
+The low FP on an unseen speaker is the key generalization signal. Mutation-based
+detection is inherently easier than real human mispronunciations, so treat the
+detection figure as an upper bound, not field accuracy.
 
 ### Streaming (`test_streaming.py`)
 
 | Metric | Value |
 |---|---|
-| Test pass rate | 9/9 |
-| FP on correct readings | 0% |
+| FP on correct readings | ~0% |
 | Latency to first scored response | ~1.2s |
 | Flicker | None -- word states are stable |
-
-### Session Replay (4 saved sessions)
-
-Smooth cursor advancement with no wild jumps. Phrase-level scoring: 14/14, 13/13, 10/10, 11/11.
 
 ## Key Files
 
@@ -380,7 +381,10 @@ Smooth cursor advancement with no wild jumps. Phrase-level scoring: 14/14, 13/13
 | `recitation/models/error_classifier.pkl` | GBM binary error classifier (batch-only fallback). |
 | `recitation/models/type_classifier.pkl` | GBM error type classifier (wrong/i3rab/tashkeel). |
 | `recitation/models/gmm/` | Optional GMM files for MixGoP scorer. Loaded if present. |
-| `recitation/evaluate.py` | Batch evaluation harness against `test_data/` recordings. |
+| `recitation/eval.py` | Unified mutation-based evaluation; single source of truth. Sources: saved sessions + external MSA corpus. |
+| `recitation/eval_corpus.py` | Arabic Speech Corpus loader (Buckwalter→Arabic, project mark order). |
+| `recitation/eval_baseline.json` | Committed honest baseline report, per source/speaker. |
+| `recitation/training/` | Build tools (not runtime): `build_gmm`, `train_classifier`, `train_type_classifier`. |
 | `recitation/test_streaming.py` | Automated streaming tests via TTS (edge-tts) and WebSocket. |
 | `recitation/test_data/manifest.jsonl` | Recording metadata: file, passage_id, phrase_idx, notes, timestamp. |
 | `recitation/test_data/sessions/` | Saved streaming sessions: `audio.raw`, `meta.json`, `scores.json`. |

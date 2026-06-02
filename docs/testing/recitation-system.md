@@ -1,14 +1,14 @@
-The recitation system has three testing layers: batch evaluation against 78 real-world recordings, automated streaming tests using TTS audio through the live WebSocket server, and a suite of diagnostic scripts for signal analysis and threshold tuning. All test data comes from real readings with intentional errors -- not synthetic lab audio.
+The recitation system has two testing layers: a unified offline evaluation (`eval.py`, the single source of truth for accuracy) and automated streaming tests (`test_streaming.py`) that drive the live WebSocket server with TTS audio. Evaluation is mutation-based: real audio is held fixed and the reference text is mutated to induce errors on demand.
 
 ## Test Architecture
 
 ```mermaid
 flowchart TD
-    subgraph Batch["Batch Evaluation (offline)"]
-        M[manifest.jsonl] --> E[evaluate.py]
-        R[recordings/*.webm] --> E
-        E --> |CTC + Whisper| CW[classify_words]
-        CW --> Stats["FP rate / detection rate"]
+    subgraph Eval["Unified Evaluation (offline)"]
+        S[sessions: real session audio] --> EV[eval.py]
+        C[corpus: Arabic Speech Corpus] --> EV
+        EV --> |CTC + Whisper| CW[classify_words]
+        CW --> Rep["eval_baseline.json (per source/speaker)"]
     end
 
     subgraph Stream["Streaming Tests (live server)"]
@@ -16,45 +16,63 @@ flowchart TD
         PCM --> WS[WebSocket /ws/score]
         WS --> |Whisper + CTC| V[validate responses]
     end
-
-    subgraph Diag["Diagnostics (signal analysis)"]
-        MUT[test_mutations.py] --> SD[signal_dump.json]
-        SD --> Scan[threshold_scan.py]
-        SD --> Opt[optimize_rules.py]
-        Diag2[diagnostic_*.py] --> Signals[signal inspection]
-    end
 ```
 
 | Layer | Mode | Models used | Requires server |
 |---|---|---|---|
-| Batch evaluation | Offline | CTC + Whisper | No |
+| Unified evaluation | Offline | CTC + Whisper | No |
 | Streaming tests | Live | CTC + Whisper | Yes |
-| Diagnostics | Offline | CTC only (mostly) | No |
 
 ---
 
-## Batch Evaluation
+## Unified Evaluation
 
-**`evaluate.py`** runs all 78 recordings through the production scoring pipeline offline. It loads each `.webm` file, decodes it through `RecitationEngine`, scores it against the expected phrase with CTC + Whisper, then calls `classify_words` (the same function as production, with `streaming=False`).
+`eval.py` is the single source of truth for accuracy. It runs the production scoring path (CTC + Whisper + `classify_words`, `streaming=False`) over every data source and writes one structured report broken out per source/speaker.
 
 ```
-python recitation/evaluate.py [--verbose]
+python recitation/eval.py                    # all sources
+python recitation/eval.py --source sessions  # real-audio sessions only
+python recitation/eval.py --source corpus --limit 200
+python recitation/eval.py --report eval_baseline.json
 ```
 
-`evaluate.py` reads the manifest to determine which phrase each recording targets and what errors -- if any -- were intentionally made. It parses the free-text `notes` field to extract structured expected errors (word index + error type). Notes that are unparseable are tracked but not counted against detection rate.
+### Methodology: mutation-based
 
-**Current metrics (reference baseline):**
+We always know the exact text the audio corresponds to, so errors are induced by mutating the reference text the model scores against while holding the real audio fixed. This generates any error type at any position without new recordings. Per data item, `eval.py` runs:
 
-| Metric | Value |
+- **FP check**: score audio against the correct text. Any flag is a false positive.
+- **Mutation suite**: for each eligible word, generate i3rab, tashkeel, and word-swap mutations and verify the target word is flagged with the correct type.
+
+| Mutation kind | Expected `error_type` |
 |---|---|
-| False positive rate | 1.8% |
-| Detection rate | 76% |
+| `i3rab` | `"i3rab"` |
+| `tashkeel` | `"tashkeel"` or `"diacritic"` |
+| `word` | `"wrong"` or `"skipped"` |
 
-The FP rate is the primary constraint. Detection rate is lower than the 90% target because CTC alone struggles with subtle diacritic differences in natural speech -- see the diagnostic scripts for signal analysis.
+The run is seeded (`random.seed(42)`) so counts are reproducible.
 
-### How notes are parsed
+### Data sources
 
-`evaluate.py` converts English-language notes into structured `(word_idx, error_type)` pairs using `parse_note_errors`. Notes like `"sukoon on the ending of kalam and wad3"` are treated as correct (pausal form is always acceptable). Notes referencing specific vowel changes like `"kasra on the kaf in murakab"` map to `(word_idx, "tashkeel")` using `_TRANSLIT_MAP`, a hardcoded transliteration index for Ajrumiyyah phrases.
+1. **sessions** - real human audio from saved reading sessions (`test_data/sessions/`). The full reading is force-aligned, sliced per phrase, and each phrase segment runs the FP + mutation suite. Covers Ajrumiyyah and Daa-Dawa. Single speaker (in-domain).
+2. **corpus** - the Arabic Speech Corpus (Nawar Halabi), a held-out second MSA speaker. Each utterance is scored against its own transcript and mutated. See below.
+
+### Reporting
+
+`eval.py` prints a per-source summary (FP rate, detection-by-type, correct-type rate) and, with `--report`, writes `eval_baseline.json`. Metrics are never blended across sources; the per-speaker split is what reveals generalization. This report is the Phase 2 scoreboard.
+
+Current baseline (see `eval_baseline.json` for exact figures): sessions ~1.8% FP / ~93% detection; corpus (unseen speaker) low FP with high detection. Note that mutation-based detection is easier than genuine human mispronunciations, so treat detection as an upper bound. The FP rate on the unseen speaker is the key generalization signal.
+
+---
+
+## External Corpus
+
+The corpus lives at `recitation/data/asc/` (gitignored). Download and unzip:
+
+```
+https://en.arabicspeechcorpus.com/arabic-speech-corpus.zip
+```
+
+`eval_corpus.py` loads it. The corpus transcript is in Buckwalter transliteration (with this corpus's non-standard `^` for tha), which `eval_corpus.py` converts to diacritized Arabic, normalizing combining-mark order to the project convention (consonant + vowel + shadda, matching `passage.json`). The corpus was not used to train the existing models (those used ClArTTS), so it is leakage-free. Free for research use per its README.
 
 ---
 
@@ -64,7 +82,6 @@ The **manifest** at `recitation/test_data/manifest.jsonl` has one JSON object pe
 
 ```jsonl
 {"file": "recordings/20260327_113121_p2.webm", "phrase_idx": 2, "notes": "correct reading", "timestamp": "20260327_113121"}
-{"file": "recordings/20260327_113158_p2.webm", "phrase_idx": 2, "notes": "sukoon on the ending of kalam, lafth, and wad3. kasra on the kaf in murakab.", "timestamp": "20260327_113158"}
 ```
 
 | Field | Type | Description |
@@ -74,13 +91,11 @@ The **manifest** at `recitation/test_data/manifest.jsonl` has one JSON object pe
 | `notes` | string | Free-text description of what was said |
 | `timestamp` | string | Recording timestamp (`YYYYMMDD_HHMMSS`) |
 
-Note: `passage_id` is not present in all entries -- `evaluate.py` defaults to `"ajrumiyyah"` when absent.
-
 ### Directory layout
 
 ```
 recitation/test_data/
-  manifest.jsonl          -- 78 recording entries
+  manifest.jsonl          -- recording metadata
   recordings/             -- .webm audio files (browser MediaRecorder output)
   sessions/               -- full session captures
     20260401_104623_ajrumiyyah/
@@ -89,117 +104,56 @@ recitation/test_data/
       scores.json         -- per-phrase scoring results
 ```
 
-The 78 recordings cover all 17 phrases of the Ajrumiyyah passage. Each phrase has multiple takes: at least one correct reading and several with intentional i3rab or tashkeel errors.
-
-### Adding recordings
-
-Open `record.html` in a browser, select a passage and phrase, record a take, and click save. The page writes a new `.webm` into `recordings/` and appends an entry to `manifest.jsonl`. Fill in the `notes` field accurately -- the batch evaluator depends on it.
+The saved sessions are what `eval.py --source sessions` consumes. In worktrees, `models/` and the audio under `test_data/` are symlinked from the main checkout and gitignored.
 
 ### Data quality
 
-The recordings are real-world audio from a single speaker on a laptop microphone. Some entries have background noise, slight mispronunciations not reflected in the notes, or imprecise descriptions of what was said. Treat the dataset as realistic rather than lab-perfect.
+The recordings are real-world audio from a single speaker on a laptop microphone. Some entries have background noise, slight mispronunciations not reflected in the notes, or imprecise descriptions. Treat the dataset as realistic rather than lab-perfect.
 
 ---
 
 ## Streaming Tests
 
-**`test_streaming.py`** generates Arabic speech via `edge-tts`, streams it through the live WebSocket server, and validates the responses. It requires the server to be running at `ws://localhost:8000/ws/score` (the default).
+`test_streaming.py` generates Arabic speech via `edge-tts`, streams it through the live WebSocket server, and validates the responses. It requires the server running at `ws://localhost:8000/ws/score`.
 
 ```
 # Start the server first
 uvicorn recitation.server:app --host 0.0.0.0 --port 8000
 
-# Run all 9 tests
 python recitation/test_streaming.py [--verbose] [--server=ws://HOST:PORT/ws/score]
 ```
 
-TTS audio is cached in `recitation/.tts_cache/` as raw f32le files keyed by a SHA-256 hash of the voice and text. Repeated runs skip generation if the cache file exists.
+TTS audio is cached in `recitation/.tts_cache/` keyed by a SHA-256 hash of voice and text.
 
 ### Test scenarios
 
 | Test function | What it validates |
 |---|---|
-| `test_correct_reading` | Full correct phrase → zero errors flagged |
-| `test_correct_multi_phrase` | First 4 phrases correct → FP rate < 2% |
-| `test_partial_phrase` | Trimmed audio (40% of phrase) → intermediate responses show fewer words |
-| `test_wrong_diacritics` | Final damma swapped to kasra on multiple words → i3rab error detected |
-| `test_tashkeel_error` | Internal fatha swapped to kasra on one word → tashkeel error detected |
+| `test_correct_reading` | Full correct phrase -> zero errors flagged |
+| `test_correct_multi_phrase` | First 4 phrases correct -> FP rate < 2% |
+| `test_partial_phrase` | Trimmed audio (40% of phrase) -> intermediate responses show fewer words |
+| `test_wrong_diacritics` | Final damma swapped to kasra -> i3rab error detected |
+| `test_tashkeel_error` | Internal fatha swapped to kasra -> tashkeel error detected |
 | `test_latency` | Time to first scored response < 3 seconds |
-| `test_second_phrase` | Audio of phrase 1 → `matched_phrase_idx` == 1 (cursor advanced) |
-| `test_streaming_progressive` | At least one intermediate response received before `"done"` |
+| `test_second_phrase` | Audio of phrase 1 -> `matched_phrase_idx` == 1 (cursor advanced) |
+| `test_streaming_progressive` | At least one intermediate response before `"done"` |
 | `test_streaming_no_flicker` | No word changes status between consecutive intermediate responses |
 
-The simulator sends audio in 1-second chunks at half real-time speed (0.5s delay per chunk). It collects both intermediate responses (during streaming) and the final response (after `"done"`).
+The simulator sends audio in 1-second chunks at half real-time speed and collects both intermediate and final responses.
 
 ---
 
-## Mutation Tests
+## Build Tools (not tests)
 
-**`test_mutations.py`** scores correct audio against mutated reference text rather than generating new recordings. It takes a real `.webm` of a correct reading and scores it against three variants of the phrase:
-
-1. **Correct reference** -- expects no errors (validates FP rate).
-2. **I3rab mutation** -- the final diacritic (case ending) of one or more words is swapped to a different vowel.
-3. **Tashkeel mutation** -- an internal diacritic is swapped.
-4. **Word substitution** -- a word in the reference is replaced with a different word.
-
-```
-python recitation/test_mutations.py [--verbose] [--passage=ajrumiyyah]
-```
-
-Mutation generators use `generate_i3rab_alternatives` and `generate_tashkeel_alternatives` from `recitation/arabic.py`. The expected error type for each mutation kind maps as:
-
-| Mutation kind | Expected `error_type` |
-|---|---|
-| `i3rab` | `"i3rab"` |
-| `tashkeel` | `"tashkeel"` or `"diacritic"` |
-| `word` | `"wrong"` or `"skipped"` |
-
----
-
-## Tashkeel Measurement
-
-**`measure_tashkeel.py`** measures tashkeel detection rate systematically across all phrases and all swappable words. For each phrase, it generates TTS audio for the correct text, then for each word with swappable internal diacritics, generates a modified version with exactly one diacritic changed. It scores both through the engine and records whether the changed word is flagged.
-
-```
-python recitation/measure_tashkeel.py [--verbose] [--passage PASSAGE_ID]
-```
-
-Like `test_streaming.py`, it caches TTS output in `recitation/.tts_cache/`. It also measures the FP rate by running the correct phrase through and checking that nothing is flagged. The TTS voice is `ar-SA-HamedNeural` (Microsoft Azure via `edge-tts`).
-
----
-
-## Diagnostic Scripts
-
-These scripts run offline against the mutation test infrastructure or cached signal data. They do not require a running server.
-
-| Script | Purpose |
-|---|---|
-| `diagnostic_ctc.py` | Investigates why CTC scoring misses diacritic mutations -- compares full hypothesis scores, frame-level posteriors, and local ratio methods |
-| `diagnostic_framescan.py` | Tests frame-scan diacritic signal at `eff < -1.5` -- alignment-independent scan of a wide frame region for diacritic evidence |
-| `diagnostic_local_pd.py` | Analyzes `local_pd` signal values for correct and mutated words where `eff <= -1.5` |
-| `diagnostic_local_pd2.py` | Deeper combo analysis of `local_pd` combined with existing signals at the same threshold |
-| `diagnostic_lpd_extended.py` | Extends `local_pd` analysis to the `-1.5 < eff <= -1.0` range where the signal was previously not computed |
-| `diagnostic_classifier.py` | Fits logistic regression and decision tree on the full signal vector -- shows the theoretical detection ceiling with the current model |
-| `diagnostic_cv.py` | Cross-validated classifier ceiling and decision tree rule extraction from `signal_dump.json` |
-| `diagnostic_rescored.py` | Analyzes windowed rescore signals (`pc`, `sf`, `i3d`, `tash_d`) -- checks if re-aligning words in a 3-word window improves signal discrimination |
-| `diagnostic_rules.py` | Shows which classification rules catch mutations at `eff < -1.5` and what signals remain for uncaught cases |
-| `diagnostic_fp_fix.py` | Checks the impact of tightening specific rules to fix known false positives |
-| `analyze_misses.py` | Detailed signal vector analysis of tashkeel detection misses -- categorizes what separates caught from missed cases |
-| `diagnose_tts.py` | Per-phrase, per-word TTS tashkeel detection breakdown -- helps diagnose why full-passage TTS detection is lower than mutation test detection |
-
----
-
-## Threshold Tuning
-
-Three scripts manage threshold search. They all operate on cached signal data from `signal_dump.json` (produced by `dump_signals.py`) rather than re-running the CTC model.
+`recitation/training/` holds offline tools that regenerate model artifacts; they are not part of the test path:
 
 | Script | Role |
 |---|---|
-| `threshold_scan.py` | Scans individual and combined signal thresholds, optimizing `detection_rate - 5 * FP_rate` |
-| `optimize_thresholds.py` | Tries many `classify_words` configurations on `signal_dump.json` to find the best FP/detection tradeoff |
-| `optimize_rules.py` | Comprehensive rule optimization -- simulates the full classification rule set with configurable thresholds |
+| `training/build_gmm.py` | Regenerates `models/gmm/` (MixGoP GMMs, loaded by `scorer.py`). |
+| `training/train_classifier.py` | Trains `models/error_classifier.pkl` (GBM fallback). |
+| `training/train_type_classifier.py` | Trains `models/type_classifier.pkl` (error-type GBM). |
 
-The system maintains **dual thresholds**: one set for streaming mode and a separate, typically looser set for batch evaluation mode. `classify_words` receives a `streaming` boolean that selects which thresholds apply. Threshold changes cascade -- a change to the CTC `eff` threshold affects which signals are even computed downstream, which changes what the rule optimizer sees. Always re-run `threshold_scan.py` after changing any upstream signal.
+The live `.pkl`/GMM artifacts in `models/` are committed and loaded at runtime. Note: `train_classifier.py` and `train_type_classifier.py` previously consumed a `signal_dump.json` produced by a now-removed dumper, so they need their input regenerated before they can run again (a likely Phase 2 task, since the decision layer is slated for rework).
 
 ---
 
@@ -207,37 +161,31 @@ The system maintains **dual thresholds**: one set for streaming mode and a separ
 
 | Path | Purpose |
 |---|---|
-| `recitation/evaluate.py` | Batch evaluation harness -- runs all 78 recordings |
-| `recitation/test_streaming.py` | TTS-based streaming test suite (9 tests) |
-| `recitation/test_mutations.py` | Mutation test -- correct audio vs mutated reference text |
-| `recitation/measure_tashkeel.py` | Systematic tashkeel detection measurement via TTS |
-| `recitation/test_data/manifest.jsonl` | 78-entry recording index |
-| `recitation/test_data/recordings/` | `.webm` audio files from browser recording |
-| `recitation/test_data/sessions/` | Full session captures (raw PCM + meta + scores) |
-| `recitation/threshold_scan.py` | Threshold search over combined signals |
-| `recitation/optimize_thresholds.py` | Offline `classify_words` config optimizer |
-| `recitation/optimize_rules.py` | Comprehensive classification rule optimizer |
-| `recitation/dump_signals.py` | Produces `signal_dump.json` for offline threshold work |
-| `recitation/arabic.py` | Diacritic constants and mutation generators |
-| `recitation/server.py` | `classify_words` -- production classification function |
+| `recitation/eval.py` | Unified evaluation - single source of truth (sessions + corpus). |
+| `recitation/eval_corpus.py` | Arabic Speech Corpus loader (Buckwalter -> Arabic). |
+| `recitation/eval_baseline.json` | Committed baseline report, per source/speaker. |
+| `recitation/test_streaming.py` | TTS-based streaming test suite. |
+| `recitation/test_data/manifest.jsonl` | Recording index. |
+| `recitation/test_data/recordings/` | `.webm` audio files from browser recording. |
+| `recitation/test_data/sessions/` | Full session captures (raw PCM + meta + scores). |
+| `recitation/arabic.py` | Diacritic constants and mutation generators. |
+| `recitation/server.py` | `classify_words` - production classification function. |
 
 ---
 
 ## Gotchas
 
-- **Server must be running for streaming tests.** `test_streaming.py` connects to `ws://localhost:8000/ws/score`. It fails immediately if the server is not up. Start with `uvicorn recitation.server:app --host 0.0.0.0 --port 8000`.
+- **Server must be running for streaming tests.** `test_streaming.py` connects to `ws://localhost:8000/ws/score` and fails immediately if the server is down.
 
-- **`evaluate.py` uses CTC + Whisper, not CTC only.** Despite the docstring referencing CTC scoring, `score_with_whisper` also runs a Whisper transcription for wrong-word detection -- the same path as production. Whisper results are only trusted when at least 50% of phrase words match.
+- **`edge-tts` requires a network connection.** `test_streaming.py` calls Microsoft's TTS API for audio not already cached. Cached files persist in `recitation/.tts_cache/`.
 
-- **Threshold changes cascade.** The `eff` signal gates downstream computation. Changing the `eff` threshold changes which words enter the signal pipeline at all, making it impossible to optimize downstream signals in isolation. Always scan from the top of the signal chain.
+- **Sukoon on the final letter is always correct.** The scoring pipeline treats any final-letter sukoon (pausal/waqf form) as acceptable.
 
-- **Test data imperfections.** Some recordings have background noise, slight mispronunciations not reflected in the notes, or notes that don't fully capture what was said. A miss on a recording does not always mean the system is wrong.
+- **Test data imperfections.** Some recordings have background noise or slight mispronunciations not reflected in the notes. A miss does not always mean the system is wrong.
 
-- **`edge-tts` requires a network connection.** `test_streaming.py` and `measure_tashkeel.py` call Microsoft's TTS API for audio that is not already cached. Cached files persist in `recitation/.tts_cache/` across runs.
+- **sklearn version skew.** The GBM `.pkl` classifiers were trained on scikit-learn 1.7.2; the current env is 1.8.0, which emits `InconsistentVersionWarning` at load. Harmless for now, but a clean retrain (Phase 2) removes it.
 
-- **Sukoon on the final letter is always correct.** `classify_recording` and the scoring pipeline treat any final-letter sukoon (pausal/waqf form) as acceptable. Recordings noted as "sukoon on the ending of X" count as correct readings.
-
-- **`manifest.jsonl` entries without `passage_id` default to `"ajrumiyyah"`.** All 78 current entries are from the Ajrumiyyah passage, but `evaluate.py` reads `passage_id` with a fallback for forward compatibility.
+- **Mutation detection is an upper bound.** Mutating reference text against fixed correct audio is easier than catching real human mispronunciations. The FP rate, especially on the unseen corpus speaker, is the more trustworthy generalization signal.
 
 ---
 
