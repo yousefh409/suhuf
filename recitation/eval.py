@@ -481,6 +481,11 @@ def main():
                     help="max tashkeel mutations per word on corpus (sessions exhaustive by default)")
     ap.add_argument("--corpus-combo-cap", type=int, default=2,
                     help="max combo mutations per word on corpus (sessions exhaustive by default)")
+    ap.add_argument("--sessions-tashkeel-cap", type=int, default=None,
+                    help="max tashkeel mutations per word on sessions (default: exhaustive). "
+                         "Set to bound runtime for a fast committed baseline.")
+    ap.add_argument("--sessions-combo-cap", type=int, default=None,
+                    help="max combo mutations per word on sessions (default: exhaustive)")
     ap.add_argument("--quick", action="store_true",
                     help="fast smoke preset for iteration: tiny subset + tight caps, both sources. "
                          "A sanity signal, NOT a real measurement.")
@@ -497,7 +502,7 @@ def main():
         sess_tcap, sess_ccap = 1, 1          # cap sessions too in quick mode
         corp_tcap, corp_ccap = 1, 1
     else:
-        sess_tcap, sess_ccap = None, None    # sessions exhaustive by default
+        sess_tcap, sess_ccap = args.sessions_tashkeel_cap, args.sessions_combo_cap  # None = exhaustive
         corp_tcap, corp_ccap = args.corpus_tashkeel_cap, args.corpus_combo_cap
 
     random.seed(42)
@@ -505,7 +510,12 @@ def main():
     engine = RecitationEngine(str(MODEL_PATH))
     print(f"[engine loaded in {time.time() - t_load:.0f}s]")
 
-    report = {"sources": {}}
+    report = {"config": {
+        "source": args.source, "quick": args.quick,
+        "max_items": args.max_items, "corpus_limit": args.limit,
+        "sessions_caps": [sess_tcap, sess_ccap],
+        "corpus_caps": [corp_tcap, corp_ccap],
+    }, "sources": {}}
     if args.source in ("sessions", "all"):
         t0 = time.time()
         fp_acc, stats = run_source(
