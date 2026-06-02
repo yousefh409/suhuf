@@ -18,7 +18,7 @@
   border-bottom: 1px solid var(--reader-rule, #e4e4e7);
 }
 .word-popover__word {
-  font-family: Amiri, serif;
+  font-family: var(--font-arabic), serif;
   font-size: 20px;
 }
 .word-popover__close {
