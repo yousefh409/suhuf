@@ -26,12 +26,14 @@ export default async function DashboardPage() {
   ]);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
+    <main className="min-h-screen bg-parchment text-ink">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
       <DashboardHeader userInitials={initialsFromEmail(user?.email)} />
       <StatsBar stats={stats} />
       <ContinueReading items={continueReading} />
       <LibraryShelf />
       <RecommendedGrid books={recommended} />
+      </div>
     </main>
   );
 }
