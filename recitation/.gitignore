@@ -1,0 +1,8 @@
+# Symlinked / generated data in worktrees (no trailing slash → also matches symlinks)
+.tts_cache
+test_data/recordings
+test_data/sessions
+data
+.eval_reference.txt
+.eval_new.txt
+.eval_full.txt
