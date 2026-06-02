@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from ingestion.cli import build_parser
 from ingestion.corpus import find_book_file, find_author_metadata
 from ingestion.metadata import parse_author_yml
+from ingestion.enrich import resolve_spans
 from ingestion.parse import parse_file
 from ingestion.tashkeel import diacritize_blocks, load_engine
 
@@ -131,9 +132,8 @@ def _ingest_one(uri: str, args, engine, client):
 
     # Resolve quran span refs — deterministic, no AI client needed.
     # Runs regardless of --skip-enrich so resolved refs are always serialized.
-    from ingestion.enrich import resolve_spans
-    n = resolve_spans(result)
-    logger.info(f"Resolved {n} quran span refs")
+    resolved_count = resolve_spans(result)
+    logger.info(f"Resolved {resolved_count} quran span refs")
 
     # Dump full pipeline output (parse + tashkeel + enrichment + author yml)
     if args.dump:
