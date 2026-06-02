@@ -219,11 +219,26 @@ Python: `/opt/homebrew/Caskroom/miniconda/base/bin/python3` (3.13)
 
 ```bash
 # Unified eval — single source of truth (sessions + external MSA corpus)
-python eval.py                    # all sources
+python eval.py                    # all sources, full
+python eval.py --quick            # ~30s smoke preset for iteration (tiny subset, short clips)
 python eval.py --source sessions  # real-audio sessions only
-python eval.py --source corpus --limit 200
+python eval.py --source corpus --limit 40
 python eval.py --report eval_baseline.json
+```
 
+**Mutation suite (wide coverage).** For each word, mutations are enumerated off the
+`arabic.py` generators: every i3rab case ending (except sukoon, always acceptable),
+every internal tashkeel position × vowel (including dropped-vowel → sukoon), and
+multi-change combos (two internal vowels; internal + case ending). Word-substitution
+too. The report prints a per-sub-type "weakest <90%" breakdown so blind spots are
+visible (e.g. internal dropped-vowel detection). Sessions are scored exhaustively;
+the corpus samples per word (`--corpus-tashkeel-cap`, `--corpus-combo-cap`).
+
+**Speed.** The wav2vec2 forward is cached per clip (`score_phrase(model_out=...)`) and
+reused across every mutation of that audio. `--quick` uses short clips for a fast loop;
+full corpus runs are slower (long clips). Per-source timing is printed.
+
+```bash
 # Streaming behavior test (requires running server on port 8000)
 python test_streaming.py
 ```

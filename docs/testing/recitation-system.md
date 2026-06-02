@@ -30,9 +30,10 @@ flowchart TD
 `eval.py` is the single source of truth for accuracy. It runs the production scoring path (CTC + Whisper + `classify_words`, `streaming=False`) over every data source and writes one structured report broken out per source/speaker.
 
 ```
-python recitation/eval.py                    # all sources
+python recitation/eval.py                    # all sources, full
+python recitation/eval.py --quick            # ~30s smoke preset for iteration
 python recitation/eval.py --source sessions  # real-audio sessions only
-python recitation/eval.py --source corpus --limit 200
+python recitation/eval.py --source corpus --limit 40
 python recitation/eval.py --report eval_baseline.json
 ```
 
@@ -41,15 +42,20 @@ python recitation/eval.py --report eval_baseline.json
 We always know the exact text the audio corresponds to, so errors are induced by mutating the reference text the model scores against while holding the real audio fixed. This generates any error type at any position without new recordings. Per data item, `eval.py` runs:
 
 - **FP check**: score audio against the correct text. Any flag is a false positive.
-- **Mutation suite**: for each eligible word, generate i3rab, tashkeel, and word-swap mutations and verify the target word is flagged with the correct type.
+- **Mutation suite**: enumerate mutations per word (off the `arabic.py` alternative generators) and verify the target word is flagged with the correct type.
 
-| Mutation kind | Expected `error_type` |
-|---|---|
-| `i3rab` | `"i3rab"` |
-| `tashkeel` | `"tashkeel"` or `"diacritic"` |
-| `word` | `"wrong"` or `"skipped"` |
+| Mutation kind | What is enumerated | Expected `error_type` |
+|---|---|---|
+| `i3rab` | every case ending except sukoon (raf3/nasb/jarr + 3 tanween) | `"i3rab"` |
+| `tashkeel` | every internal position x every other vowel, incl. dropped-vowel (->sukoon) | `"tashkeel"` or `"diacritic"` |
+| `combo` | multi-change: two internal vowels; internal vowel + case ending | any diacritic flag |
+| `word` | replace with a different real word | `"wrong"` or `"skipped"` |
 
-The run is seeded (`random.seed(42)`) so counts are reproducible.
+Sessions are enumerated exhaustively; the (long) corpus utterances sample mutations per word via `--corpus-tashkeel-cap` / `--corpus-combo-cap`. The report includes a per-sub-type "weakest <90%" breakdown to surface blind spots (e.g. internal dropped-vowel detection). The run is seeded (`random.seed(42)`) so counts are reproducible.
+
+### Speed
+
+The wav2vec2 forward pass is identical for every mutation of a clip (the audio is fixed), so it is computed once per clip and reused (`score_phrase(model_out=...)`). The residual per-mutation cost (forced alignment + phrase-differential / windowed-rescore / local-pd signals) scales with clip length, so long corpus utterances are the slow part. Use `--quick` (short clips, tiny subset, ~30s) for iteration loops; per-source wall-clock is printed and stored in the report as `elapsed_s`.
 
 ### Data sources
 
@@ -60,7 +66,7 @@ The run is seeded (`random.seed(42)`) so counts are reproducible.
 
 `eval.py` prints a per-source summary (FP rate, detection-by-type, correct-type rate) and, with `--report`, writes `eval_baseline.json`. Metrics are never blended across sources; the per-speaker split is what reveals generalization. This report is the Phase 2 scoreboard.
 
-Current baseline (see `eval_baseline.json` for exact figures): sessions ~1.8% FP / ~93% detection; corpus (unseen speaker) low FP with high detection. Note that mutation-based detection is easier than genuine human mispronunciations, so treat detection as an upper bound. The FP rate on the unseen speaker is the key generalization signal.
+See `eval_baseline.json` for current figures. The wide mutation suite gives an honest, lower detection number than a single-random-mutation probe would (it deliberately includes hard cases like internal dropped-vowel and cross-family i3rab), and it surfaces blind spots per sub-type. Treat detection as an upper bound (mutation errors are easier than real mispronunciations); the FP rate, especially on the unseen corpus speaker, is the key generalization signal.
 
 ---
 
