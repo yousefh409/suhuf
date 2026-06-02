@@ -26,7 +26,7 @@ describe("agent client", () => {
   it("fetchTranslation returns parsed translation", async () => {
     const result = { translation: "A new book", related_words: [] };
     mockJson(result);
-    const out = await fetchTranslation({ sentence: "كتاب جديد" });
+    const out = await fetchTranslation({ word: "كتاب", sentence: "كتاب جديد" });
     expect(out).toEqual(result);
   });
 
@@ -38,6 +38,6 @@ describe("agent client", () => {
 
   it("throws on non-OK response", async () => {
     mockJson({ error: "bad" }, false, 500);
-    await expect(fetchTranslation({ sentence: "x" })).rejects.toThrow();
+    await expect(fetchTranslation({ word: "x", sentence: "x" })).rejects.toThrow();
   });
 });

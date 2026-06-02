@@ -26,13 +26,30 @@ describe("/api/agents/translate", () => {
       ok: true,
       json: async () => ({ content: [{ type: "text", text: JSON.stringify(result) }] }),
     }) as unknown as typeof fetch;
-    const res = await POST(req({ sentence: "بسم الله" }));
+    const res = await POST(req({ word: "الرحمن", sentence: "بسم الله الرحمن الرحيم" }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual(result);
   });
 
+  it("forwards the focus word to the model", async () => {
+    const spy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ content: [{ type: "text", text: JSON.stringify({ translation: "x", related_words: [] }) }] }),
+    });
+    global.fetch = spy as unknown as typeof fetch;
+    await POST(req({ word: "الْعَالَمِينَ", sentence: "الحمد لله رب العالمين" }));
+    const sent = JSON.parse(spy.mock.calls[0][1].body);
+    const userMsg = sent.messages.find((m: { role: string }) => m.role === "user").content;
+    expect(userMsg).toContain("الْعَالَمِينَ");
+  });
+
   it("returns 400 when sentence is missing", async () => {
-    const res = await POST(req({}));
+    const res = await POST(req({ word: "x" }));
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when word is missing", async () => {
+    const res = await POST(req({ sentence: "بسم الله" }));
     expect(res.status).toBe(400);
   });
 });
