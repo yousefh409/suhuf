@@ -31,7 +31,7 @@ export default async function LibraryPage() {
             return (
               <li key={b.openiti_id} className="border border-zinc-200 rounded p-3">
                 <div className="flex items-baseline justify-between gap-3">
-                  <div dir="rtl" className="text-lg font-[Amiri,serif]">{b.title_ar}</div>
+                  <div dir="rtl" className="text-lg font-arabic">{b.title_ar}</div>
                   <div className="text-xs font-mono text-zinc-500">{b.openiti_id}</div>
                 </div>
                 {displayTitleEn && <div className="text-sm text-zinc-700">{displayTitleEn}</div>}

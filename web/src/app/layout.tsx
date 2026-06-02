@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Instrument_Serif, DM_Sans, Amiri } from "next/font/google";
+import { Instrument_Serif, DM_Sans, Scheherazade_New } from "next/font/google";
 import PaperShader from "@/components/PaperShader";
 import "./globals.css";
 
@@ -17,12 +17,11 @@ const dmSans = DM_Sans({
   subsets: ["latin"],
 });
 
-const amiri = Amiri({
+const scheherazade = Scheherazade_New({
   weight: ["400", "700"],
-  style: ["normal", "italic"],
-  variable: "--font-amiri",
+  subsets: ["arabic"],
   display: "swap",
-  subsets: ["arabic", "latin"],
+  variable: "--font-scheherazade",
 });
 
 export const metadata: Metadata = {
@@ -37,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`h-full antialiased ${instrumentSerif.variable} ${dmSans.variable} ${amiri.variable}`}>
+    <html lang="en" className={`h-full antialiased ${instrumentSerif.variable} ${dmSans.variable} ${scheherazade.variable}`}>
       <body className="min-h-full flex flex-col">
           <PaperShader
             style={{ position: "fixed", zIndex: -1 }}

@@ -11,7 +11,7 @@
 
   --font-serif: var(--font-instrument-serif), Georgia, serif;
   --font-sans: var(--font-dm-sans), system-ui, sans-serif;
-  --font-arabic: var(--font-amiri), serif;
+  --font-arabic: var(--font-scheherazade), serif;
 }
 
 body {
@@ -118,6 +118,7 @@ body {
 }
 
 .reader-article {
+  font-family: var(--font-arabic), serif;
   font-feature-settings: "calt" 1, "liga" 1, "kern" 1;
 }
 
