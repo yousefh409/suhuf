@@ -1,82 +1,52 @@
-import Link from "next/link";
-import { listBooks } from "@/lib/reader/queries";
+import { Suspense } from "react";
+import { getGenres, getDiscover } from "@/lib/dashboard/data";
+import type { DiscoverSort } from "@/lib/dashboard/types";
+import DiscoverHeader from "@/components/dashboard/discover/DiscoverHeader";
+import DiscoverSearch from "@/components/dashboard/discover/DiscoverSearch";
+import GenreChips from "@/components/dashboard/discover/GenreChips";
+import DiscoverGrid from "@/components/dashboard/discover/DiscoverGrid";
 
 export const dynamic = "force-dynamic";
 
-export default async function LibraryPage() {
-  const books = await listBooks();
+function first(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function LibraryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
+  const genre = first(params.genre);
+  const query = first(params.q);
+  const sort = first(params.sort) as DiscoverSort | undefined;
+
+  const [genres, books] = await Promise.all([
+    getGenres(),
+    getDiscover({ genre, query, sort }),
+  ]);
+
+  const totalCount = genres.reduce((sum, g) => sum + g.count, 0);
+  const activeGenre = genre ? genres.find((g) => g.slug === genre) : undefined;
+  const captionLabel = activeGenre?.label ?? "All texts";
+  const captionCount = activeGenre?.count ?? totalCount;
 
   return (
-    <main className="max-w-3xl mx-auto px-4 py-8">
-      <h1 className="text-xl font-bold mb-1">Library</h1>
-      <p className="text-sm text-zinc-500 mb-6">{books.length} ingested book{books.length === 1 ? "" : "s"}</p>
-
-      {books.length === 0 ? (
-        <div className="text-sm text-zinc-600 space-y-2">
-          <p>No books in <code>web/data/</code>. Dump one with:</p>
-          <pre className="bg-zinc-50 border border-zinc-200 rounded p-3 text-xs overflow-x-auto">{`python -m ingestion ingest <openiti-uri> \\
-  --dump web/data --dry-run \\
-  --tashkeel-engine shakkala`}</pre>
-          <p className="text-xs text-zinc-500">
-            Drop <code>--dry-run</code> to also upload to Supabase. Drop nothing else
-            — full pipeline runs Claude enrichment too. Set <code>ANTHROPIC_API_KEY</code> in
-            <code>web/.env.local</code> or your shell.
-          </p>
-        </div>
-      ) : (
-        <ul className="space-y-3">
-          {books.map((b) => {
-            const id = encodeURIComponent(b.openiti_id);
-            const displayTitleEn = b.title_en ?? b.title_lat ?? null;
-            return (
-              <li key={b.openiti_id} className="border border-zinc-200 rounded p-3">
-                <div className="flex items-baseline justify-between gap-3">
-                  <div dir="rtl" className="text-lg font-arabic">{b.title_ar}</div>
-                  <div className="text-xs font-mono text-zinc-500">{b.openiti_id}</div>
-                </div>
-                {displayTitleEn && <div className="text-sm text-zinc-700">{displayTitleEn}</div>}
-                {b.description && (
-                  <div className="text-sm text-zinc-600 mt-2 leading-relaxed">{b.description}</div>
-                )}
-                <div className="text-xs text-zinc-500 mt-2 flex flex-wrap gap-x-1.5">
-                  <span>{b.author_name_en ?? b.author_name_ar ?? "—"}</span>
-                  <span>·</span>
-                  <span>{b.total_pages ?? "?"} pages</span>
-                  {b.total_volumes && b.total_volumes > 1 && (
-                    <>
-                      <span>·</span>
-                      <span>{b.total_volumes} volumes</span>
-                    </>
-                  )}
-                  {b.has_tashkeel && (
-                    <>
-                      <span>·</span>
-                      <span>tashkeeled</span>
-                    </>
-                  )}
-                </div>
-                {b.genres && b.genres.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {b.genres.map((g) => (
-                      <span key={g} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-700">
-                        {g}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <div className="mt-2 flex gap-2 text-xs font-mono">
-                  <Link href={`/reader/${id}`} className="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200">
-                    Reader
-                  </Link>
-                  <Link href={`/inspector/${id}`} className="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200">
-                    Inspector
-                  </Link>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+    <main className="min-h-screen bg-parchment text-ink">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
+        <DiscoverHeader />
+        <Suspense fallback={null}>
+          <DiscoverSearch totalCount={totalCount} />
+        </Suspense>
+        <Suspense fallback={null}>
+          <GenreChips genres={genres} />
+        </Suspense>
+        <p className="text-sm text-ink/50">
+          {captionLabel} · {captionCount.toLocaleString()} texts
+        </p>
+        <DiscoverGrid books={books} />
+      </div>
     </main>
   );
 }
