@@ -65,10 +65,10 @@ export default async function LibraryPage() {
                   </div>
                 )}
                 <div className="mt-2 flex gap-2 text-xs font-mono">
-                  <Link href={`/internal/reader/${id}`} className="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200">
+                  <Link href={`/reader/${id}`} className="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200">
                     Reader
                   </Link>
-                  <Link href={`/internal/inspector/${id}`} className="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200">
+                  <Link href={`/inspector/${id}`} className="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200">
                     Inspector
                   </Link>
                 </div>

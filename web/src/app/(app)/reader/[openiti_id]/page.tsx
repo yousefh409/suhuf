@@ -52,7 +52,7 @@ export default async function ReaderPage({
           }}
         >
           <Link
-            href="/internal/library"
+            href="/library"
             className="text-xs font-mono hover:opacity-80"
             style={{ color: "var(--reader-fg-muted)" }}
           >
