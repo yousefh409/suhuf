@@ -11,6 +11,7 @@ import {
 } from "@/lib/reader/storageKeys";
 import { Block } from "./Block";
 import { PageBoundary } from "./PageBoundary";
+import { TokenText } from "./TokenText";
 
 type Props = {
   pages: Page[];
@@ -155,6 +156,24 @@ export function ChapterScroll({ pages, chapters, mode }: Props) {
                 />
               );
             })}
+            {mode === "reader" && page.footnotes && page.footnotes.length > 0 && (
+              <div className="reader-footnotes">
+                {page.footnotes.map((fn) => (
+                  <p key={fn.marker} className="reader-footnote">
+                    <span className="reader-footnote-marker">{fn.marker}</span>{" "}
+                    {fn.tokens.map((t) => (
+                      <TokenText
+                        key={t.id}
+                        token={t}
+                        mode={mode}
+                        showTashkeel={showTashkeel}
+                        showDiff={showDiff}
+                      />
+                    ))}
+                  </p>
+                ))}
+              </div>
+            )}
           </section>
         );
       })}
