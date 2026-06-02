@@ -89,7 +89,7 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
             title = m.group(2).strip()
             block_idx = len(current_blocks)
             tokens = _tokenize(title, current_page_num, block_idx)
-            current_blocks.append(Block(key=f"b{block_idx}", type="heading", tokens=tokens))
+            current_blocks.append(Block(key=f"b{block_idx}", type="heading", level=level, tokens=tokens))
             chapter_sort += 1
             chapters.append(Chapter(
                 title=title,
