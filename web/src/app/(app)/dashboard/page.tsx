@@ -1,5 +1,17 @@
 import { createClient } from "@/lib/supabase/server";
-import { SignOutButton } from "./SignOutButton";
+import { getStats, getContinueReading, getRecommended } from "@/lib/dashboard/data";
+import DashboardHeader from "@/components/dashboard/DashboardHeader";
+import StatsBar from "@/components/dashboard/StatsBar";
+import ContinueReading from "@/components/dashboard/ContinueReading";
+import LibraryShelf from "@/components/dashboard/LibraryShelf";
+import RecommendedGrid from "@/components/dashboard/RecommendedGrid";
+
+export const dynamic = "force-dynamic";
+
+function initialsFromEmail(email: string | undefined): string {
+  if (!email) return "YH";
+  return email.slice(0, 2).toUpperCase();
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -7,10 +19,19 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const [stats, continueReading, recommended] = await Promise.all([
+    getStats(),
+    getContinueReading(),
+    getRecommended(),
+  ]);
+
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="mb-4 text-xl font-bold">Hi {user?.email}</h1>
-      <SignOutButton />
+    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
+      <DashboardHeader userInitials={initialsFromEmail(user?.email)} />
+      <StatsBar stats={stats} />
+      <ContinueReading items={continueReading} />
+      <LibraryShelf />
+      <RecommendedGrid books={recommended} />
     </main>
   );
 }
