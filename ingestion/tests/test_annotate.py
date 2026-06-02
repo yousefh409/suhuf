@@ -87,7 +87,7 @@ def test_apply_accepts_frozen_block_relabel():
         "spans": [],
         "flags": [],
     }
-    _apply_block_annotation(block, ann)
+    _apply_block_annotation(block, ann, allow_relabel=True)
     assert block.type == "takhrij"
     assert block.parser_type == "prose"
 
