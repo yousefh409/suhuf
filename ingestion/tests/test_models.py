@@ -1,4 +1,4 @@
-from ingestion.models import Token, Block, Page, Chapter, BookMetadata, ParseResult
+from ingestion.models import Token, Block, Footnote, Page, Chapter, BookMetadata, ParseResult
 
 
 def test_token_creation():
@@ -72,3 +72,27 @@ def test_parse_result():
     result = ParseResult(metadata=meta, pages=[], chapters=[])
     assert result.metadata.language == "ara"
     assert len(result.pages) == 0
+
+
+def test_block_accepts_level_and_number():
+    b = Block(key="b0", type="heading", level=2, number="١")
+    assert b.level == 2
+    assert b.number == "١"
+
+
+def test_block_level_and_number_default_none():
+    b = Block(key="b1", type="prose")
+    assert b.level is None
+    assert b.number is None
+
+
+def test_footnote_model_and_page_footnotes():
+    fn = Footnote(marker="١", tokens=[Token(id="p1_fn1_w0", text="سقط")])
+    page = Page(page_number=1, content_blocks=[], footnotes=[fn])
+    assert page.footnotes[0].marker == "١"
+    assert page.footnotes[0].tokens[0].text == "سقط"
+
+
+def test_page_footnotes_default_empty():
+    page = Page(page_number=2, content_blocks=[])
+    assert page.footnotes == []
