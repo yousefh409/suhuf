@@ -7,6 +7,10 @@ import { useWordPopover } from "./word/WordPopoverProvider";
 import type { WordSelection } from "@/lib/reader/sentences";
 import "./recite/recite.css";
 
+// Only quran is visually styled inline. The rest are tagged in the DOM
+// (data attributes) for later tap-to-popup, but render as plain text.
+const STYLED_SPAN_LABELS = new Set<SpanLabel>(["quran"]);
+
 type Props = {
   token: Token;
   mode: ReaderMode;
@@ -14,7 +18,7 @@ type Props = {
   showDiff: boolean;       // inspector-only diff toggle
   accentClass?: string;    // optional class applied in reader mode (e.g. transmission-verb accent)
   spanLabel?: SpanLabel;   // when this token sits inside an annotated span
-  spanRef?: string | null; // ref payload (e.g. "51:56" for qur_quote) — exposed via title attr
+  spanRef?: string | null; // ref payload (e.g. "51:56" for quran) — exposed via title attr
   selection?: WordSelection;   // reader-mode tap target; absent → not tappable
 };
 
@@ -29,17 +33,34 @@ export function TokenText({ token, mode, showTashkeel, showDiff, accentClass, sp
   const popover = useWordPopover();
 
   if (mode === "reader") {
+    const styled = spanLabel ? STYLED_SPAN_LABELS.has(spanLabel) : false;
+    const styledSpanClass = styled ? `reader-span reader-span-${spanLabel}` : undefined;
     const tappable = !!selection && !!popover;
     const className =
-      [accentClass, spanClass, recitationClass, tappable ? "reader-word" : null]
+      [accentClass, styledSpanClass, recitationClass, tappable ? "reader-word" : null]
         .filter(Boolean)
         .join(" ") || undefined;
     const onClick = tappable
       ? (e: React.MouseEvent<HTMLSpanElement>) => popover!.open(selection!, e.currentTarget)
       : undefined;
-    if (className || onClick) {
+
+    if (spanLabel === "footnote") {
       return (
-        <span className={className} title={title} onClick={onClick}>
+        <span className={className} onClick={onClick}>
+          {display}
+          <sup className="reader-footnote-ref" data-footnote-ref={spanRef ?? undefined}>{spanRef}</sup>{" "}
+        </span>
+      );
+    }
+
+    const dataAttrs: Record<string, string | undefined> =
+      spanLabel && !styled
+        ? { "data-span-label": spanLabel, "data-span-ref": spanRef ?? undefined }
+        : {};
+
+    if (className || onClick || Object.keys(dataAttrs).length > 0) {
+      return (
+        <span className={className} title={styled ? title : undefined} onClick={onClick} {...dataAttrs}>
           {display}{" "}
         </span>
       );
