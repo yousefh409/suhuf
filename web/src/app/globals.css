@@ -149,13 +149,11 @@ body {
   transition: background-color 120ms ease;
 }
 .reader-span-quran {
-  background: rgba(26, 122, 70, 0.10);
-  box-shadow: 0 1px 0 0 rgba(26, 122, 70, 0.35);
   color: var(--reader-quran, #1a6b46);
+  border-bottom: 1px solid rgba(26, 122, 70, 0.25);
 }
 [data-reader-theme="night"] .reader-span-quran {
-  background: rgba(80, 200, 140, 0.10);
-  box-shadow: 0 1px 0 0 rgba(80, 200, 140, 0.30);
+  border-bottom: 1px solid rgba(111, 214, 160, 0.30);
 }
 /* Inline hadith spans — mirror the display-block visual language so a hadith
    on one source line flows as one paragraph. No background/box-shadow. */
@@ -172,7 +170,11 @@ body {
 
 /* Standalone ayah block. */
 .reader-quran-block {
+  text-align: center;
   color: var(--reader-quran, #1a6b46);
+  font-size: 1.2em;
+  line-height: 2.1;
+  margin: 2rem 0;
 }
 [data-reader-theme="night"] .reader-quran-block { color: #6fd6a0; }
 
