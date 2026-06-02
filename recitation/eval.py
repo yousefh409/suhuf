@@ -328,6 +328,28 @@ def iter_session_items(engine, verbose=False):
             yield (f"sessions:{pid}", f"{pid}/p{pi}", seg, phrases[pi], whisper_words)
 
 
+def iter_corpus_items(engine, limit=None, verbose=False):
+    """Yield items for the external MSA corpus. Each utterance = one item:
+    score the whole utterance against its own (converted) transcript and
+    mutate that transcript."""
+    from eval_corpus import load_corpus_index
+    index = load_corpus_index()
+    if limit:
+        index = index[:limit]
+    for (utt_id, text, wav_path) in index:
+        try:
+            waveform = engine.load_audio(wav_path)
+        except Exception as e:
+            if verbose:
+                print(f"  skip {utt_id}: load failed ({e})")
+            continue
+        audio = waveform.numpy()
+        if len(audio) < int(0.5 * SAMPLE_RATE):
+            continue
+        whisper_words = engine.whisper_transcribe(audio[-int(5.0 * SAMPLE_RATE):])
+        yield ("corpus", utt_id, audio, text, whisper_words)
+
+
 # ── Reporter ──
 
 def _empty_stats():
@@ -384,7 +406,14 @@ def main():
         report["sources"]["sessions"] = summ
         _print_summary("sessions", summ)
 
-    # corpus source wired in Task 5
+    if args.source in ("corpus", "all"):
+        try:
+            fp_acc, stats = run_source(engine, iter_corpus_items(engine, args.limit, args.verbose), args.verbose)
+            summ = _summarize(fp_acc, stats)
+            report["sources"]["corpus"] = summ
+            _print_summary("corpus", summ)
+        except (FileNotFoundError, ValueError) as e:
+            print(f"\n[corpus skipped] {e}")
 
     if args.report:
         Path(args.report).write_text(json.dumps(report, indent=2, ensure_ascii=False))

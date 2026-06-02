@@ -5,4 +5,4 @@ test_data/sessions
 data
 .eval_reference.txt
 .eval_new.txt
-.eval_full.txt
+.eval_*.txt
