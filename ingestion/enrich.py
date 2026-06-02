@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from anthropic import Anthropic
 
 from ingestion._client import create_client, parse_json_response
+from ingestion import quran as _quran
 from ingestion.models import ParseResult
 
 logger = logging.getLogger(__name__)
@@ -133,3 +134,55 @@ def enrich_author_metadata(
     except Exception as e:
         logger.warning(f"Author enrichment failed: {e}")
         return {}
+
+
+def resolve_spans(result: ParseResult) -> int:
+    """Resolve quran spans to sura:ayah refs. Mutates spans in-place.
+
+    Walks every block in every page. For each block, builds a flat ordered
+    token list (block.tokens for prose/heading/etc., flattened hemistichs for
+    poetry) and an id-to-position map. For each span with label=='quran',
+    reconstructs the quoted text by joining token texts from start to end
+    (inclusive), calls quran.lookup(), and if resolved sets span.ref to
+    'sura:ayah' overwriting any prior value.
+
+    Non-quran spans are left completely untouched.
+
+    Returns the count of spans that were successfully resolved.
+    """
+    resolved = 0
+    for page in result.pages:
+        for block in page.content_blocks:
+            # Build flat token list
+            if block.type == "poetry":
+                flat = [
+                    t
+                    for verse in block.hemistichs
+                    for hemistich in verse
+                    for t in hemistich
+                ]
+            else:
+                flat = list(block.tokens)
+
+            if not flat:
+                continue
+
+            id_to_pos = {t.id: i for i, t in enumerate(flat)}
+
+            for span in block.spans:
+                if span.label != "quran":
+                    continue
+
+                start_pos = id_to_pos.get(span.start_token_id)
+                end_pos = id_to_pos.get(span.end_token_id)
+                if start_pos is None or end_pos is None:
+                    continue
+
+                quote = " ".join(t.text for t in flat[start_pos:end_pos + 1])
+                hit = _quran.lookup(quote)
+                if hit is not None:
+                    sura, ayah = hit
+                    span.ref = f"{sura}:{ayah}"
+                    resolved += 1
+
+    return resolved
