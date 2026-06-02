@@ -18,15 +18,15 @@ class Span(BaseModel):
     """
     start_token_id: str            # first token id, e.g. "p3_b5_w2"
     end_token_id: str              # last token id (inclusive)
-    label: str                     # qur_quote | hadith_quote | book_title | personal_name | place_name | date_hijri
-    sub_label: str | None = None   # e.g. companion / tabii / scholar / prophet for personal_name
-    ref: str | None = None         # e.g. sura:ayah for qur_quote
+    label: str                     # quran | person | place | book_ref | hadith_ref | date_hijri | footnote
+    sub_label: str | None = None   # e.g. companion / tabii / scholar / prophet for person
+    ref: str | None = None         # e.g. sura:ayah for quran; openiti_id for book_ref; marker for footnote
     confidence: float | None = None
 
 
 class Block(BaseModel):
     key: str         # "b0", "b1", ...
-    type: str        # prose | hadith | isnad | matn | takhrij | poetry | biography | heading | commentary | quoted_text | editor_note
+    type: str        # prose | heading | poetry | isnad | matn | takhrij | quran
     tokens: list[Token] = []
     hemistichs: list[list[list[Token]]] = []
     metadata: dict | None = None
