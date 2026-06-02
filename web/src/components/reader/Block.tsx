@@ -213,6 +213,10 @@ function renderInner(
       );
     case "prose":
     default:
-      return <p className="leading-[2] my-2">{tokens}</p>;
+      return isReader ? (
+        <p className={`leading-[2] my-2${block.number ? " reader-numbered" : ""}`}>{numberPrefix}{tokens}</p>
+      ) : (
+        <p className="leading-[2] my-2">{tokens}</p>
+      );
   }
 }
