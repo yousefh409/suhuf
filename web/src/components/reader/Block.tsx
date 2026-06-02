@@ -207,7 +207,7 @@ function renderInner(
       );
     case "quran":
       return isReader ? (
-        <p className="reader-quran-block text-center leading-[2.2] my-4 text-[1.1em]">{tokens}</p>
+        <p className="reader-quran-block">{tokens}</p>
       ) : (
         <p className="text-emerald-800 text-center leading-loose my-3">{tokens}</p>
       );
