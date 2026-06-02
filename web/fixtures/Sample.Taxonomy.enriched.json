@@ -1,0 +1,70 @@
+{
+  "metadata": {
+    "openiti_id": "Sample.Taxonomy",
+    "title_ar": "نموذج التنسيق",
+    "title_lat": "Namudhaj al-Tansiq",
+    "author_openiti_id": "0000Sample",
+    "genres": ["SAMPLE"],
+    "language": "ara"
+  },
+  "chapters": [
+    { "title": "كتاب الإيمان", "level": 1, "page_number": 1, "sort_order": 1, "block_index": 0 },
+    { "title": "تفسير الفاتحة", "level": 1, "page_number": 1, "sort_order": 2, "block_index": 5 },
+    { "title": "من معلقة امرئ القيس", "level": 1, "page_number": 1, "sort_order": 3, "block_index": 8 }
+  ],
+  "pages": [
+    {
+      "page_number": 1,
+      "volume": 1,
+      "content_blocks": [
+        { "key": "b0", "type": "heading", "level": 1, "tokens": [
+          { "id": "p1_b0_w0", "text": "كِتَابُ" }, { "id": "p1_b0_w1", "text": "الإِيمَان" } ] },
+        { "key": "b1", "type": "heading", "level": 2, "tokens": [
+          { "id": "p1_b1_w0", "text": "بَابُ" }, { "id": "p1_b1_w1", "text": "إِخْلَاصِ" }, { "id": "p1_b1_w2", "text": "النِّيَّة" } ] },
+        { "key": "b2", "type": "isnad", "number": "١",
+          "spans": [ { "start_token_id": "p1_b2_w1", "end_token_id": "p1_b2_w3", "label": "person", "sub_label": "companion" } ],
+          "tokens": [
+            { "id": "p1_b2_w0", "text": "عَنْ" }, { "id": "p1_b2_w1", "text": "عُمَرَ" }, { "id": "p1_b2_w2", "text": "بْنِ" }, { "id": "p1_b2_w3", "text": "الخَطَّابِ" },
+            { "id": "p1_b2_w4", "text": "رَضِيَ" }, { "id": "p1_b2_w5", "text": "اللهُ" }, { "id": "p1_b2_w6", "text": "عَنْهُ" }, { "id": "p1_b2_w7", "text": "قَالَ" } ] },
+        { "key": "b3", "type": "matn", "tokens": [
+          { "id": "p1_b3_w0", "text": "«إِنَّمَا" }, { "id": "p1_b3_w1", "text": "الأَعْمَالُ" }, { "id": "p1_b3_w2", "text": "بِالنِّيَّاتِ»" } ] },
+        { "key": "b4", "type": "takhrij",
+          "spans": [
+            { "start_token_id": "p1_b4_w1", "end_token_id": "p1_b4_w1", "label": "person" },
+            { "start_token_id": "p1_b4_w3", "end_token_id": "p1_b4_w3", "label": "book_ref", "ref": "0261Muslim.Sahih" } ],
+          "tokens": [
+            { "id": "p1_b4_w0", "text": "رَوَاهُ" }, { "id": "p1_b4_w1", "text": "البُخَارِيُّ" }, { "id": "p1_b4_w2", "text": "فِي" }, { "id": "p1_b4_w3", "text": "صَحِيحِهِ" } ] },
+        { "key": "b5", "type": "heading", "level": 1, "tokens": [
+          { "id": "p1_b5_w0", "text": "تَفْسِيرُ" }, { "id": "p1_b5_w1", "text": "الفَاتِحَة" } ] },
+        { "key": "b6", "type": "prose",
+          "spans": [
+            { "start_token_id": "p1_b6_w1", "end_token_id": "p1_b6_w2", "label": "person", "sub_label": "scholar" },
+            { "start_token_id": "p1_b6_w8", "end_token_id": "p1_b6_w8", "label": "footnote", "ref": "١" },
+            { "start_token_id": "p1_b6_w10", "end_token_id": "p1_b6_w12", "label": "date_hijri" } ],
+          "tokens": [
+            { "id": "p1_b6_w0", "text": "قَالَ" }, { "id": "p1_b6_w1", "text": "ابْنُ" }, { "id": "p1_b6_w2", "text": "كَثِيرٍ" },
+            { "id": "p1_b6_w3", "text": "فِي" }, { "id": "p1_b6_w4", "text": "قَوْلِهِ" }, { "id": "p1_b6_w5", "text": "تَعَالَى:" },
+            { "id": "p1_b6_w6", "text": "هَذَا" }, { "id": "p1_b6_w7", "text": "ثَنَاءٌ" }, { "id": "p1_b6_w8", "text": "عَظِيمٌ." },
+            { "id": "p1_b6_w9", "text": "تُوُفِّيَ" }, { "id": "p1_b6_w10", "text": "سَنَةَ" }, { "id": "p1_b6_w11", "text": "٧٧٤" }, { "id": "p1_b6_w12", "text": "هـ" } ] },
+        { "key": "b7", "type": "quran",
+          "spans": [ { "start_token_id": "p1_b7_w0", "end_token_id": "p1_b7_w3", "label": "quran", "ref": "1:2" } ],
+          "tokens": [
+            { "id": "p1_b7_w0", "text": "﴿الحَمْدُ" }, { "id": "p1_b7_w1", "text": "لِلَّهِ" }, { "id": "p1_b7_w2", "text": "رَبِّ" }, { "id": "p1_b7_w3", "text": "العَالَمِينَ﴾" } ] },
+        { "key": "b8", "type": "heading", "level": 1, "tokens": [
+          { "id": "p1_b8_w0", "text": "مِنْ" }, { "id": "p1_b8_w1", "text": "مُعَلَّقَةِ" }, { "id": "p1_b8_w2", "text": "امْرِئِ" }, { "id": "p1_b8_w3", "text": "القَيْس" } ] },
+        { "key": "b9", "type": "poetry",
+          "spans": [ { "start_token_id": "p1_b9_w5", "end_token_id": "p1_b9_w5", "label": "place" } ],
+          "hemistichs": [
+            [
+              [ { "id": "p1_b9_w0", "text": "قِفَا" }, { "id": "p1_b9_w1", "text": "نَبْكِ" }, { "id": "p1_b9_w2", "text": "مِنْ" }, { "id": "p1_b9_w3", "text": "ذِكْرَى" } ],
+              [ { "id": "p1_b9_w4", "text": "بِسِقْطِ" }, { "id": "p1_b9_w5", "text": "اللِّوَى" }, { "id": "p1_b9_w6", "text": "بَيْنَ" }, { "id": "p1_b9_w7", "text": "الدَّخُولِ" } ]
+            ]
+          ] }
+      ],
+      "footnotes": [
+        { "marker": "١", "tokens": [
+          { "id": "p1_fn1_w0", "text": "سَقَطَ" }, { "id": "p1_fn1_w1", "text": "فِي" }, { "id": "p1_fn1_w2", "text": "نُسْخَةِ" }, { "id": "p1_fn1_w3", "text": "«أ»." } ] }
+      ]
+    }
+  ]
+}
