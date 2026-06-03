@@ -1,0 +1,422 @@
+{
+  "structural_span": {
+    "n": 12,
+    "accuracy": 0.958,
+    "dist": {
+      "correct": 11,
+      "partial": 1,
+      "incorrect": 0,
+      "error": 0
+    },
+    "results": [
+      {
+        "book": "ArbacunaNawawiyya",
+        "verdict": "correct",
+        "reason": "This is the reported prophetic speech/content about nasihah, clearly matn.",
+        "subject": "قُلْنَا: لِمَنْ؟ قَالَ لِلَّهِ، وَلِكِتَابِهِ، وَلِرَسُولِهِ، وَلِأَئِمَّةِ الْمُسْلِمِينَ وَعَامَّتِهِمْ»"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Bracketed span contains the Prophet's reported words, which is the matn.",
+        "subject": "«يستجاب لأحدكم ما لم يعجل، يقول: دعوت فلم يستجب لي»"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "The bracketed text is the reported prophetic saying, which is the matn.",
+        "subject": "«لا يدخل الجنة ولد زنية»"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "The bracketed text is the reported prophetic content describing three people judged on Judgment Day, clearly matn.",
+        "subject": "يوم القيامة ثلاثة: رجل استشهد، فأتي به فعرفه نعمه فعرفها، فقال: ما عملت فيها؟ قال: قاتلت فيك حتى قتلت، قال: كذبت، ولكن قاتلت ليقال: هو جرئ، فقد قيل، ثم أمر به فسحب على وجهه حتى ألقي في النار، ورجل تعلم العلم وعلمه وقرأ القرآن فأتي به فعرفه نعمه فعرفها فقال: ما عملت فيها؟ قال تعلمت فيك العلم وعلمته، وقرأت فيك القرآن، فقال: كذبت، ولكنك تعلمت ليقال، هو عالم، فقد قيل، وقرأت القرآن ليقال: هو قارئ فقد قيل، ثم أمر به فسحب على وجهه حتى ألقي في النار»"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "The bracketed text is the reported prophetic statement, i.e., the matn.",
+        "subject": "«من حلف بغير الله فقد أشرك»"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Bracketed text contains the Prophet's reported words, which is the matn.",
+        "subject": "«اجتنبوا السبع الموبقات، قيل: وما هن يا رسول الله؟ قال: الإشراك بالله، والسحر، وقتل النفس التي حرم الله إلا بالحق، وأكل مال اليتيم، وأكل الربا، والتولي يوم الزحف، وقذف المحصنات الغافلات المؤمنات»"
+      },
+      {
+        "book": "ArbacunaNawawiyya",
+        "verdict": "correct",
+        "reason": "Bracketed span contains the Prophet's reported speech, which is the matn.",
+        "subject": "قَالَ أُمِرْتُ أَنْ أُقَاتِلَ النَّاسَ حَتَّى يَشْهَدُوا أَنْ لَا إِلَهَ إِلَّا اللَّهُ وَأَنَّ مُحَمَّدًا رَسُولُ اللَّهِ، وَيُقِيمُوا الصَّلَاةَ، وَيُؤْتُوا الزَّكَاةَ: فَإِذَا فَعَلُوا ذَلِكَ عَصَمُوا مِنِّي دِمَاءَهُمْ وَأَمْوَالَهُمْ إِلَّا بِحَقِّ الْإِسْلَامِ وَحِسَابُهُمْ عَلَى اللَّهِ تَعَالَى»"
+      },
+      {
+        "book": "ArbacunaNawawiyya",
+        "verdict": "correct",
+        "reason": "The bracketed text is the actual prophetic statement (reported content), correctly labeled as matn.",
+        "subject": "«مَنْ عَمِلَ عَمَلًا لَيْسَ عَلَيْهِ أَمْرُنَا فَهُوَ رَدٌّ»"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Bracketed span contains the Prophet's reported words, which is the matn.",
+        "subject": "«ألظوا بيا ذا الجلال والإكرام»"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "partial",
+        "reason": "Span includes both matn content and editorial phrase 'ونظائره' which is the author's commentary, not hadith matn.",
+        "subject": "وقوله - صلى الله عليه وسلم -: «ليس المسكين بالطواف الذي ترده اللقمة واللقمتان، ولكن المسكين الذي لا يسأل الناس، ولا يفطن له فيتصدق عليه» ونظائره"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Bracketed span attributes hadith to Abu Dawud's Sunan, classic takhrij formula.",
+        "subject": "فروى أبو داود في سننه من حديث جابر بن عبد الله"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Bracketed text contains the reported prophetic words, not the chain of narrators.",
+        "subject": "«من عشق وعف، وكتم فمات فهو شهيد»"
+      }
+    ]
+  },
+  "relabel": {
+    "n": 12,
+    "accuracy": 0.667,
+    "dist": {
+      "correct": 4,
+      "partial": 8,
+      "incorrect": 0,
+      "error": 0
+    },
+    "results": [
+      {
+        "book": "ArbacunaNawawiyya",
+        "verdict": "partial",
+        "reason": "Block contains both isnad (Jabir ibn Abdallah chain) and matn; classifying as matn alone is incomplete.",
+        "subject": "matn"
+      },
+      {
+        "book": "ArbacunaNawawiyya",
+        "verdict": "partial",
+        "reason": "Block contains both isnad (عن أبي ذر، عن النبي) and start of matn text.",
+        "subject": "matn"
+      },
+      {
+        "book": "ArbacunaNawawiyya",
+        "verdict": "partial",
+        "reason": "Block contains both isnad prefix ('عن أبي هريرة') and matn; mixed, but matn dominates.",
+        "subject": "matn"
+      },
+      {
+        "book": "ArbacunaNawawiyya",
+        "verdict": "partial",
+        "reason": "Block contains both isnad ('عن ابن عباس...قال') and matn; classifying as matn-only is incomplete.",
+        "subject": "matn"
+      },
+      {
+        "book": "ArbacunaNawawiyya",
+        "verdict": "partial",
+        "reason": "Block contains both isnad (عن أبي هريرة... قال) and matn; not matn alone.",
+        "subject": "matn"
+      },
+      {
+        "book": "ArbacunaNawawiyya",
+        "verdict": "partial",
+        "reason": "Block contains both isnad fragment ('عن معاذ بن جبل') and matn; isnad is not separated.",
+        "subject": "matn"
+      },
+      {
+        "book": "ArbacunaNawawiyya",
+        "verdict": "correct",
+        "reason": "This is the prophetic hadith text (matn) about al-nasiha, no isnad present.",
+        "subject": "matn"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Narrative hadith content describing a vision/dream; clearly matn text without isnad.",
+        "subject": "matn"
+      },
+      {
+        "book": "ArbacunaNawawiyya",
+        "verdict": "correct",
+        "reason": "This is the body text (matn) of a hadith with prophetic advice/wisdom.",
+        "subject": "matn"
+      },
+      {
+        "book": "ArbacunaNawawiyya",
+        "verdict": "partial",
+        "reason": "Block contains both isnad (عن أبي هريرة... سمعت رسول الله) and matn; not matn alone.",
+        "subject": "matn"
+      },
+      {
+        "book": "ArbacunaNawawiyya",
+        "verdict": "partial",
+        "reason": "Block contains both isnad ('an Abi Hurayra) and matn (the hadith text); not pure matn.",
+        "subject": "matn"
+      },
+      {
+        "book": "ArbacunaNawawiyya",
+        "verdict": "correct",
+        "reason": "Block contains the prophetic statement and Ibn Umar's commentary, both constituting matn content.",
+        "subject": "matn"
+      }
+    ]
+  },
+  "person": {
+    "n": 12,
+    "accuracy": 0.833,
+    "dist": {
+      "correct": 8,
+      "partial": 4,
+      "incorrect": 0,
+      "error": 0
+    },
+    "results": [
+      {
+        "book": "ArbacunaNawawiyya",
+        "verdict": "correct",
+        "reason": "Clearly refers to Prophet Muhammad; 'prophet' role is correct.",
+        "subject": "أَنَّ النَّبِيَّ صَلَّى اللَّهُ عَلَيْهِ وَآلِهِ وَسَلَّمَ"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Anas ibn Malik is indeed a companion (Sahabi) of the Prophet.",
+        "subject": "أنس بن مالك"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Ibn Sirin is a well-known Tabi'i scholar; role 'scholar' is appropriate.",
+        "subject": "محمد بن سيرين:"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "رسول الله refers to Prophet Muhammad, correctly tagged as PERSON with role prophet.",
+        "subject": "رسول الله - صلى الله عليه وسلم"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "النبي صلى الله عليه وسلم is clearly a person with role prophet, correctly identified.",
+        "subject": "عن النبي - صلى الله عليه وسلم"
+      },
+      {
+        "book": "ArbacunaNawawiyya",
+        "verdict": "partial",
+        "reason": "Muslim ibn al-Hajjaj is a person/scholar, but role should be 'scholar' not 'companion/tabii'.",
+        "subject": "وَمُسْلِمٌ."
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Abd al-Haqq al-Ishbili is a well-known Andalusian hadith scholar (muhaddith).",
+        "subject": "الحافظ أبو محمد عبد الحق بن عبد الرحمن الإشبيلي"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Ahmad ibn Hanbal is indeed a person and a classical Islamic scholar.",
+        "subject": "والإمام أحمد"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Clearly the Prophet Muhammad, correctly identified as person with role prophet.",
+        "subject": "رسول الله - صلى الله عليه وسلم"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "partial",
+        "reason": "الترمذي is a person/scholar, but the tagged span includes his statement, not just his name.",
+        "subject": "الترمذي: هذا حديث حسن صحيح."
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "partial",
+        "reason": "Correctly identified as a person/scholar, but annotation cuts off the full name (missing 'فهد').",
+        "subject": "شهاب الدين محمد بن سليمان بن"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "partial",
+        "reason": "أبي غسان is a person/narrator but insufficient info to confirm scholar role specifically.",
+        "subject": "أبي غسان"
+      }
+    ]
+  },
+  "quran": {
+    "n": 12,
+    "accuracy": 1.0,
+    "dist": {
+      "correct": 12,
+      "partial": 0,
+      "incorrect": 0,
+      "error": 0
+    },
+    "results": [
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "The span is Quran 18:50 and no reference was claimed in the tag.",
+        "subject": "وإذ قلنا للملائكة اسجدوا لآدم فسجدوا إلا إبليس كان من الجن ففسق عن أمر ربه أفتتخذونه وذريته أولياء من دوني وهم لكم عدو بئس للظالمين بدلا"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Exact Quranic text from Surah Al-Baqarah 2:143, reference matches.",
+        "subject": "لتكونوا شهداء على الناس ويكون الرسول عليكم شهيدا"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Quran 9:40 exact wording confirmed correct.",
+        "subject": "لا تحزن إن الله معنا"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "قل هو الله أحد is indeed Quran 112:1, reference is accurate.",
+        "subject": "\" {قل هو الله أحد}"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Phrase يحب الصابرين is in Quran 3:146; reference matches exactly.",
+        "subject": "يحب الصابرين"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Quran 30:28 quoted accurately; no reference claimed in tag, reference given in surrounding text.",
+        "subject": "ضرب لكم مثلا من أنفسكم هل لكم من ما ملكت أيمانكم من شركاء في ما رزقناكم فأنتم فيه سواء تخافونهم كخيفتكم أنفسكم كذلك نفصل الآيات لقوم يعقلون"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Quran 20:46 confirmed: exact wording matches Taha verse 46.",
+        "subject": "إنني معكما أسمع وأرى"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "The span is authentic Quran 6:38, reference matches exactly.",
+        "subject": "وما من دابة في الأرض ولا طائر يطير بجناحيه إلا أمم أمثالكم"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "The phrase is Quran 23:48, matching the claimed reference exactly.",
+        "subject": "{فكذبوهما فكانوا من المهلكين}"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Quran 21:22 exact wording; no ref claimed but source correctly noted in surrounding text.",
+        "subject": "لو كان فيهما آلهة إلا الله لفسدتا"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Quran 32:24 exact match confirmed.",
+        "subject": "منهم أئمة يهدون بأمرنا لما صبروا وكانوا بآياتنا يوقنون"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Quran 35:10 matches exactly; reference is correct.",
+        "subject": "من كان يريد العزة فلله العزة جميعا"
+      }
+    ]
+  },
+  "poetry": {
+    "n": 12,
+    "accuracy": 0.917,
+    "dist": {
+      "correct": 11,
+      "partial": 0,
+      "incorrect": 1,
+      "error": 0
+    },
+    "results": [
+      {
+        "book": "Alfiyya",
+        "verdict": "correct",
+        "reason": "Both hemistichs show consistent meter (rajaz/mutaqarib pattern) and rhyme, indicating genuine verse.",
+        "subject": "يتلو الجزاء وجوابا وسما"
+      },
+      {
+        "book": "Alfiyya",
+        "verdict": "correct",
+        "reason": "Forms a complete rajaz/didactic verse line with meter and rhyme, typical of Arabic grammar poetry.",
+        "subject": "كابيض أو أهوى بلام عللا"
+      },
+      {
+        "book": "Alfiyya",
+        "verdict": "correct",
+        "reason": "Both hemistichs follow rajaz meter with consistent metrical feet, forming a genuine bayt.",
+        "subject": "أو ياء تصغير بواو ذا افعلا"
+      },
+      {
+        "book": "Alfiyya",
+        "verdict": "correct",
+        "reason": "These form a rajaz/didactic verse line from a nahw matn, metrically consistent.",
+        "subject": "ما للندا يصلح نحو أحمد"
+      },
+      {
+        "book": "Alfiyya",
+        "verdict": "correct",
+        "reason": "These are hemistichs from Alfiyya Ibn Malik, a well-known didactic poem in rajaz meter.",
+        "subject": "بذي وذه تي تا على الأنثى اقتصر"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Rajaz/mutaqarib meter detected; segments form a complete metrical bayt with rhyme.",
+        "subject": "قصور وأخرى عليهم أطم"
+      },
+      {
+        "book": "Alfiyya",
+        "verdict": "correct",
+        "reason": "Both hemistichs show consistent meter (rajaz) and rhyme, confirming genuine verse.",
+        "subject": "كمثل كل صانع وما صنع"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Regular rajaz/tawil meter with clear rhyme; syntactically complete bayt structure.",
+        "subject": "فمن ذا له من بعد ذلك يكرم"
+      },
+      {
+        "book": "Alfiyya",
+        "verdict": "incorrect",
+        "reason": "This is prose from a grammar text (likely Ibn Ājarūm or similar), not metrical verse.",
+        "subject": "ذو المنع والمصروف قد لا ينصرف"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Metrically complete bayt in basīṭ meter; both hemistichs scan correctly as verse.",
+        "subject": "عن الشراب وتلهيها عن الزاد"
+      },
+      {
+        "book": "DaWaDawa",
+        "verdict": "correct",
+        "reason": "Forms a complete bayt with consistent meter (Tawil) and rhyme; classical verse structure confirmed.",
+        "subject": "إذا استفهموه عن حديثك جاهله"
+      },
+      {
+        "book": "Alfiyya",
+        "verdict": "correct",
+        "reason": "Both hemistichs show consistent meter (rajaz-like pattern) and rhyme scheme typical of Arabic verse.",
+        "subject": "وعن سبيل القصد من قاس انتبذ"
+      }
+    ]
+  }
+}

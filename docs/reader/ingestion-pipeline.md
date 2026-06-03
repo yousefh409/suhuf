@@ -1,6 +1,6 @@
 # Ingestion Pipeline
 
-A local Node.js script that transforms OpenITI mARkdown source files into structured block-based book data in Supabase Postgres. Runs manually per book. Three stages execute in sequence for V1: parse structure into typed blocks with word tokens, add tashkeel to token text, upload to Supabase. A fourth stage (Claude annotation) exists but is optional and skipped for V1.
+A local Node.js script that transforms OpenITI mARkdown source files into structured block-based book data in Supabase Postgres. Runs manually per book. Three stages execute in sequence for V1: parse structure into typed blocks with word tokens, add tashkeel to token text, upload to Supabase. A fourth stage, Claude annotation, runs by default and supplies the semantic labels (isnad/matn/takhrij, person, qur'an) that the source markup does **not** carry. (This page also predates the move to a Python pipeline; see `dev-loop.md` for the current architecture.)
 
 ## Pipeline Flow
 
@@ -105,7 +105,7 @@ The tashkeel stage runs a Python subprocess. Tokens are batched per page to mini
 
 ## Stage 3 (Optional): Annotate (`annotate.ts`)
 
-**Skipped for V1.** OpenITI's existing semantic tags provide sufficient block typing.
+**Runs by default.** OpenITI's mainstream corpus carries only *structural* markup (page markers, headings) — not the semantic `$RWY$`/`@MATN@`/`$BIO_*` hadith tags (verified zero across Bukhari, Muslim, Tirmidhi, Bulugh). So this pass, not the source tags, supplies isnad/matn/takhrij and inline span labels on real books.
 
 When enabled, this stage uses Claude to enrich blocks with metadata that the source doesn't provide:
 - Quran quote detection (surah, ayah) -- OpenITI does not tag inline Quran quotes
@@ -162,7 +162,7 @@ Options:
 
 **Token IDs are position-based.** Inserting or removing content in the source file shifts token IDs on affected pages. User data referencing those IDs will need re-anchoring via `anchor_context`. Prefer correcting diacritics within words (ID-stable) over inserting/removing words (ID-breaking).
 
-**Only ingest verified `.mARkdown` files.** OpenITI files with `.inProgress` or `.completed` extensions may have incomplete semantic tagging. Blocks derived from poorly-tagged files will default to `prose` type, losing semantic structure.
+**Prefer higher-tier files for cleaner *structure*, not for tags.** `.mARkdown` > `.completed` > raw reflects how well the structural markup (page markers, headings) was vetted; none of the tiers carries semantic `$RWY$`/`@MATN@` tags. Untagged content (i.e. essentially all of it) parses as `prose`; the Claude annotate stage (default-on) recovers isnad/matn/takhrij and inline span labels.
 
 **Annotation cost scales linearly with book size.** When the annotate stage is enabled, it calls Claude once per page. A 1,000-page book means 1,000 Claude API calls. Budget accordingly.
 
