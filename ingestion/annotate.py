@@ -83,6 +83,7 @@ You will be given an array of consecutive text blocks from a classical Arabic bo
 - "key": its identifier
 - "type": the parser's tentative type (often just "prose" because the source was un-annotated)
 - "tokens": ordered list of tokens with positions, format [[i, "text"], ...]
+- "spans": structural spans already detected, format [[start, end, label, confidence], ...]. isnad/matn/takhrij spans here are PRE-DETECTED — do NOT re-add them. For a block with NO structural spans you may add them. You MAY correct a structural span only if its confidence is below 0.9; never touch one at 0.9 or above. Always add entity spans (person/place/quran/book_ref/hadith_ref/date_hijri) regardless.
 
 For each block, return a JSON object with:
 - "key": the block's key (echoed back)
@@ -136,10 +137,17 @@ def _serialize_block(page_number: int, block: Block) -> dict:
         flat: list[Token] = [t for verse in block.hemistichs for h in verse for t in h]
     else:
         flat = block.tokens
+    idmap = {t.id: i for i, t in enumerate(flat)}
+    spans = []
+    for s in block.spans:
+        a, b = idmap.get(s.start_token_id), idmap.get(s.end_token_id)
+        if a is not None and b is not None:
+            spans.append([min(a, b), max(a, b), s.label, s.confidence])
     return {
         "key": _global_key(page_number, block),
         "type": block.type,
         "tokens": [[i, t.text] for i, t in enumerate(flat)],
+        "spans": spans,
     }
 
 
