@@ -160,6 +160,10 @@ body {
 .reader-span-isnad {
   color: var(--reader-fg-muted);
 }
+/* Verb accent must win over the muted isnad span color when both classes apply. */
+.reader-span-isnad.reader-isnad-verb {
+  color: var(--reader-accent);
+}
 .reader-span-matn {
   font-weight: 700;
 }
