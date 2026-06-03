@@ -272,21 +272,34 @@ def _apply_block_annotation(
     # span, and — where parse already found a cited ayah — drop the model's
     # Qur'an spans entirely (they would otherwise duplicate onto the trailing
     # citation bracket). The model still owns every other label.
+    LOCK_THRESHOLD = 0.9
     preserved = list(block.spans)
     idmap = _token_index_map(block)
-    preserved_ranges = [r for r in (_span_range(s, idmap) for s in preserved) if r]
-    preserved_has_quran = any(s.label == "quran" for s in preserved)
+    # Spans with no confidence, or confidence >= threshold, are authoritative
+    # (citation qur'an, footnotes, high-confidence structure). Below-threshold
+    # structural spans are PROPOSALS a same-label model span may replace.
+    locked = [s for s in preserved if s.confidence is None or s.confidence >= LOCK_THRESHOLD]
+    soft = [s for s in preserved if s.confidence is not None and s.confidence < LOCK_THRESHOLD]
+    locked_ranges = [r for r in (_span_range(s, idmap) for s in locked) if r]
+    locked_has_quran = any(s.label == "quran" for s in locked)
 
     kept: list[Span] = []
+    overridden = set()  # ids of soft spans replaced by a same-label model span
     for cs in spans:
         rng = _span_range(cs, idmap)
-        if rng and any(_ranges_overlap(rng, pr) for pr in preserved_ranges):
+        if rng and any(_ranges_overlap(rng, pr) for pr in locked_ranges):
             continue
-        if cs.label == "quran" and preserved_has_quran:
+        if cs.label == "quran" and locked_has_quran:
             continue
+        if rng:
+            for ss in soft:
+                sr = _span_range(ss, idmap)
+                if sr and _ranges_overlap(rng, sr) and cs.label == ss.label:
+                    overridden.add(id(ss))
         kept.append(cs)
 
-    block.spans = preserved + kept
+    surviving_soft = [s for s in soft if id(s) not in overridden]
+    block.spans = locked + surviving_soft + kept
     span_count = len(kept)
 
     flags_raw = ann.get("flags") or []
