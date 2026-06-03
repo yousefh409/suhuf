@@ -13,6 +13,13 @@ function initialsFromEmail(email: string | undefined): string {
   return email.slice(0, 2).toUpperCase();
 }
 
+function nameFromEmail(email: string | undefined): string {
+  if (!email) return "Reader";
+  const local = email.split("@")[0].replace(/[._-]+/g, " ").trim();
+  if (!local) return "Reader";
+  return local.charAt(0).toUpperCase() + local.slice(1);
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient();
   const {
@@ -28,7 +35,10 @@ export default async function DashboardPage() {
   return (
     <main className="min-h-screen bg-parchment text-ink">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
-      <DashboardHeader userInitials={initialsFromEmail(user?.email)} />
+      <DashboardHeader
+        name={nameFromEmail(user?.email)}
+        userInitials={initialsFromEmail(user?.email)}
+      />
       <StatsBar stats={stats} />
       <ContinueReading items={continueReading} />
       <LibraryShelf />
