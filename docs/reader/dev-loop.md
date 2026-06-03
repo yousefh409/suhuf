@@ -74,6 +74,11 @@ If you're iterating on parsing only and don't need tashkeel/enrichment:
   @MATN@ …` in a single paragraph) is emitted as **one `prose` block** with
   `isnad`/`matn`/`takhrij`/`quran` **spans** rather than separate blocks; a
   hadith laid out across **separate lines** stays separate blocks (#14).
+  Raw-file heuristics: a ` ... ` (ellipsis) hemistich separator → `poetry`
+  (guarded by balance/standalone checks); an ordinal-only `### | N -` heading →
+  an item `number` on the next block (not a chapter); `[ص: N]` print-sheet refs
+  are dropped and `:`/`«`-prefixed headings become prose (mistagged body text in
+  raw OpenITI files).
 - `quran.py` — bundled ayah index + sura-name table. `citation_to_ref`
   parses `"الأعراف: 158"` → `"7:158"`; `lookup_match` resolves a quote by
   exact/containment match.
@@ -81,6 +86,8 @@ If you're iterating on parsing only and don't need tashkeel/enrichment:
   (parse owns citation-anchored Qur'an); Claude fills the rest. Span vocab
   includes `isnad`/`matn`/`takhrij`, so the model can structure a running-line
   hadith inline (spans on one block) for books lacking native `@MATN@` tags.
+  Poetry is parser-owned: the pass never relabels a block to/from `poetry`
+  (content lives in `hemistichs`, so either direction would render blank).
 - `tashkeel.py` — adds diacritics; engines: `shakkala`, `flan-t5`.
   Populates `text_raw` only when diacritization changed the token.
 - `enrich.py` — Claude metadata enrichment + `resolve_spans` (Qur'an refs:
