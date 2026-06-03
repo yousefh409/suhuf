@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 
 from ingestion.models import Token, Block, Footnote, Page, Chapter, ParseResult, Span
+
+logger = logging.getLogger(__name__)
 from ingestion.metadata import parse_file_header
 from ingestion import quran as _quran
 
@@ -718,6 +721,11 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
             if vol == 0 and page == 0:
                 # Null page marker - skip without flushing
                 continue
+            if vol == current_volume and page == current_page_num:
+                # Redundant repeat of the current page marker (some raw files
+                # double-print them). Not a new page — keep accumulating, else
+                # we emit duplicate page rows that collide on upload.
+                continue
             _flush_page()
             current_volume = vol
             current_page_num = page
@@ -743,5 +751,19 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
 
     # Flush final page
     _flush_page()
+
+    # Residual duplicate page keys (rare non-adjacent marker repeats) collide on
+    # upload's (book_id, volume, page_number) upsert and would silently drop a
+    # page. Merging them would clash token IDs, so warn instead of losing data.
+    seen: set[tuple[int, int]] = set()
+    dups: set[tuple[int, int]] = set()
+    for p in pages:
+        key = (p.volume, p.page_number)
+        (dups if key in seen else seen).add(key)
+    if dups:
+        logger.warning(
+            "Duplicate page rows remain after dedup (will collide on upload): %s",
+            ", ".join(f"v{v}p{p}" for v, p in sorted(dups)),
+        )
 
     return ParseResult(metadata=metadata, pages=pages, chapters=chapters)

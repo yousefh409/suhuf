@@ -122,6 +122,34 @@ def test_sheet_reference_heading_is_dropped(tmp_path):
     assert any(b.type == "prose" for b in page.content_blocks)
 
 
+def test_repeated_page_marker_does_not_duplicate_page(tmp_path):
+    # Some raw OpenITI files double-print a page marker. A marker equal to the
+    # current page is a redundant repeat, not a new page — content between the
+    # two markers belongs to the same page (else uploads collide and lose data).
+    src = _make_book(tmp_path, [
+        "# نص أول",
+        "# PageV01P009",
+        "# نص ثان",
+        "# PageV01P010",
+        "# نص ثالث",
+    ])
+    # _make_book already emits "# PageV01P001" before the body; here page 9 is
+    # printed once then immediately again to simulate the duplicate.
+    src.write_text(
+        "######OpenITI#\n#META#Header#End#\n"
+        "# PageV01P009\n# نص أ\n# PageV01P009\n# نص ب\n# PageV01P010\n# نص ج\n",
+        encoding="utf-8",
+    )
+    result = parse_file(src, "0100Test.DupPage")
+    keys = [(p.volume, p.page_number) for p in result.pages]
+    assert keys == [(1, 9), (1, 10)]            # no duplicate (1, 9)
+    assert len(keys) == len(set(keys))          # all page keys unique
+    # Content from both sides of the repeated marker lands on page 9.
+    p9 = next(p for p in result.pages if p.page_number == 9)
+    p9_text = " ".join(t.text for b in p9.content_blocks for t in b.tokens)
+    assert "أ" in p9_text and "ب" in p9_text
+
+
 def test_punctuation_prefixed_heading_becomes_prose(tmp_path):
     # "### | : «...»" and "### | «...»" are mistagged hadith fragments, not
     # chapters: preserve the text as prose, keep it out of the chapter list.
