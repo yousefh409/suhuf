@@ -138,6 +138,27 @@ def test_narrator_qal_requires_transmission_opener(tmp_path):
     assert all(s.label not in ("isnad", "matn", "takhrij") for s in block.spans)
 
 
+def test_crossref_quote_variant(tmp_path):
+    # "وللبيهقي: «…»" — cross-collection variant: opener=takhrij, quote=matn.
+    body = "# وللبيهقي «الماء طاهر الا ان تغير ريحه او طعمه او لونه بنجاسة»\n"
+    block = parse_file(_make_book(tmp_path, body), "0100Test.CR").pages[0].content_blocks[0]
+    detect_hadith_structure(_one(block))
+    sp = _spans(block)
+    assert "matn" in sp and "takhrij" in sp and "isnad" not in sp
+    texts = {t.id: t.text for t in block.tokens}
+    assert "«" in texts[sp["matn"].start_token_id]
+    assert sp["takhrij"].start_token_id == block.tokens[0].id   # opener is the takhrij
+
+
+def test_crossref_source_note_is_takhrij(tmp_path):
+    # "وأصله في الصحيحين …" — a pure source/grading note → whole block = takhrij.
+    body = "# وأصله في الصحيحين من حديث عبد الله بن زيد بن عاصم المازني\n"
+    block = parse_file(_make_book(tmp_path, body), "0100Test.Note").pages[0].content_blocks[0]
+    detect_hadith_structure(_one(block))
+    sp = _spans(block)
+    assert "takhrij" in sp and "matn" not in sp and "isnad" not in sp
+
+
 def test_quote_without_transmission_no_fallback(tmp_path):
     # A «…» with no transmission opener (a fiqh definition) must NOT fire.
     body = "# الماء «الطهور» هو الباقي على اصل خلقته وهذا قول الجمهور\n"
