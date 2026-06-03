@@ -264,6 +264,18 @@ def test_real_chapter_vs_fragment_heading():
     assert _is_real_chapter(_blk("b0", "prose", "كتاب")) is False                         # not a heading
 
 
+def test_open_quote_absorbs_chapter_like_heading():
+    # The matn quote opens in b1; the continuation is a heading with NO » of its
+    # own (it reads like a chapter title) — the open « must WIN and absorb it,
+    # not let _is_real_chapter close the unit mid-quote.
+    b1 = _blk("b1", "prose", "وعن ابي هريرة قال قال رسول الله صلى الله عليه وسلم «من", number="1")
+    b2 = _blk("b2", "heading", "سبح الله دبر كل صلاة ثلاثا وثلاثين")   # no », looks like a chapter
+    b3 = _blk("b3", "prose", "فتلك تسعون» متفق عليه")                  # closes the quote
+    units = _group_hadith_units([(1, 0, b1), (1, 1, b2), (1, 2, b3)])
+    assert len(units) == 1
+    assert [t[2].key for t in units[0]] == ["b1", "b2", "b3"]
+
+
 def test_split_matn_spans_both_blocks(tmp_path):
     # A hadith whose matn quote opens in one block and closes in the next, with
     # the tail pulled into a ### | heading — must produce a matn span in BOTH,
