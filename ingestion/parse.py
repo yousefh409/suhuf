@@ -138,8 +138,11 @@ def _normalize_body_lines(lines: list[str]) -> list[str]:
         # exactly a page token and nothing else.
         content_stripped = content.strip()
         if _PAGE_RE.fullmatch(content_stripped):
-            # Already standalone — emit unchanged so the main loop handles it.
-            result.append(line)
+            # Standalone marker, but possibly behind a prefix the main loop won't
+            # strip (e.g. "~~PageV00P000" in the Bulugh source). Normalize to a
+            # "# " marker line so the main loop recognizes and skips/flushes it
+            # instead of treating it as continuation content.
+            result.append("# " + content_stripped)
             continue
 
         # Split the content on embedded page tokens.
