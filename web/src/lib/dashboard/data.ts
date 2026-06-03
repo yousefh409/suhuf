@@ -10,15 +10,9 @@ import type {
   DiscoverBook,
   DiscoverQuery,
 } from "./types";
-import {
-  mockStats,
-  mockContinueReading,
-  mockLibrary,
-  mockRecommended,
-  mockGenres,
-  mockDiscover,
-} from "./mock";
-import { selectLibrary, selectDiscover } from "./select";
+import { mockStats, mockContinueReading, mockLibrary, mockRecommended } from "./mock";
+import { selectLibrary } from "./select";
+import { queryDiscover, queryGenres } from "./catalog";
 
 // TODO(group0): swap to Supabase — reading_sessions aggregate (sum pages_read, words_learned, streak, minutes)
 export async function getStats(): Promise<DashboardStats> {
@@ -40,12 +34,10 @@ export async function getRecommended(): Promise<RecommendedBook[]> {
   return mockRecommended;
 }
 
-// TODO(group0): swap to Supabase — books/authors table grouped by genre with count aggregation
 export async function getGenres(): Promise<Genre[]> {
-  return mockGenres;
+  return queryGenres();
 }
 
-// TODO(group0): swap to Supabase — books/authors table with genre filter + full-text search, sorted server-side
 export async function getDiscover(query: DiscoverQuery): Promise<DiscoverBook[]> {
-  return selectDiscover(mockDiscover, query);
+  return queryDiscover(query);
 }
