@@ -277,6 +277,39 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
                 )
             return
 
+        # %-wrapped poetry: line starts with % and contains at least two % chars.
+        # Format: % hemistich1 % % hemistich2 % [verse_number]
+        # Splitting on % and taking non-empty trimmed segments yields the
+        # hemistich texts plus an optional trailing verse number.
+        _normalized = _MILESTONE_RE.sub("", line_text)
+        _normalized = re.sub(r"\s{2,}", " ", _normalized).strip()
+        if _normalized.startswith("%") and _normalized.count("%") >= 2:
+            _flush_hadith()
+            segments = [s.strip() for s in _normalized.split("%") if s.strip()]
+            # If the last segment is purely digits (ASCII or Arabic-Indic), treat it as verse number.
+            verse_number: str | None = None
+            if segments and re.fullmatch(r"[0-9\u0660-\u0669]+", segments[-1]):
+                verse_number = segments.pop()
+            # Remaining segments are hemistichs.
+            if segments:
+                block_idx = len(current_blocks)
+                hemistichs = []
+                w_idx = 0
+                for seg in segments:
+                    words = seg.split()
+                    h_tokens = [
+                        Token(id=f"p{current_page_num}_b{block_idx}_w{w_idx + j}", text=w)
+                        for j, w in enumerate(words)
+                    ]
+                    w_idx += len(words)
+                    if h_tokens:
+                        hemistichs.append(h_tokens)
+                if hemistichs:
+                    current_blocks.append(
+                        Block(key=f"b{block_idx}", type="poetry", hemistichs=[hemistichs], number=verse_number)
+                    )
+            return
+
         # @MATN@ boundary (only meaningful in hadith mode)
         if "@MATN@" in line_text and in_hadith:
             before, _, after = line_text.partition("@MATN@")
