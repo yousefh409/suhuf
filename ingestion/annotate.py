@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 # Haiku 4.5 — cheap labeling tool. Override via SUHUF_ANNOTATE_MODEL.
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
-PROMPT_VERSION = "annotate-v1.0"
+PROMPT_VERSION = "annotate-v1.1"  # v1.1: allow poetry→prose relabel (flatten hemistichs)
 
 # Block-type frozen vocabulary (7 types). The model returns one of these or
 # "keep" to leave the parser type unchanged.
@@ -95,7 +95,7 @@ For each block, return a JSON object with:
 Block-type definitions:
 - "prose": general running text (default when no more specific type applies)
 - "heading": section or chapter heading
-- "poetry": verse in metered form; hemistichs separated by a caesura. Poetry is detected upstream and is parser-owned: never relabel a block TO poetry, and never relabel a block whose type is already poetry to something else — leave poetry blocks' type unchanged (you may still add spans to them)
+- "poetry": verse in metered form; hemistichs separated by a caesura. NEVER relabel a block TO poetry (it is detected upstream and we cannot reconstruct hemistichs). A block already typed "poetry" is usually real verse — leave it poetry. BUT if a "poetry" block is plainly NOT verse (e.g. the source laid out a dhikr formula, a hadith, or a centered prose sentence as a verse line), you SHOULD relabel it to prose/isnad/matn/takhrij and add the appropriate spans — its text is flattened back to running tokens automatically. Only relabel away from poetry when you are confident it is not metered verse
 - "isnad": chain of transmitters, e.g. "حدثنا/أخبرنا … عن … عن …" leading into a hadith
 - "matn": the actual reported text of a hadith, often (but not always) wrapped in « » or "..."
 - "takhrij": source attribution after the matn naming which collections recorded it, e.g. "رواه البخاري في صحيحه"
@@ -225,12 +225,12 @@ def _apply_block_annotation(
         and isinstance(new_type, str)
         and new_type in BLOCK_TYPES
         and new_type != block.type
-        # Poetry is parser-owned in BOTH directions: its content lives in
-        # `hemistichs`, not `tokens`. Relabeling TO poetry (no hemistichs to
-        # build) or FROM poetry (orphans the hemistichs under a tokens-based
-        # renderer) renders blank. Never relabel across the poetry boundary.
+        # Relabeling TO poetry stays banned — we can't reconstruct hemistichs
+        # from a tokens-based block, so the poetry renderer would drop its text.
+        # Relabeling FROM poetry IS allowed (the safety net for prose the source
+        # mistagged as verse): flatten hemistichs into tokens first so the prose
+        # renderer shows it and the model's span indices line up.
         and new_type != "poetry"
-        and block.type != "poetry"
         and conf is not None
         and conf >= MIN_RELABEL_CONFIDENCE
     ):
@@ -238,6 +238,9 @@ def _apply_block_annotation(
         # only stash it the first time we mutate the block.
         if block.parser_type is None:
             block.parser_type = block.type
+        if block.type == "poetry":
+            block.tokens = [t for verse in block.hemistichs for h in verse for t in h]
+            block.hemistichs = []
         block.type = new_type
         relabeled = True
 
