@@ -85,3 +85,14 @@ def _one(block):
     from ingestion.models import BookMetadata, Page, ParseResult
     meta = BookMetadata(openiti_id="t.1", title_ar="x", author_openiti_id="a")
     return ParseResult(metadata=meta, pages=[Page(page_number=1, content_blocks=[block])])
+
+
+def test_full_parse_then_detect_adds_structure(tmp_path):
+    # Two hadith on separate lines; both should get matn spans after detect.
+    body = (
+        "# وعن ابي هريرة قال قال رسول الله صلى الله عليه وسلم «انما الاعمال بالنيات» رواه البخاري\n"
+        "# وعن عائشة قالت قال رسول الله صلى الله عليه وسلم «من احدث في امرنا» متفق عليه\n"
+    )
+    result = parse_file(_make_book(tmp_path, body), "0100Test.Two")
+    stats = detect_hadith_structure(result)
+    assert stats["matn"] == 2 and stats["takhrij"] == 2
