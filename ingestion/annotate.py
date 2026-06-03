@@ -41,7 +41,8 @@ BLOCK_TYPES = [
     "quran",
 ]
 
-# Span-label frozen vocabulary (6 labels).
+# Span-label frozen vocabulary. The last three structure a running-line hadith
+# inline (one block, parts as spans) for books without native @MATN@ tags.
 SPAN_LABELS = [
     "quran",
     "person",
@@ -49,6 +50,9 @@ SPAN_LABELS = [
     "book_ref",
     "hadith_ref",
     "date_hijri",
+    "isnad",
+    "matn",
+    "takhrij",
 ]
 
 # Quality-flag vocabulary.
@@ -103,6 +107,11 @@ Span-label definitions:
 - "book_ref": referenced classical work, e.g. "صحيح البخاري", "رياض الصالحين"
 - "hadith_ref": a hadith quoted inline in a non-hadith context
 - "date_hijri": explicit Hijri date in the text
+- "isnad": the chain-of-transmission portion of a hadith that sits inline within a single running block (use this span, not a block relabel, when isnad and matn share one line/paragraph)
+- "matn": the reported-text portion of a hadith that sits inline within a single running block
+- "takhrij": the source-attribution tail (e.g. "رواه البخاري") of a hadith that sits inline within a single running block
+
+For a hadith laid out across SEPARATE lines (separate blocks), prefer relabeling each block's "type" to isnad/matn/takhrij. For a hadith on ONE running line, emit these as spans on a single block — do not do both.
 
 Quality flags:
 - "parse_error": block looks malformed (broken nesting, suspicious whitespace, zero-content)

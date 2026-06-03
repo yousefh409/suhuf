@@ -18,7 +18,7 @@ class Span(BaseModel):
     """
     start_token_id: str            # first token id, e.g. "p3_b5_w2"
     end_token_id: str              # last token id (inclusive)
-    label: str                     # quran | person | place | book_ref | hadith_ref | date_hijri | footnote
+    label: str                     # quran | person | place | book_ref | hadith_ref | date_hijri | footnote | isnad | matn | takhrij
     sub_label: str | None = None   # e.g. companion / tabii / scholar / prophet for person
     ref: str | None = None         # e.g. sura:ayah for quran; openiti_id for book_ref; marker for footnote
     confidence: float | None = None

@@ -26,7 +26,39 @@ def _make_block(key: str = "b0", btype: str = "prose", n_tokens: int = 4) -> Blo
 # ---------------------------------------------------------------------------
 
 def test_span_labels_constant_is_frozen_set():
-    assert set(SPAN_LABELS) == {"quran", "person", "place", "book_ref", "hadith_ref", "date_hijri"}
+    assert set(SPAN_LABELS) == {
+        "quran", "person", "place", "book_ref", "hadith_ref", "date_hijri",
+        "isnad", "matn", "takhrij",
+    }
+
+
+def test_apply_accepts_inline_hadith_span_labels():
+    block = _make_block(n_tokens=6)
+    ann = {
+        "spans": [
+            {"start": 0, "end": 2, "label": "isnad", "confidence": 0.9},
+            {"start": 3, "end": 5, "label": "matn", "confidence": 0.9},
+        ],
+        "flags": [],
+    }
+    _apply_block_annotation(block, ann)
+    labels = sorted(s.label for s in block.spans)
+    assert labels == ["isnad", "matn"]
+
+
+def test_parse_inline_hadith_span_wins_over_model_span():
+    # Parse emitted an authoritative isnad span; an overlapping model span is dropped.
+    block = _make_block(n_tokens=6)
+    block.spans = [Span(start_token_id="p1_b0_w0", end_token_id="p1_b0_w2", label="isnad")]
+    ann = {
+        "spans": [
+            {"start": 1, "end": 1, "label": "matn", "confidence": 0.9},
+        ],
+        "flags": [],
+    }
+    _apply_block_annotation(block, ann)
+    # Overlapping model matn span dropped; only the parse isnad span remains.
+    assert [s.label for s in block.spans] == ["isnad"]
 
 
 def test_block_types_constant_is_frozen_set():
