@@ -2,18 +2,22 @@ import "server-only";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { cache } from "react";
-import type { Author, Book, BookListItem, Chapter, Page } from "./types";
+import type { Author, Book, BookListItem, Chapter, NewBook, Page } from "./types";
+import { convertNewBook } from "./newFormat";
 
 type PageRange = { volume: number; page_number: number };
 
 // Reader reads from local JSON dumps produced by:
 //   python -m ingestion ingest <uri> --dump web/data --dry-run
 // Suffix tiers, in preference order:
+//   <openiti_id>.book.json       — NEW simpler format (char-offset spans, no tokens)
 //   <openiti_id>.enriched.json   — full pipeline (parse + tashkeel + annotate + Claude meta)
 //   <openiti_id>.annotated.json  — parse + tashkeel + Claude annotation pass
 //   <openiti_id>.tashkeeled.json — parse + tashkeel
 //   <openiti_id>.parsed.json     — parse only
-// Reader picks the highest-tier file present.
+// Reader picks the highest-tier file present. The NEW .book.json is normalised
+// into the legacy in-memory shape (see newFormat.ts) so the rest of this layer
+// and the renderer stay unchanged.
 const DATA_DIR = path.join(process.cwd(), "data");
 
 /** If real chapters exist, return them. Otherwise generate one synthetic
@@ -110,7 +114,7 @@ type LocalBookFile = {
   author_data?: AuthorYmlData;
 };
 
-type LoadTier = "enriched" | "annotated" | "tashkeeled" | "parsed";
+type LoadTier = "book" | "enriched" | "annotated" | "tashkeeled" | "parsed";
 
 const TASHKEEL_RE = /[\u064B-\u065F\u0670]/u;
 
@@ -145,12 +149,20 @@ const _loadBookFile = cache(async (
   openitiId: string,
 ): Promise<{ data: LocalBookFile; tier: LoadTier } | null> => {
   // Read all tiers in parallel; missing files just return null.
-  const [enrichedRaw, annotatedRaw, tashkeeledRaw, parsedRaw] = await Promise.all([
+  const [bookRaw, enrichedRaw, annotatedRaw, tashkeeledRaw, parsedRaw] = await Promise.all([
+    readFileIfExists(path.join(DATA_DIR, `${openitiId}.book.json`)),
     readFileIfExists(path.join(DATA_DIR, `${openitiId}.enriched.json`)),
     readFileIfExists(path.join(DATA_DIR, `${openitiId}.annotated.json`)),
     readFileIfExists(path.join(DATA_DIR, `${openitiId}.tashkeeled.json`)),
     readFileIfExists(path.join(DATA_DIR, `${openitiId}.parsed.json`)),
   ]);
+
+  // NEW format wins when present: it's the whole Book object, normalised into
+  // the legacy LocalBookFile shape so everything downstream is unchanged.
+  if (bookRaw) {
+    const normalised = convertNewBook(JSON.parse(bookRaw) as NewBook);
+    return { data: normalised as LocalBookFile, tier: "book" };
+  }
 
   // Defense: a higher-tier file from a run where tashkeel was skipped
   // (no engine, or engine failed) silently shadows a good lower-tier
@@ -196,7 +208,7 @@ const _listDataIds = cache(async (): Promise<string[]> => {
   }
   const ids = new Set<string>();
   for (const filename of entries) {
-    const m = filename.match(/^(.+?)\.(enriched|annotated|tashkeeled|parsed)\.json$/);
+    const m = filename.match(/^(.+?)\.(book|enriched|annotated|tashkeeled|parsed)\.json$/);
     if (m) ids.add(m[1]);
   }
   return [...ids].sort();

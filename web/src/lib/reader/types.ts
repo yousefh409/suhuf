@@ -119,6 +119,84 @@ export type Book = {
   author_id: string;
 };
 
+// ---------------------------------------------------------------------------
+// NEW book data format (emitted by the simpler ingestion pipeline).
+//
+// Differs from the legacy in-memory shape above:
+//   - Blocks carry a single `text` string (no token array). Spans address
+//     CHARACTER offsets into `text` (end-EXCLUSIVE), not token ids.
+//   - Block types are only prose|heading|poetry|quran. isnad/matn/takhrij are
+//     SPAN labels now, never block types.
+//   - Poetry uses `lines: string[][]` (verses → hemistich strings), not
+//     `hemistichs: Token[][][]`.
+//   - `text_raw` is per-block (a parallel whitespace-tokenisable string), not
+//     per-token.
+//
+// The loader normalises this into the legacy Page/Block shape so the renderer
+// stack stays unchanged; these types only describe the on-disk file.
+
+export type NewBlockType = "prose" | "heading" | "poetry" | "quran";
+
+export type NewSpan = {
+  start: number; // char offset into Block.text (inclusive)
+  end: number; // char offset into Block.text (exclusive)
+  label: SpanLabel;
+  sub?: string | null;
+  ref?: string | null;
+  conf?: number | null;
+};
+
+export type NewBlock = {
+  key: string;
+  type: NewBlockType;
+  tagged?: string;
+  text: string;
+  text_raw?: string | null;
+  spans?: NewSpan[];
+  lines?: string[][]; // poetry only: list of verses, each a list of hemistichs
+  number?: string | null;
+  level?: number | null;
+  parser_type?: string | null;
+  flags?: QualityFlag[];
+};
+
+export type NewFootnote = {
+  marker: string;
+  tagged?: string;
+  text: string;
+  spans?: NewSpan[];
+};
+
+export type NewPage = {
+  page_number: number;
+  volume: number;
+  blocks: NewBlock[];
+  footnotes?: NewFootnote[];
+};
+
+export type NewBook = {
+  metadata: {
+    openiti_id: string;
+    title_ar: string;
+    title_lat?: string | null;
+    author_openiti_id: string;
+    genres?: string[];
+    language?: string;
+    word_count?: number | null;
+    char_count?: number | null;
+    version_status?: string | null;
+  };
+  pages: NewPage[];
+  chapters: {
+    title: string;
+    level: number;
+    page_number: number;
+    sort_order: number;
+    parent_index?: number | null;
+    block_index?: number | null;
+  }[];
+};
+
 export type BookListItem = Pick<
   Book,
   | "openiti_id"
