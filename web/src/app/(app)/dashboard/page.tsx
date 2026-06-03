@@ -38,6 +38,7 @@ export default async function DashboardPage() {
       <DashboardHeader
         name={nameFromEmail(user?.email)}
         userInitials={initialsFromEmail(user?.email)}
+        email={user?.email}
       />
       <StatsBar stats={stats} />
       <ContinueReading items={continueReading} />
