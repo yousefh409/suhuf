@@ -315,18 +315,25 @@ def _group_hadith_units(flat):
     units, cur = [], None
     for entry in flat:
         block = entry[2]
-        if _is_real_chapter(block):
-            if cur:
-                units.append(cur); cur = None
-            continue
+        # A new hadith-start (numbered item / isnad-opener) is the hardest
+        # boundary: it breaks even an unclosed quote — an unclosed « before the
+        # next hadith is a source typo, not a continuation.
         if _is_hadith_start(block):
             if cur:
                 units.append(cur)
             cur = [entry]
             continue
-        if cur is not None and (_unit_open_delim(cur)
-                                or _is_takhrij_continuation(block)
-                                or block.type == "heading"):
+        # Otherwise an open «/{/﴿ quote takes priority: the next block continues
+        # the matn, even if it reads like a chapter heading. Capped at 12 blocks
+        # so a genuinely-unclosed quote can't run away past its hadith.
+        if cur is not None and len(cur) < 12 and _unit_open_delim(cur):
+            cur.append(entry)
+            continue
+        if _is_real_chapter(block):
+            if cur:
+                units.append(cur); cur = None
+            continue
+        if cur is not None and (_is_takhrij_continuation(block) or block.type == "heading"):
             cur.append(entry)
             continue
         if cur:
