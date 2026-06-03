@@ -136,6 +136,19 @@ def _emit(block, toks, isnad, matn, takhrij, conf: float, stats: dict) -> None:
     stats["high_conf" if conf >= HIGH_CONF else "low_conf"] += 1
 
 
+def _takhrij_end(toks, start: int, n: int) -> int:
+    """End index of a takhrij clause — capped at the first sentence terminator
+    (. / » / ؛) or just before a NEW cross-reference variant, not the block end,
+    so a trailing variant report isn't swallowed into the source attribution."""
+    for k in range(start, n):
+        t = toks[k].text.rstrip()
+        if t.endswith((".", "»", "؛")):
+            return k
+        if k > start and _CROSSREF_RE.match(t):
+            return k - 1
+    return n - 1
+
+
 # Narrator hinge (normalized): the report verb / complementizer that ends the
 # isnad in a marker-less hadith ("عن X قال: …" / "عن X أن Y …").
 _QAL_HINGE = {_norm(w) for w in ["قال", "قالت", "أن", "أنه", "أنها", "أنهم"]}
@@ -176,7 +189,7 @@ def _emit_from_marker(block, toks, norm, b: int, stats: dict) -> None:
 
     conf = HIGH_CONF if (takhrij_idx is not None or quote_close is not None) else LOW_CONF
     isnad = (0, b - 1) if b > 0 else None
-    takhrij = (takhrij_idx, n - 1) if takhrij_idx is not None else None
+    takhrij = (takhrij_idx, _takhrij_end(toks, takhrij_idx, n)) if takhrij_idx is not None else None
     _emit(block, toks, isnad, (b, matn_end), takhrij, conf, stats)
 
 
@@ -197,7 +210,7 @@ def _emit_from_quote(block, toks, norm, stats: dict) -> bool:
         return False
     takhrij_idx = next((j for j in range(q_close + 1, n) if norm[j] in TAKHRIJ_NORM), None)
     isnad = (0, q_open - 1) if q_open > 0 else None
-    takhrij = (takhrij_idx, n - 1) if takhrij_idx is not None else None
+    takhrij = (takhrij_idx, _takhrij_end(toks, takhrij_idx, n)) if takhrij_idx is not None else None
     _emit(block, toks, isnad, (q_open, q_close), takhrij, LOW_CONF, stats)
     return True
 
@@ -238,16 +251,18 @@ def _emit_from_narrator_qal(block, toks, norm, stats: dict) -> bool:
     matn_end = (takhrij_idx - 1) if takhrij_idx is not None else (n - 1)
     if matn_end < matn_start:
         return False
-    takhrij = (takhrij_idx, n - 1) if takhrij_idx is not None else None
+    takhrij = (takhrij_idx, _takhrij_end(toks, takhrij_idx, n)) if takhrij_idx is not None else None
     _emit(block, toks, (0, isnad_end), (matn_start, matn_end), takhrij, LOW_CONF, stats)
     return True
 
 
 def _emit_from_crossref(block, toks, norm, stats: dict) -> None:
     """Tier 4: a block opening with a cross-reference / source-attribution
-    variant (وللبيهقي: «…» / وأصله في الصحيحين …). With a «…» quote it's a cited
-    matn (opener = takhrij); without one it's a pure source note (whole block =
-    takhrij). Low-confidence — the LLM may relabel a report-variant to matn."""
+    variant (وللبيهقي: …). Three shapes, all low-confidence:
+      - «…» quote        → opener = takhrij, quote = matn
+      - report after ":" → opener = takhrij, the report = matn (e.g. ولمسلم: …)
+      - pure source note → whole block = takhrij (وللترمذي: عن X / وأبي سعيد نحوه)
+    """
     raw = " ".join(t.text for t in toks)
     if not (_CROSSREF_RE.match(raw) or any(x in _GRADING_VOCAB for x in norm)):
         return
@@ -255,7 +270,22 @@ def _emit_from_crossref(block, toks, norm, stats: dict) -> None:
     q_open = next((k for k in range(n) if "«" in toks[k].text), None)
     q_close = next((k for k in range(q_open, n) if "»" in toks[k].text), None) if q_open is not None else None
     if q_open is not None and q_close is not None and q_open > 0:
-        # «…» variant: the opener attributes the source (takhrij), the quote is the matn.
         _emit(block, toks, None, (q_open, q_close), (0, q_open - 1), LOW_CONF, stats)
-    else:
-        _emit(block, toks, None, None, (0, n - 1), LOW_CONF, stats)  # pure source note
+        return
+    # No clean quote: split a report-variant ("ولمسلم: <report>") at the colon.
+    colon = next((k for k in range(n) if toks[k].text.rstrip().endswith(":")), None)
+    if colon is not None and colon + 1 < n:
+        rest0 = colon + 1
+        # If what follows the colon is just more attribution (عن X / من حديث X),
+        # it's a pure source note; otherwise it's a cited matn.
+        rest_is_source = (norm[rest0] in _TRANSMISSIONS
+                          or " ".join(t.text for t in toks[rest0:rest0 + 2]).startswith(("من حديث", "من رواية")))
+        if not rest_is_source:
+            # opener is the source (takhrij); the report after the colon is the
+            # matn, capped before any trailing رواه tail.
+            tk_idx = next((j for j in range(rest0, n) if norm[j] in TAKHRIJ_NORM), None)
+            matn_end = (tk_idx - 1) if tk_idx is not None else (n - 1)
+            if matn_end >= rest0:
+                _emit(block, toks, None, (rest0, matn_end), (0, colon), LOW_CONF, stats)
+                return
+    _emit(block, toks, None, None, (0, n - 1), LOW_CONF, stats)  # pure source note
