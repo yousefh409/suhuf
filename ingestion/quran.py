@@ -177,3 +177,48 @@ def lookup(quote: str) -> tuple[int, int] | None:
     """
     hit = lookup_match(quote)
     return (hit[0], hit[1]) if hit is not None else None
+
+
+# ---------------------------------------------------------------------------
+# Loose matcher: tolerant of Uthmani-vs-standard orthography
+# ---------------------------------------------------------------------------
+# A standard-orthography quote (as books are written) often fails the strict
+# matcher against the Uthmani index: dagger alef, standalone hamza, and word
+# joining all differ. The loose form drops spaces and standalone hamza; the
+# dagger alef is genuinely ambiguous (sometimes a written alef in standard
+# spelling, e.g. رزقناكم, sometimes not, e.g. تتجافى) so each ayah is indexed
+# under BOTH interpretations and a quote matches if it falls in either. A length
+# floor keeps short fragments from matching spuriously.
+
+_LOOSE_MIN = 12
+
+
+def _loose_normalize(text: str, dagger: str) -> str:
+    text = unicodedata.normalize("NFC", text)
+    text = text.replace("ٱ", "ا").replace("ۡ", "")
+    text = text.replace("ٰ", dagger)   # dagger alef: "" (drop) or "ا" (keep)
+    text = text.replace("ء", "")        # standalone hamza ء
+    text = text.translate(_REMOVE)
+    text = _DIACRITICS.sub("", text)
+    text = text.translate(_ALEF_VARIANTS)
+    text = text.translate(_YA_TA)
+    text = _PUNCTUATION.sub("", text)
+    return re.sub(r"\s+", "", text)
+
+
+# (sura, ayah, dagger-dropped form, dagger-as-alef form)
+_loose_index: list[tuple[int, int, str, str]] = [
+    (entry[0], entry[1], _loose_normalize(entry[2], ""), _loose_normalize(entry[2], "ا"))
+    for entry in _raw["ayat"]
+]
+
+
+def loose_lookup(quote: str, min_len: int = _LOOSE_MIN) -> tuple[int, int] | None:
+    """Resolve *quote* to (sura, ayah) tolerating Uthmani spelling, or None if
+    too short or not uniquely contained in exactly one ayah."""
+    lq = _loose_normalize(quote, "")
+    if len(lq) < min_len:
+        return None
+    hits = {(s, a) for s, a, dropped, kept in _loose_index
+            if lq in dropped or lq in kept}
+    return next(iter(hits)) if len(hits) == 1 else None
