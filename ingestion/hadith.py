@@ -66,8 +66,18 @@ _TRANSMISSIONS = {_norm(w) for w in
 # (digest works cite where else a hadith appears), not a fresh isnad: "وللبيهقي:",
 # "ولأبي داود", "وأصله في الصحيحين", "وأخرجه", "ومن حديث …". Matched on raw text.
 _CROSSREF_RE = re.compile(
-    r"^\s*(ولل|ولأ|ولمسلم|ولاب|وعند|وعنده|وأخرج|وأصل|ورواه|ولدى|وزاد|"
-    r"ونحوه|وفي رواية|ومن حديث|وفي حديث|وله\b|ولها\b|ولهما\b|ولهم\b)")
+    r"^\s*(ولل|ولأ|ولمسلم|ولاب|وعند|وعنده|وأخرج|وأصل|ورواه|وروى|روى|ولدى|"
+    r"وزاد|زاد|ونحوه|واتفق|وهو في|وكذا|ومثله|وذكر|وأورد|وقد روى|ومن طريق|"
+    r"وفي الباب|وآخر|وقصة|وثبت|حديث |وفي رواية|ومن حديث|وفي حديث|"
+    r"وفي البخاري|وفي المتفق|وفي الصحيح|وله\b|ولها\b|ولهما\b|ولهم\b)")
+
+# Grading / authentication vocabulary — a residual block carrying these is a
+# source/hukm note (takhrij-like), not a fresh hadith.
+_GRADING_VOCAB = {_norm(w) for w in
+                  ["صححه", "صحح", "ضعفه", "ضعيف", "موقوفا", "موقوف", "مرفوعا",
+                   "مرفوع", "معلقا", "معلق", "بسند", "إسناده", "حسنه", "وصححه",
+                   # cross-reference "similarly/likewise" notes (variant citations)
+                   "نحوه", "بنحوه", "مثله", "بمثله", "بمعناه", "مثل"]}
 
 
 def _is_prophetic_subject(norm: list[str], j: int) -> bool:
@@ -232,7 +242,7 @@ def _emit_from_crossref(block, toks, norm, stats: dict) -> None:
     matn (opener = takhrij); without one it's a pure source note (whole block =
     takhrij). Low-confidence — the LLM may relabel a report-variant to matn."""
     raw = " ".join(t.text for t in toks)
-    if not _CROSSREF_RE.match(raw):
+    if not (_CROSSREF_RE.match(raw) or any(x in _GRADING_VOCAB for x in norm)):
         return
     n = len(toks)
     q_open = next((k for k in range(n) if "«" in toks[k].text), None)
