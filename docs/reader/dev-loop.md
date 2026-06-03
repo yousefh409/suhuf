@@ -30,7 +30,21 @@ Files written, in pipeline order:
 - `<uri>.enriched.json`   — after Claude enrichment (full output)
 
 The reader picks the highest tier that exists:
-**enriched > tashkeeled > parsed**.
+**book > enriched > tashkeeled > parsed**.
+
+`book.json` is the new tagged format (see below); the reader converts it to the
+legacy in-memory shape at load and renders at parity.
+
+### The tagged format (new)
+
+`python -m ingestion tagged <uri> --dump web/data` writes `<uri>.book.json` in
+the simpler tagged format: each block carries a canonical `tagged` field
+(HTML-style boundary tags) with derived `text`/`spans`/`lines`. The pipeline is
+parse -> detect -> align -> annotate(tagged) -> resolve; it reuses the legacy
+parse and hadith stages via the aligner and moves only annotation onto tagged
+text, so the AI authors compact boundary tags (entities nest inside structural
+spans, no token-array truncation). Add `--skip-annotate` to skip the API.
+Design: `docs/superpowers/specs/2026-06-04-simpler-book-format.md`.
 
 `enriched.json` extends ParseResult with:
 ```jsonc
