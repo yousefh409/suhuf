@@ -33,7 +33,7 @@ export default function LibraryTabs({ tabs, grids, fullLibraryHref }: LibraryTab
                 key={tab.status}
                 type="button"
                 onClick={() => setActive(tab.status)}
-                className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm transition-colors ${
+                className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/25 ${
                   isActive
                     ? "bg-ink/5 text-ink"
                     : "text-ink/50 hover:text-ink"
@@ -50,7 +50,7 @@ export default function LibraryTabs({ tabs, grids, fullLibraryHref }: LibraryTab
         {/* Full library link */}
         <Link
           href={fullLibraryHref}
-          className="shrink-0 flex items-center gap-1.5 bg-cta-dark text-parchment-warm text-sm rounded-full px-5 py-2 hover:opacity-90 transition-opacity"
+          className="shrink-0 flex items-center gap-1.5 bg-cta-dark text-parchment-warm text-sm rounded-full px-5 py-2 hover:opacity-90 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
         >
           Full Library
           <ArrowRight size={14} />

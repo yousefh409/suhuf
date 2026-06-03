@@ -17,7 +17,7 @@ const BookCard: FC<BookCardProps> = ({ book, percentBadge, meta }) => {
   return (
     <Link
       href={`/reader/${encodeURIComponent(book.openitiId)}`}
-      className="group flex flex-col gap-2"
+      className="group flex flex-col gap-2 rounded-xl transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-4 focus-visible:ring-offset-parchment"
     >
       {/* Cover */}
       <div className="relative aspect-[3/4] rounded-xl overflow-hidden">
