@@ -180,6 +180,7 @@ export function ChapterScroll({ pages, chapters, mode }: Props) {
         <PageBoundary
           volume={page.volume}
           pageNumber={page.page_number}
+          seq={pi + 1}
           mode={mode}
           visible={showPageMarkers && !paged}
         />
@@ -262,7 +263,6 @@ export function ChapterScroll({ pages, chapters, mode }: Props) {
         <PageNav
           index={Math.min(pageIndex, pages.length - 1)}
           total={pages.length}
-          pageNumber={current.page_number}
           onPrev={() => goTo(Math.max(pageIndex - 1, 0))}
           onNext={() => goTo(Math.min(pageIndex + 1, pages.length - 1))}
         />
@@ -284,13 +284,11 @@ export function ChapterScroll({ pages, chapters, mode }: Props) {
 function PageNav({
   index,
   total,
-  pageNumber,
   onPrev,
   onNext,
 }: {
   index: number;
   total: number;
-  pageNumber: number;
   onPrev: () => void;
   onNext: () => void;
 }) {
@@ -306,11 +304,8 @@ function PageNav({
         <ChevronLeft size={20} />
       </button>
       <span className="reader-pagenav-label tabular-nums">
-        Page {pageNumber}
-        <span style={{ color: "var(--reader-fg-faint)" }}>
-          {" · "}
-          {index + 1} / {total}
-        </span>
+        Page {index + 1}
+        <span style={{ color: "var(--reader-fg-faint)" }}> / {total}</span>
       </span>
       <button
         type="button"

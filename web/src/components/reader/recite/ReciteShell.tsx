@@ -28,7 +28,7 @@ import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useRecitation } from "@/lib/recitation/useRecitation";
 import { fetchAuthToken } from "@/lib/recitation/token";
 import type { Block } from "@/lib/reader/types";
-import type { RecitationStatus } from "@/lib/recitation/types";
+import type { RecitationStatus, ConnectionState } from "@/lib/recitation/types";
 import { RecitationProvider } from "./RecitationProvider";
 import { ReciteToggle } from "./ReciteToggle";
 
@@ -41,6 +41,8 @@ type ShellCtx = {
   status: Map<string, RecitationStatus>;
   cursorTokenId: string | null;
   isActive: boolean;
+  connectionState: ConnectionState;
+  error?: string;
   recitable: boolean;
   start: (anchorBlockKey: string) => void;
   stop: () => void;
@@ -77,11 +79,13 @@ export function ReciteShell({
       status: r.status,
       cursorTokenId: r.cursorTokenId,
       isActive,
+      connectionState: r.connectionState,
+      error: r.error,
       recitable,
       start: r.start,
       stop: r.stop,
     }),
-    [r.status, r.cursorTokenId, isActive, recitable, r.start, r.stop],
+    [r.status, r.cursorTokenId, isActive, r.connectionState, r.error, recitable, r.start, r.stop],
   );
 
   return (
@@ -94,11 +98,12 @@ export function ReciteShell({
 // ── Toggle — place in the header ─────────────────────────────────────────────
 
 export function ReciteShellToggle() {
-  const { recitable, isActive, start, stop } = useShellCtx();
+  const { recitable, connectionState, error, start, stop } = useShellCtx();
   return (
     <ReciteToggle
       disabled={!recitable}
-      isActive={isActive}
+      connectionState={connectionState}
+      error={error}
       onStart={start}
       onStop={stop}
     />
