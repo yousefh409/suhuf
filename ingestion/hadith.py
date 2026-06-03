@@ -108,18 +108,34 @@ def _find_prophetic_marker(norm_tokens: list[str]) -> int | None:
 
 
 def detect_hadith_structure(result: ParseResult) -> dict:
-    """Mutate prose hadith blocks in place, adding isnad/matn/takhrij spans.
-    Returns a stats dict."""
+    """Group blocks into hadith units, detect structure across each unit, and
+    write per-block isnad/matn/takhrij spans. Returns a stats dict."""
     stats = {"hadith": 0, "isnad": 0, "matn": 0, "takhrij": 0,
              "high_conf": 0, "low_conf": 0}
-    for page in result.pages:
-        for block in page.content_blocks:
-            if block.type != "prose":
-                continue
-            # Skip blocks already structured (e.g. the rare native @MATN@ path).
-            if any(s.label in ("isnad", "matn", "takhrij") for s in block.spans):
-                continue
-            _detect_block(block, stats)
+    flat = [(p.page_number, i, b)
+            for p in result.pages for i, b in enumerate(p.content_blocks)]
+    pruned: set[tuple[int, int]] = set()    # (page_number, block_index) fragment headings
+    for unit in _group_hadith_units(flat):
+        # Skip units already carrying structure (rare native @MATN@ path).
+        if any(any(s.label in ("isnad", "matn", "takhrij") for s in b.spans)
+               for _, _, b in unit):
+            continue
+        combined, origin = [], []
+        for _, _, b in unit:
+            for t in b.tokens:
+                combined.append(t); origin.append(b)
+        ranges = _detect_ranges(combined, [_norm(t.text) for t in combined])
+        if ranges is None:
+            continue
+        _project(origin, combined, ranges, stats)
+        # Re-type matn-fragment headings absorbed into the unit (not the opener).
+        for pg, idx, b in unit[1:]:
+            if b.type == "heading":
+                b.type = "prose"
+                pruned.add((pg, idx))
+    if pruned:
+        result.chapters = [c for c in result.chapters
+                           if (c.page_number, c.block_index) not in pruned]
     return stats
 
 
@@ -320,9 +336,24 @@ def _group_hadith_units(flat):
     return units
 
 
-def _detect_block(block, stats: dict) -> None:
-    toks = block.tokens
-    ranges = _detect_ranges(toks, [_norm(t.text) for t in toks])
-    if ranges is not None:
-        isnad, matn, takhrij, conf = ranges
-        _emit(block, toks, isnad, matn, takhrij, conf, stats)
+def _project(origin, combined, ranges, stats: dict) -> None:
+    """Append per-block spans for each range, splitting at block boundaries.
+    origin[i] is the Block that combined[i] belongs to (same object identity)."""
+    isnad, matn, takhrij, conf = ranges
+    for label, rng in (("isnad", isnad), ("matn", matn), ("takhrij", takhrij)):
+        if rng is None:
+            continue
+        s, e = rng
+        i = s
+        while i <= e:
+            blk = origin[i]
+            j = i
+            while j + 1 <= e and origin[j + 1] is blk:
+                j += 1
+            blk.spans.append(Span(start_token_id=combined[i].id,
+                                  end_token_id=combined[j].id,
+                                  label=label, confidence=conf))
+            stats[label] += 1
+            i = j + 1
+    stats["hadith"] += 1
+    stats["high_conf" if conf >= HIGH_CONF else "low_conf"] += 1
