@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search } from "lucide-react";
 import type { DiscoverSort } from "@/lib/dashboard/types";
+import SortMenu from "./SortMenu";
 
 interface DiscoverSearchProps {
   totalCount: number;
@@ -51,11 +52,6 @@ const DiscoverSearch = ({ totalCount }: DiscoverSearchProps) => {
     }, 300);
   };
 
-  const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value as DiscoverSort;
-    updateParam("sort", value === "relevance" ? null : value);
-  };
-
   return (
     <div className="flex gap-3 items-center">
       {/* Search input */}
@@ -74,20 +70,11 @@ const DiscoverSearch = ({ totalCount }: DiscoverSearchProps) => {
       </div>
 
       {/* Sort control */}
-      <div className="relative flex items-center bg-parchment-warm border border-ink/10 rounded-xl px-4 py-3 gap-2 shrink-0">
-        <SlidersHorizontal size={15} className="text-ink/50 shrink-0" />
-        <select
-          value={currentSort}
-          onChange={handleSortChange}
-          className="text-sm text-ink bg-transparent border-none outline-none cursor-pointer appearance-none pr-1"
-        >
-          {SORT_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SortMenu
+        value={currentSort}
+        options={SORT_OPTIONS}
+        onChange={(v) => updateParam("sort", v === "relevance" ? null : v)}
+      />
     </div>
   );
 };
