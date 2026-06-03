@@ -28,29 +28,41 @@ def _norm(text: str) -> str:
     return "".join(c for c in text if "ء" <= c <= "ي")
 
 
-# Prophetic-speech markers as normalized word tuples (the isnad→matn boundary).
-PROPHETIC_MARKERS: tuple[tuple[str, ...], ...] = (
-    ("قال", "رسول", "الله"),
-    ("عن", "رسول", "الله"),
-    ("ان", "رسول", "الله"),
-    ("سمعت", "رسول", "الله"),
-    ("قال", "النبي"),
-    ("عن", "النبي"),
-    ("ان", "النبي"),
-    ("سمعت", "النبي"),
-)
+# Introducers (normalized) that, immediately before a prophetic subject, mark
+# the isnad→matn boundary: speech (قال/سمعت), transmission (عن/ان), and action
+# verbs (نهى/كان/أمر/…). The subject is matched by _is_prophetic_subject.
+PROPHETIC_INTRODUCERS = {
+    "قال", "عن", "ان", "سمعت",
+    "نهى", "كان", "امر", "مر", "رايت", "بعث", "قضى", "سئل",
+}
+_BLESSING = "صلى"  # opens "صلى الله عليه وسلم" — handles the الله-omitted "رسول ﷺ" form
 
 # Source-attribution keywords (normalized) that open a takhrij tail.
 TAKHRIJ_NORM = {"رواه", "اخرجه", "اخرجها", "رواها", "متفق"}
 
 
+def _is_prophetic_subject(norm: list[str], j: int) -> bool:
+    """True if token j begins a reference to the Prophet: "النبي", or "رسول"
+    whose next non-empty token is "الله" or the blessing "صلى" (so a generic
+    "رسول فلان" is excluded)."""
+    if j >= len(norm):
+        return False
+    if norm[j] == "النبي":
+        return True
+    if norm[j] == "رسول":
+        k = j + 1
+        while k < len(norm) and norm[k] == "":
+            k += 1
+        return k < len(norm) and norm[k] in ("الله", _BLESSING)
+    return False
+
+
 def _find_prophetic_marker(norm_tokens: list[str]) -> int | None:
-    """Return the index of the first token of the earliest prophetic marker
-    phrase, or None if no marker is present."""
+    """Return the index of the earliest introducer immediately followed by a
+    prophetic subject (the isnad→matn boundary), or None if absent."""
     for i in range(len(norm_tokens)):
-        for phrase in PROPHETIC_MARKERS:
-            if tuple(norm_tokens[i : i + len(phrase)]) == phrase:
-                return i
+        if norm_tokens[i] in PROPHETIC_INTRODUCERS and _is_prophetic_subject(norm_tokens, i + 1):
+            return i
     return None
 
 

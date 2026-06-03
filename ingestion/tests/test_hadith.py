@@ -27,6 +27,26 @@ def test_find_marker_an_nabi_variant():
     assert _find_prophetic_marker(norm) == 2   # "عن النبي"
 
 
+def test_find_marker_action_verb():
+    # action-verb introducer "نهى رسول الله" (prophetic prohibition report)
+    assert _find_prophetic_marker(["عن", "ابن", "عمر", "نهى", "رسول", "الله"]) == 3
+
+
+def test_find_marker_kana_nabi():
+    assert _find_prophetic_marker(["كان", "النبي", "اذا"]) == 0
+
+
+def test_find_marker_allah_omitted_variant():
+    # "قال رسول [-] صلى الله …" — الله omitted after رسول; the empty string is the
+    # normalized dash; the blessing صلى confirms the prophetic subject.
+    assert _find_prophetic_marker(["قال", "قال", "رسول", "", "صلى", "الله"]) == 1
+
+
+def test_find_marker_rasul_fulan_is_not_prophetic():
+    # "رسول فلان" (a generic messenger) must NOT be treated as the Prophet.
+    assert _find_prophetic_marker(["ارسل", "رسول", "فلان", "الى"]) is None
+
+
 def _make_book(tmp_path, body: str) -> Path:
     src = tmp_path / "h.mARkdown"
     src.write_text(
