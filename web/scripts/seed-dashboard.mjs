@@ -64,15 +64,19 @@ async function main() {
   );
   if (libErr) throw libErr;
 
-  // Set a reading position ~25% through (or first page if tiny).
-  const targetPage = Math.max(1, Math.round((book.total_pages ?? 4) * 0.25));
+  // Set a reading position ~25% into the book. Page numbers don't necessarily
+  // start at 1, so pick a real page by ordinal offset rather than by number.
+  const { count: pageCount } = await sb
+    .from("pages")
+    .select("*", { count: "exact", head: true })
+    .eq("book_id", book.id);
+  const offset = Math.floor((pageCount ?? 1) * 0.25);
   const { data: page, error: pageErr } = await sb
     .from("pages")
     .select("id, page_number")
     .eq("book_id", book.id)
-    .lte("page_number", targetPage)
-    .order("page_number", { ascending: false })
-    .limit(1)
+    .order("page_number", { ascending: true })
+    .range(offset, offset)
     .maybeSingle();
   if (pageErr) throw pageErr;
   if (page) {
