@@ -56,6 +56,13 @@ _TRANSMISSIONS = {_norm(w) for w in
                   ["عن", "وعن", "وعنه", "وعنها", "حدثنا", "وحدثنا", "حدثني",
                    "أخبرنا", "أخبرني", "أنبأنا", "سمعت"]}
 
+# A block that OPENS like this is a cross-reference / source-attribution variant
+# (digest works cite where else a hadith appears), not a fresh isnad: "وللبيهقي:",
+# "ولأبي داود", "وأصله في الصحيحين", "وأخرجه", "ومن حديث …". Matched on raw text.
+_CROSSREF_RE = re.compile(
+    r"^\s*(ولل|ولأ|وله\b|ولاب|وعند|وأخرج|وأصل|ورواه|ولدى|ولابن|وزاد|"
+    r"وفي رواية|ومن حديث|وفي حديث|وله[ا]? |وعنده)")
+
 
 def _is_prophetic_subject(norm: list[str], j: int) -> bool:
     """True if token j begins a reference to the Prophet: "النبي", or "رسول"
@@ -125,7 +132,9 @@ def _detect_block(block, stats: dict) -> None:
         return
     if _emit_from_quote(block, toks, norm, stats):            # tier 2: «…» matn
         return
-    _emit_from_narrator_qal(block, toks, norm, stats)         # tier 3: عن X قال:
+    if _emit_from_narrator_qal(block, toks, norm, stats):     # tier 3: عن X قال:
+        return
+    _emit_from_crossref(block, toks, norm, stats)             # tier 4: cross-ref
 
 
 def _emit_from_marker(block, toks, norm, b: int, stats: dict) -> None:
@@ -172,25 +181,45 @@ def _emit_from_quote(block, toks, norm, stats: dict) -> bool:
     return True
 
 
-def _emit_from_narrator_qal(block, toks, norm, stats: dict) -> None:
+def _emit_from_narrator_qal(block, toks, norm, stats: dict) -> bool:
     """Last-resort fallback for marker-less, quote-less hadith (Companion
     statements, descriptions of the Prophet): a block that OPENS with a
     transmission isnad and has a narrator hinge (قال/قالت/أن) — isnad before the
-    hinge, matn after. Low-confidence; the LLM may correct it."""
+    hinge, matn after. Low-confidence; the LLM may correct it. Returns True if it
+    emitted spans."""
     n = len(toks)
     if n < 3:
-        return
+        return False
     # Gate: the block must OPEN with an isnad — a strong "this is a hadith" signal
     # (a fiqh discussion rarely starts with "عن X … قال:").
     first = next((x for x in norm if x), "")
     if first not in _TRANSMISSIONS:
-        return
+        return False
     hinge = next((j for j in range(1, n) if norm[j] in _QAL_HINGE), None)
     if hinge is None or hinge == 0:
-        return
+        return False
     takhrij_idx = next((j for j in range(hinge + 1, n) if norm[j] in TAKHRIJ_NORM), None)
     matn_end = (takhrij_idx - 1) if takhrij_idx is not None else (n - 1)
     if matn_end < hinge:
-        return
+        return False
     takhrij = (takhrij_idx, n - 1) if takhrij_idx is not None else None
     _emit(block, toks, (0, hinge - 1), (hinge, matn_end), takhrij, LOW_CONF, stats)
+    return True
+
+
+def _emit_from_crossref(block, toks, norm, stats: dict) -> None:
+    """Tier 4: a block opening with a cross-reference / source-attribution
+    variant (وللبيهقي: «…» / وأصله في الصحيحين …). With a «…» quote it's a cited
+    matn (opener = takhrij); without one it's a pure source note (whole block =
+    takhrij). Low-confidence — the LLM may relabel a report-variant to matn."""
+    raw = " ".join(t.text for t in toks)
+    if not _CROSSREF_RE.match(raw):
+        return
+    n = len(toks)
+    q_open = next((k for k in range(n) if "«" in toks[k].text), None)
+    q_close = next((k for k in range(q_open, n) if "»" in toks[k].text), None) if q_open is not None else None
+    if q_open is not None and q_close is not None and q_open > 0:
+        # «…» variant: the opener attributes the source (takhrij), the quote is the matn.
+        _emit(block, toks, None, (q_open, q_close), (0, q_open - 1), LOW_CONF, stats)
+    else:
+        _emit(block, toks, None, None, (0, n - 1), LOW_CONF, stats)  # pure source note
