@@ -392,8 +392,10 @@ def classify_words(word_results, all_words, streaming=False):
 
         # Low-eff word detection via phrase-differential
         pd_i3_word = wr.get("pd_i3rab_delta", 0.0)
-        # Rule A: low consonant match + strong pd signal
-        if (status == "correct" and eff <= -1.5
+        # Rule A: low consonant match + strong pd signal. Floored at eff>-4.0:
+        # below that the greedy decode (hence consonant_match) and pd are noise,
+        # and the rule fires on correct-but-misaligned words (false positive).
+        if (status == "correct" and -4.0 < eff <= -1.5
                 and len(word_consonants) >= 3
                 and consonant_match <= 0.25
                 and pd_i3_word >= 0.60
@@ -658,14 +660,47 @@ def classify_words(word_results, all_words, streaming=False):
                 error_type = "tashkeel"
                 error_detail = wr.get("best_tashkeel_name") or "sukoon_corr"
 
+            # Tier 8: internal dropped-vowel (sukoon) detection.
+            # The reference has an INTERNAL sukoon and a short-vowel-restoring
+            # alternative scores notably higher (add-vowel direction). CTC's
+            # length bias penalizes the extra vowel token, so a correctly-read
+            # sukoon yields a negative margin — only genuine dropped vowels
+            # (audio contains the vowel) clear the threshold, keeping FP low.
+            # Final-letter waqf sukoon is never an internal position, so this
+            # cannot flag a correct pausal reading.
+            addv = wr.get("best_addvowel_score", -999.0)
+            addv_delta = (addv - eff) if addv > -900 else 0.0
+            if status == "correct" and addv > -900:
+                if eff > -0.5 and addv_delta >= 0.15:
+                    status = "error"
+                    error_type = "tashkeel"
+                    error_detail = wr.get("best_addvowel_name") or "addvowel"
+                elif -1.0 < eff <= -0.5 and addv_delta >= 0.20:
+                    status = "error"
+                    error_type = "tashkeel"
+                    error_detail = wr.get("best_addvowel_name") or "addvowel"
+                # Lower margin allowed when greedy decode independently shows a
+                # diacritic mismatch (two-channel agreement).
+                elif eff > -1.0 and addv_delta >= 0.10 and gdm_count >= 1:
+                    status = "error"
+                    error_type = "tashkeel"
+                    error_detail = wr.get("best_addvowel_name") or "addvowel_gdm"
+
             # ── PHRASE-DIFFERENTIAL (pd) TIERS ──
             # pd uses full-phrase CTC context (more discriminative than per-word)
             pd_i3 = wr.get("pd_i3rab_delta", 0.0)
             pd_t = wr.get("pd_tashkeel_delta", 0.0)
 
-            # pd i3rab: eff-adaptive thresholds (0% FP per stratum)
+            # pd i3rab: eff-adaptive thresholds (0% FP per stratum).
+            # pd_i3rab is structurally clean: for a correct word no alternative
+            # improves the full-phrase CTC score, so correct words sit at pd=0.
+            # The -1.0<eff<=-0.5 stratum was previously a coverage gap.
             if status == "correct" and pd_i3 > 0:
                 if eff > -0.5 and pd_i3 >= 0.14:
+                    status = "error"
+                    error_type = "i3rab"
+                    error_detail = wr.get("pd_i3rab_name") or "pd"
+                elif -1.0 < eff <= -0.5 and pd_i3 >= 0.16:
                     status = "error"
                     error_type = "i3rab"
                     error_detail = wr.get("pd_i3rab_name") or "pd"
@@ -683,9 +718,15 @@ def classify_words(word_results, all_words, streaming=False):
                 error_type = "i3rab"
                 error_detail = wr.get("best_alt_name") or "pd_corr"
 
-            # pd tashkeel: eff-adaptive thresholds (0% FP per stratum)
+            # pd tashkeel: eff-adaptive thresholds (0% FP per stratum).
+            # Same structural cleanliness as pd_i3rab (correct words sit at pd=0).
+            # The eff>-0.5 stratum was previously a coverage gap.
             if status == "correct" and pd_t > 0:
-                if -1.0 < eff <= -0.5 and pd_t >= 0.10:
+                if eff > -0.5 and pd_t >= 0.14:
+                    status = "error"
+                    error_type = "tashkeel"
+                    error_detail = wr.get("pd_tashkeel_name") or "pd"
+                elif -1.0 < eff <= -0.5 and pd_t >= 0.10:
                     status = "error"
                     error_type = "tashkeel"
                     error_detail = wr.get("pd_tashkeel_name") or "pd"
@@ -733,6 +774,22 @@ def classify_words(word_results, all_words, streaming=False):
                 status = "error"
                 error_type = gbm_type
                 error_detail = f"gbm_{gbm_prob:.2f}"
+
+        # Hard floor for diacritic detection: below eff -3.7 the forced alignment
+        # is too poor for any i3rab/tashkeel signal to be trustworthy. The low-eff
+        # recovery tiers (windowed re-score, triple-signal, local-pd, frame-scan)
+        # can latch onto a spurious window and flag a CORRECT but badly-aligned
+        # word. FP is sacred, so suppress diacritic flags this far below alignment.
+        # Floor set at -3.7 (not higher): the observed spurious-window false
+        # positives all sat below -3.7, while the -1.5..-3.7 band carries genuine
+        # low-eff detections on noisy real-speech audio that we keep.
+        # (Wrong/skipped detection is unaffected — a skipped word legitimately
+        # has very low eff.)
+        if (not streaming and status == "error"
+                and error_type in ("i3rab", "tashkeel") and eff < -3.7):
+            status = "correct"
+            error_type = None
+            error_detail = None
 
         scored.append({
             "idx": wi,

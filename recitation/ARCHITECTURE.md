@@ -195,12 +195,24 @@ Accuracy is measured by `eval.py` (the single source of truth) and recorded in
 mutation-based: real audio is held fixed and the reference text is mutated
 (i3rab / tashkeel / word) to induce errors on demand.
 
-- **sessions** (in-domain, single human speaker, real audio): ~1.8% FP, ~93% detection.
-- **corpus** (Arabic Speech Corpus — a held-out second MSA speaker): low FP with
-  high detection on an unseen speaker (see `eval_baseline.json` for current figures).
+Measured comprehensively (ALL session phrases, not a capped subset) — see
+`eval_baseline.json` for current figures and `experiments.md` (Phase 2) for the
+methodology and the FP-vs-detection analysis:
 
+- **corpus** (Arabic Speech Corpus — held-out second MSA speaker, clean studio
+  audio, the trustworthy generalization signal): **~1.7% FP, ~87% detection**.
+- **sessions** (in-domain, single human speaker, noisy laptop-mic audio):
+  **~1.8% FP, ~67% detection**. Lower detection than the clean corpus because the
+  real-speech audio has many poorly-aligned words and documented small
+  mispronunciations, so the conservative (FP-sacred) operating point trades away
+  more detection here.
+
+False positives are held **<2% on both speakers** — the primary constraint.
 Note: mutation-based detection is inherently easier than genuine human
-mispronunciations; the FP rate on an unseen speaker is the key generalization signal.
+mispronunciations; the FP rate on an unseen speaker is the key generalization
+signal. An earlier figure of "~93% detection" came from a capped 10-phrase
+subset that also hid the comprehensive false-positive rate; the numbers above are
+the honest all-phrases measurement.
 
 ### Streaming (test_streaming.py)
 - Correct readings: ~0% FP; i3rab/tashkeel errors caught; ~1.2s to first response; no flicker.

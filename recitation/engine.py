@@ -137,8 +137,12 @@ class RecitationEngine:
             "openai/whisper-small"
         )
         self._whisper_model.eval()
-        self._whisper_model.to(torch.device("cpu"))
-        print("Whisper model ready.")
+        # Whisper is position-tracking only (not error scoring), so device choice
+        # does not affect detection/FP. Use CUDA when available for speed; on Mac
+        # self.device is forced to CPU (MPS flaky with wav2vec2) so behavior is
+        # unchanged there.
+        self._whisper_model.to(self.device)
+        print(f"Whisper model ready on {self._whisper_model.device}.")
 
     def whisper_transcribe(self, audio_np):
         """Transcribe audio using Whisper. Returns list of word strings.
@@ -482,6 +486,15 @@ class RecitationEngine:
         best_tashkeel_score = -999.0
         best_sukoon_name = None
         best_sukoon_score = -999.0
+        # Add-vowel direction: the reference has an INTERNAL sukoon and an
+        # alternative restores a short vowel. This is the signal for a dropped
+        # internal vowel (a real tashkeel error) and — unlike the drop-vowel
+        # direction — it is NOT subject to CTC's systematic length bias toward
+        # sukoon, so it can be used for detection. Kept separate from
+        # best_sukoon_score (drop-vowel direction), which stays length-bias-gated.
+        best_addvowel_name = None
+        best_addvowel_word = None
+        best_addvowel_score = -999.0
         skip_tashkeel = False
 
         # Same gates as i3rab
@@ -494,11 +507,22 @@ class RecitationEngine:
             tashkeel_alts = generate_tashkeel_alternatives(expected_word)
             for name, alt_word in tashkeel_alts.items():
                 s = self.score_hypothesis(log_probs_segment, alt_word)
-                # Separate sukoon alternatives (CTC has length bias toward sukoon)
-                if 'sukoon' in name:
+                # The _sukoon tag covers BOTH swap directions. Split them:
+                #  - drop-vowel (replacement is sukoon): name is
+                #    "tashkeel_sukoon_on_<c>..." — CTC's length bias inflates
+                #    these, so keep them in the length-bias-gated channel.
+                #  - add-vowel (reference is sukoon, replacement is a vowel):
+                #    name is "tashkeel_<vowel>_on_<c>..._sukoon" — NOT length
+                #    biased; this is the dropped-internal-vowel detection signal.
+                if 'tashkeel_sukoon_on' in name:
                     if s > best_sukoon_score:
                         best_sukoon_score = s
                         best_sukoon_name = name
+                elif 'sukoon' in name:
+                    if s > best_addvowel_score:
+                        best_addvowel_score = s
+                        best_addvowel_name = name
+                        best_addvowel_word = alt_word
                 else:
                     if s > best_tashkeel_score:
                         best_tashkeel_score = s
@@ -577,6 +601,9 @@ class RecitationEngine:
             "best_tashkeel_score": best_tashkeel_score,
             "best_sukoon_name": best_sukoon_name,
             "best_sukoon_score": best_sukoon_score,
+            "best_addvowel_name": best_addvowel_name,
+            "best_addvowel_word": best_addvowel_word,
+            "best_addvowel_score": best_addvowel_score,
             "skip_tashkeel": skip_tashkeel,
             "best_shadda_name": best_shadda_name,
             "best_shadda_score": best_shadda_score,
