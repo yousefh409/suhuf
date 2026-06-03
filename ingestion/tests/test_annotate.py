@@ -162,6 +162,22 @@ def test_apply_rejects_old_span_labels():
 # _apply_block_annotation — block relabeling
 # ---------------------------------------------------------------------------
 
+def test_apply_rejects_relabel_to_poetry():
+    # Relabeling a prose block to poetry would leave it without hemistichs, so
+    # the reader's poetry renderer would drop its text. Poetry is parser-owned.
+    block = _make_block(btype="prose")
+    ann = {
+        "key": "p1_b0",
+        "type": "poetry",
+        "confidence": 0.95,
+        "spans": [],
+        "flags": [],
+    }
+    _apply_block_annotation(block, ann, allow_relabel=True)
+    assert block.type == "prose"        # poetry relabel rejected
+    assert block.parser_type is None    # never stashed
+
+
 def test_apply_accepts_frozen_block_relabel():
     block = _make_block(btype="prose")
     ann = {
