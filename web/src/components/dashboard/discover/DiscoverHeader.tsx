@@ -7,7 +7,7 @@ const DiscoverHeader = () => {
       {/* Back link — left side */}
       <Link
         href="/dashboard"
-        className="flex items-center gap-0.5 text-sm text-ink/60 hover:text-ink transition-colors z-10"
+        className="flex items-center gap-0.5 text-sm text-ink/60 hover:text-ink transition-colors z-10 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/25"
       >
         <ChevronLeft size={16} />
         Library

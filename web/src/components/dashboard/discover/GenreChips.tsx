@@ -32,7 +32,7 @@ const GenreChips = ({ genres }: GenreChipsProps) => {
           <button
             key={genre.slug}
             onClick={() => handleChipClick(genre.slug)}
-            className={`rounded-full px-4 py-2 text-sm whitespace-nowrap shrink-0 transition-colors ${
+            className={`rounded-full px-4 py-2 text-sm whitespace-nowrap shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/25 ${
               isActive
                 ? "bg-cta-dark text-parchment-warm"
                 : "bg-parchment-warm text-ink border border-ink/10 hover:border-ink/25"

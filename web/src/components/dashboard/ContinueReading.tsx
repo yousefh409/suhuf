@@ -45,7 +45,7 @@ const ContinueReadingRow: FC<ContinueReadingRowProps> = ({ item, featured }) => 
       {featured && (
         <Link
           href={`/reader/${encodeURIComponent(item.openitiId)}`}
-          className="shrink-0 bg-cta-dark text-parchment-warm text-sm rounded-full px-5 py-2 hover:opacity-90 transition-opacity"
+          className="shrink-0 bg-cta-dark text-parchment-warm text-sm rounded-full px-5 py-2 hover:opacity-90 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
         >
           Resume
         </Link>
