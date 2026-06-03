@@ -3,6 +3,7 @@
 export const PROTECTED_PREFIXES = [
   "/inspector",
   "/dashboard",
+  "/settings",
 ] as const;
 
 export function isProtectedPath(pathname: string): boolean {
