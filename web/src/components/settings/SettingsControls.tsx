@@ -11,6 +11,7 @@ import {
   type LineSpacing,
 } from "@/lib/preferences/types";
 import { usePreferences } from "@/components/preferences/PreferencesProvider";
+import { stripTashkeel } from "@/lib/reader/tashkeel";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -89,6 +90,41 @@ const SectionLabel = ({ children }: { children: React.ReactNode }) => (
   </p>
 );
 
+// ─── Live preview ─────────────────────────────────────────────────────────────
+
+const PREVIEW_TEXT =
+  "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ. الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ. الرَّحْمَٰنِ الرَّحِيمِ. مَالِكِ يَوْمِ الدِّينِ.";
+
+// A mini-reader sample that reflects every reading preference live: theme colors,
+// Arabic font, text size, line spacing, and diacritics. Font/size/spacing read the
+// global CSS vars (updated on each change); diacritics and theme re-render via context.
+function ReadingPreview() {
+  const { prefs } = usePreferences();
+  const text = prefs.tashkeel ? PREVIEW_TEXT : stripTashkeel(PREVIEW_TEXT);
+
+  return (
+    <div>
+      <SectionLabel>Preview</SectionLabel>
+      <div
+        className="rounded-xl border border-ink/10 px-5 py-6 overflow-hidden"
+        style={{ background: "var(--reader-bg)" }}
+      >
+        <p
+          dir="rtl"
+          className="reader-article"
+          style={{
+            fontSize: "var(--reading-size)",
+            lineHeight: "var(--reading-leading)",
+            color: "var(--reader-fg)",
+          }}
+        >
+          {text}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Appearance controls ─────────────────────────────────────────────────────
 
 export function AppearanceControls() {
@@ -96,6 +132,8 @@ export function AppearanceControls() {
 
   return (
     <div className="space-y-8">
+      <ReadingPreview />
+
       {/* Theme */}
       <div>
         <SectionLabel>Theme</SectionLabel>
