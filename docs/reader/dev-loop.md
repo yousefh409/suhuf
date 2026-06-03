@@ -70,12 +70,17 @@ If you're iterating on parsing only and don't need tashkeel/enrichment:
   emits a `quran` span over the verse tokens and sets `ref` deterministically
   from the citation (sura-name table → `"sura:ayah"`), which is far more
   reliable than phrase-matching a standard-orthography quote against the
-  Uthmani index.
+  Uthmani index. A hadith written as **one running source line** (`$RWY$ …
+  @MATN@ …` in a single paragraph) is emitted as **one `prose` block** with
+  `isnad`/`matn`/`takhrij`/`quran` **spans** rather than separate blocks; a
+  hadith laid out across **separate lines** stays separate blocks (#14).
 - `quran.py` — bundled ayah index + sura-name table. `citation_to_ref`
   parses `"الأعراف: 158"` → `"7:158"`; `lookup_match` resolves a quote by
   exact/containment match.
 - `annotate.py` — Claude span/relabel pass. Preserves parse-emitted spans
-  (parse owns citation-anchored Qur'an); Claude fills the rest.
+  (parse owns citation-anchored Qur'an); Claude fills the rest. Span vocab
+  includes `isnad`/`matn`/`takhrij`, so the model can structure a running-line
+  hadith inline (spans on one block) for books lacking native `@MATN@` tags.
 - `tashkeel.py` — adds diacritics; engines: `shakkala`, `flan-t5`.
   Populates `text_raw` only when diacritization changed the token.
 - `enrich.py` — Claude metadata enrichment + `resolve_spans` (Qur'an refs:
