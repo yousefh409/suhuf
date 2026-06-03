@@ -5,4 +5,3 @@ export const TASHKEEL_KEY = "suhuf.reader.tashkeel";
 export const DIFF_KEY = "suhuf.reader.diff";
 export const PAGE_MARKERS_KEY = "suhuf.reader.pageMarkers";
 export const HADITH_CARD_KEY = "suhuf.reader.hadithCard";
-export const THEME_KEY = "suhuf.reader.theme";

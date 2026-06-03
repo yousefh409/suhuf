@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { usePreferences } from "@/components/preferences/PreferencesProvider";
+import type { Theme } from "@/lib/preferences/types";
 
-import { THEME_KEY as KEY } from "@/lib/reader/storageKeys";
-const ORDER = ["paper", "sepia", "night"] as const;
-type Theme = (typeof ORDER)[number];
+const ORDER: Theme[] = ["paper", "sepia", "night"];
 
 const LABEL: Record<Theme, string> = {
   paper: "Paper",
@@ -19,20 +18,11 @@ const GLYPH: Record<Theme, string> = {
 };
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("paper");
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const v = window.localStorage.getItem(KEY) as Theme | null;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (v && (ORDER as readonly string[]).includes(v)) setTheme(v);
-  }, []);
+  const { prefs, setPref } = usePreferences();
+  const theme = prefs.theme;
 
   const cycle = () => {
-    const next = ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length];
-    setTheme(next);
-    window.localStorage.setItem(KEY, next);
-    window.dispatchEvent(new StorageEvent("storage", { key: KEY, newValue: next }));
+    setPref("theme", ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length]);
   };
 
   return (
