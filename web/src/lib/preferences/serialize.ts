@@ -7,21 +7,17 @@ import {
   type Preferences,
 } from "./types";
 
-export function parsePreferences(raw: string | null | undefined): Preferences {
-  if (!raw) return { ...DEFAULT_PREFERENCES };
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
+/**
+ * Validate and coerce an already-parsed (unknown) value into a Preferences
+ * object. Each field is checked against its allowed value set; anything
+ * missing or invalid falls back to DEFAULT_PREFERENCES. Never throws.
+ */
+export function coercePreferences(value: unknown): Preferences {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return { ...DEFAULT_PREFERENCES };
   }
 
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    return { ...DEFAULT_PREFERENCES };
-  }
-
-  const obj = parsed as Record<string, unknown>;
+  const obj = value as Record<string, unknown>;
 
   const theme = (THEMES as readonly string[]).includes(obj["theme"] as string)
     ? (obj["theme"] as Preferences["theme"])
@@ -43,6 +39,19 @@ export function parsePreferences(raw: string | null | undefined): Preferences {
     typeof obj["tashkeel"] === "boolean" ? obj["tashkeel"] : DEFAULT_PREFERENCES.tashkeel;
 
   return { theme, textSize, arabicFont, lineSpacing, tashkeel };
+}
+
+export function parsePreferences(raw: string | null | undefined): Preferences {
+  if (!raw) return { ...DEFAULT_PREFERENCES };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ...DEFAULT_PREFERENCES };
+  }
+
+  return coercePreferences(parsed);
 }
 
 export function serializePreferences(prefs: Preferences): string {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parsePreferences, serializePreferences } from "./serialize";
+import { coercePreferences, parsePreferences, serializePreferences } from "./serialize";
 import { DEFAULT_PREFERENCES } from "./types";
 
 describe("parsePreferences", () => {
@@ -121,5 +121,56 @@ describe("serializePreferences", () => {
       "textSize",
       "theme",
     ]);
+  });
+});
+
+describe("coercePreferences", () => {
+  it("accepts a valid complete object and returns it unchanged", () => {
+    const input = {
+      theme: "night",
+      textSize: "xl",
+      arabicFont: "amiri",
+      lineSpacing: "compact",
+      tashkeel: false,
+    };
+    expect(coercePreferences(input)).toEqual(input);
+  });
+
+  it("fills missing fields from defaults for a partial object", () => {
+    const result = coercePreferences({ theme: "sepia" });
+    expect(result.theme).toBe("sepia");
+    expect(result.textSize).toBe(DEFAULT_PREFERENCES.textSize);
+    expect(result.arabicFont).toBe(DEFAULT_PREFERENCES.arabicFont);
+    expect(result.lineSpacing).toBe(DEFAULT_PREFERENCES.lineSpacing);
+    expect(result.tashkeel).toBe(DEFAULT_PREFERENCES.tashkeel);
+  });
+
+  it("returns defaults for null", () => {
+    expect(coercePreferences(null)).toEqual(DEFAULT_PREFERENCES);
+  });
+
+  it("returns defaults for a non-object primitive", () => {
+    expect(coercePreferences("garbage")).toEqual(DEFAULT_PREFERENCES);
+    expect(coercePreferences(42)).toEqual(DEFAULT_PREFERENCES);
+  });
+
+  it("returns defaults for an array", () => {
+    expect(coercePreferences([])).toEqual(DEFAULT_PREFERENCES);
+  });
+
+  it("replaces invalid field values with defaults", () => {
+    const result = coercePreferences({
+      theme: "dark",       // invalid
+      textSize: "xxl",     // invalid
+      arabicFont: "times", // invalid
+      lineSpacing: "wide", // invalid
+      tashkeel: "yes",     // invalid (not boolean)
+    });
+    expect(result).toEqual(DEFAULT_PREFERENCES);
+  });
+
+  it("returns a fresh object and does not alias DEFAULT_PREFERENCES", () => {
+    const result = coercePreferences({});
+    expect(result).not.toBe(DEFAULT_PREFERENCES);
   });
 });
