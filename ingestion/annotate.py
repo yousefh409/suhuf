@@ -145,6 +145,28 @@ def _resolve_token_id(block: Block, idx: int) -> str | None:
     return None
 
 
+def _token_index_map(block: Block) -> dict[str, int]:
+    """Map each token id in *block* to its flat position."""
+    if block.type == "poetry":
+        flat = [t for verse in block.hemistichs for h in verse for t in h]
+    else:
+        flat = block.tokens
+    return {t.id: i for i, t in enumerate(flat)}
+
+
+def _span_range(span: Span, idmap: dict[str, int]) -> tuple[int, int] | None:
+    """Return a span's (low, high) token index range, or None if unmappable."""
+    a = idmap.get(span.start_token_id)
+    b = idmap.get(span.end_token_id)
+    if a is None or b is None:
+        return None
+    return (min(a, b), max(a, b))
+
+
+def _ranges_overlap(a: tuple[int, int], b: tuple[int, int]) -> bool:
+    return a[0] <= b[1] and b[0] <= a[1]
+
+
 def _has_native_tags(parse_result: ParseResult) -> bool:
     """True iff the parser already produced enough structural blocks
     that we should skip the structural relabel sub-pass (spans and flags still apply)."""
@@ -221,8 +243,28 @@ def _apply_block_annotation(
             )
         except (KeyError, ValueError, TypeError):
             continue
-    block.spans = spans
-    span_count = len(spans)
+    # Merge with spans parse already emitted (citation-anchored Qur'an,
+    # footnotes). Those are deterministic and authoritative, so the model's
+    # spans must not clobber them: drop any model span that overlaps a parse
+    # span, and — where parse already found a cited ayah — drop the model's
+    # Qur'an spans entirely (they would otherwise duplicate onto the trailing
+    # citation bracket). The model still owns every other label.
+    preserved = list(block.spans)
+    idmap = _token_index_map(block)
+    preserved_ranges = [r for r in (_span_range(s, idmap) for s in preserved) if r]
+    preserved_has_quran = any(s.label == "quran" for s in preserved)
+
+    kept: list[Span] = []
+    for cs in spans:
+        rng = _span_range(cs, idmap)
+        if rng and any(_ranges_overlap(rng, pr) for pr in preserved_ranges):
+            continue
+        if cs.label == "quran" and preserved_has_quran:
+            continue
+        kept.append(cs)
+
+    block.spans = preserved + kept
+    span_count = len(kept)
 
     flags_raw = ann.get("flags") or []
     block.flags = [f for f in flags_raw if f in QUALITY_FLAGS]

@@ -64,11 +64,22 @@ If you're iterating on parsing only and don't need tashkeel/enrichment:
 - `models.py` — Pydantic types: `Token`, `Block`, `Page`, `Chapter`,
   `BookMetadata`, `ParseResult`. Token has optional `text_raw` for
   pre-tashkeel diff support.
-- `parse.py` — OpenITI mARkdown → blocks. Block types:
-  `prose | hadith | isnad | matn | poetry | biography | heading`.
+- `parse.py` — OpenITI mARkdown → blocks. Frozen block types:
+  `prose | heading | poetry | isnad | matn | takhrij | quran`.
+  Also detects inline `{ayah} [سورة: آية]` Qur'an quotations within prose:
+  emits a `quran` span over the verse tokens and sets `ref` deterministically
+  from the citation (sura-name table → `"sura:ayah"`), which is far more
+  reliable than phrase-matching a standard-orthography quote against the
+  Uthmani index.
+- `quran.py` — bundled ayah index + sura-name table. `citation_to_ref`
+  parses `"الأعراف: 158"` → `"7:158"`; `lookup_match` resolves a quote by
+  exact/containment match.
+- `annotate.py` — Claude span/relabel pass. Preserves parse-emitted spans
+  (parse owns citation-anchored Qur'an); Claude fills the rest.
 - `tashkeel.py` — adds diacritics; engines: `shakkala`, `flan-t5`.
   Populates `text_raw` only when diacritization changed the token.
-- `enrich.py` — Claude metadata enrichment (skipped in dev loop).
+- `enrich.py` — Claude metadata enrichment + `resolve_spans` (Qur'an refs:
+  exact match overrides, containment only fills a missing ref).
 - `upload.py` — Supabase writes (skipped in dev loop).
 
 **Reader (Next.js, web/)** — internal-only at `/internal/*`

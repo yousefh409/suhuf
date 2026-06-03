@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ingestion.models import Token, Block, Footnote, Page, Chapter, ParseResult, Span
 from ingestion.metadata import parse_file_header
+from ingestion import quran as _quran
 
 _PAGE_RE = re.compile(r"PageV(\d+)P(\d+)")
 # Matches a PageVxxPyyy token anywhere in a string (with word boundary awareness).
@@ -159,6 +160,92 @@ def _tokenize(text: str, page_num: int, block_idx: int) -> list[Token]:
         Token(id=f"p{page_num}_b{block_idx}_w{i}", text=w)
         for i, w in enumerate(words)
     ]
+
+
+def _extract_inline_quran(words: list[str]) -> tuple[list[str], list[tuple[int, int, str | None]]]:
+    """Pull inline Quranic quotations out of a prose word list.
+
+    The source convention is ``{ayah text} [سورة: آية]`` — curly braces wrap the
+    verse, an immediately-following bracket carries the citation. For each such
+    pair this strips the braces from the verse words and records a span over
+    them. The ``ref`` comes from the citation (sura-name table → "sura:ayah"),
+    which is the source's own explicit reference and far more reliable than
+    phrase-matching a standard-orthography quote against a Uthmani index; the
+    phrase lookup is only a fallback when the citation cannot be resolved.
+
+    A ``{...}`` group with no following citation is left untouched — without that
+    evidence we don't assume the braces mark Qur'an.
+
+    Returns ``(cleaned_words, spans)`` where each span is
+    ``(start_index, end_index, ref)`` in *cleaned_words* coordinates (inclusive).
+    Citation words are kept in the output, faithful to the source.
+    """
+    out: list[str] = []
+    spans: list[tuple[int, int, str | None]] = []
+    i, n = 0, len(words)
+
+    while i < n:
+        word = words[i]
+        if "{" not in word:
+            out.append(word)
+            i += 1
+            continue
+
+        # Find the word that closes the brace group (may be the same word
+        # for a one-word quote like "{كلمة}").
+        if "}" in word[word.index("{") + 1:]:
+            j = i
+        else:
+            j = i + 1
+            while j < n and "}" not in words[j]:
+                j += 1
+
+        if j >= n:
+            # Unbalanced opener — not a quotation; emit verbatim.
+            out.append(word)
+            i += 1
+            continue
+
+        # Look ahead for a "[...:...]" citation immediately after the close.
+        cite_words: list[str] = []
+        k = j + 1
+        if k < n and words[k].startswith("["):
+            while k < n:
+                cite_words.append(words[k])
+                if "]" in words[k]:
+                    k += 1
+                    break
+                k += 1
+
+        inner = " ".join(cite_words).strip().lstrip("[").rstrip("]").strip()
+        if not cite_words or ":" not in inner:
+            # No citation evidence — treat the braces as ordinary text.
+            out.append(word)
+            i += 1
+            continue
+
+        ayah_words = [w.replace("{", "").replace("}", "") for w in words[i:j + 1]]
+        ayah_words = [w for w in ayah_words if w]
+        if not ayah_words:
+            out.append(word)
+            i += 1
+            continue
+
+        start = len(out)
+        out.extend(ayah_words)
+        end = len(out) - 1
+
+        ref = _quran.citation_to_ref(inner)
+        if ref is None:
+            hit = _quran.lookup(" ".join(ayah_words))
+            if hit is not None:
+                ref = f"{hit[0]}:{hit[1]}"
+
+        spans.append((start, end, ref))
+        out.extend(cite_words)
+        i = j + 1 + len(cite_words)
+
+    return out, spans
 
 
 def parse_file(path: Path, openiti_uri: str) -> ParseResult:
@@ -383,9 +470,24 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
         prose_text = line_text.strip()
         prose_number, prose_text = _extract_leading_ordinal(prose_text)
         block_idx = len(current_blocks)
-        tokens = _tokenize(prose_text, current_page_num, block_idx)
+        words, quran_spans = _extract_inline_quran(prose_text.split())
+        tokens = [
+            Token(id=f"p{current_page_num}_b{block_idx}_w{i}", text=w)
+            for i, w in enumerate(words)
+        ]
         if tokens:
-            current_blocks.append(Block(key=f"b{block_idx}", type="prose", tokens=tokens, number=prose_number))
+            spans = [
+                Span(
+                    start_token_id=tokens[start].id,
+                    end_token_id=tokens[end].id,
+                    label="quran",
+                    ref=ref,
+                )
+                for start, end, ref in quran_spans
+            ]
+            current_blocks.append(Block(
+                key=f"b{block_idx}", type="prose", tokens=tokens, spans=spans, number=prose_number,
+            ))
 
     def _flush_pending():
         nonlocal pending_text

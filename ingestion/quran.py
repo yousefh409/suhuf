@@ -86,6 +86,56 @@ for _norm, _s, _a in _ayat_list:
 
 
 # ---------------------------------------------------------------------------
+# Sura names (for resolving "[سورة: آية]" citation markers)
+# ---------------------------------------------------------------------------
+
+_SURA_FILE = Path(__file__).parent / "data" / "sura_names.json"
+
+if not _SURA_FILE.exists():
+    raise FileNotFoundError(f"Sura names file not found: {_SURA_FILE}")
+
+with _SURA_FILE.open(encoding="utf-8") as _f:
+    _sura_raw: dict[str, str] = json.load(_f)
+
+# normalized Arabic name -> sura number. normalize() folds the hamza/alef/ya
+# variants, so "الأعراف" and "الاعراف" collapse to the same key.
+_sura_by_name: dict[str, int] = {
+    normalize(_name): int(_num) for _num, _name in _sura_raw.items()
+}
+
+# Arabic-Indic digits -> ASCII, for ayah numbers written "١٠٥".
+_ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+_DIGIT_RUN = re.compile(r"[0-9٠-٩]+")
+
+
+def sura_number(name: str) -> int | None:
+    """Resolve an Arabic sura name to its 1-based number, or None if unknown."""
+    return _sura_by_name.get(normalize(name))
+
+
+def citation_to_ref(inner: str) -> str | None:
+    """Parse a citation marker's inner text into a "sura:ayah" ref.
+
+    *inner* is the text between the brackets, e.g. "الأعراف: 158" or
+    "القلم: 44، 45". Returns "7:158" / "68:44-45", or None when the sura name
+    is unknown or no ayah number is present. Multiple ayah numbers collapse to
+    a "first-last" range.
+    """
+    name_part, sep, ayah_part = inner.partition(":")
+    if not sep:
+        return None
+    num = sura_number(name_part)
+    if num is None:
+        return None
+    ayat = [int(d.translate(_ARABIC_DIGITS)) for d in _DIGIT_RUN.findall(ayah_part)]
+    if not ayat:
+        return None
+    if len(ayat) == 1:
+        return f"{num}:{ayat[0]}"
+    return f"{num}:{min(ayat)}-{max(ayat)}"
+
+
+# ---------------------------------------------------------------------------
 # Lookup
 # ---------------------------------------------------------------------------
 

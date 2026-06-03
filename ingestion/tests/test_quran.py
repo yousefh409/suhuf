@@ -1,6 +1,6 @@
 """Tests for ingestion.quran — Quran ayah index and matcher."""
 import pytest
-from ingestion.quran import normalize, lookup, lookup_match
+from ingestion.quran import normalize, lookup, lookup_match, sura_number, citation_to_ref
 
 
 def test_normalize_strips_diacritics_and_brackets():
@@ -59,6 +59,44 @@ def test_lookup_match_reports_containment():
 
 def test_lookup_match_no_match_returns_none():
     assert lookup_match("هذا كلام ليس من القرآن أبدا") is None
+
+
+# ---------------------------------------------------------------------------
+# Sura-name resolution and citation parsing
+# ---------------------------------------------------------------------------
+
+def test_sura_number_resolves_names():
+    assert sura_number("الأعراف") == 7
+    assert sura_number("آل عمران") == 3
+    assert sura_number("ص") == 38
+    assert sura_number("النحل") == 16
+
+
+def test_sura_number_tolerates_orthographic_variants():
+    # Hamza/alef variants and diacritics must not block the match.
+    assert sura_number("الاعراف") == 7
+    assert sura_number("الأَعراف") == 7
+
+
+def test_sura_number_unknown_returns_none():
+    assert sura_number("ليست سورة") is None
+
+
+def test_citation_to_ref_single_ayah():
+    assert citation_to_ref("الأنعام: 19") == "6:19"
+
+
+def test_citation_to_ref_ayah_range():
+    # Arabic comma between consecutive ayah numbers → a hyphenated range.
+    assert citation_to_ref("القلم: 44، 45") == "68:44-45"
+
+
+def test_citation_to_ref_arabic_indic_digits():
+    assert citation_to_ref("النساء: ١٠٥") == "4:105"
+
+
+def test_citation_to_ref_unknown_sura_returns_none():
+    assert citation_to_ref("سورة مجهولة: 3") is None
 
 
 def test_index_completeness():
