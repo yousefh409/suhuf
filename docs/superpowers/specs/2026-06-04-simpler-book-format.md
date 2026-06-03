@@ -245,15 +245,31 @@ stay in this adapter.
 
 ### turath.io
 
-A new adapter, and a cleaner starting point than OpenITI raw:
+A new adapter, and a cleaner starting point than OpenITI raw. No auth is needed.
 
-- It serves clean per-page text with volume and page numbers, so no mARkdown
-  conversion artifacts and none of the `### $` or ellipsis misparses that caused
-  the poetry bugs.
-- It carries structured metadata (author, death year, title, categories) that
-  feeds `metadata` and `enrichment` directly.
-- Many turath books already mark headings and footnotes, which the adapter maps
-  to `heading` blocks and footnotes, giving turath books structure before the AI
+Access, confirmed against the live service:
+
+- Bulk book file: `https://files.turath.io/books/{id}.json`, shape
+  `{ meta, indexes, indexes_generated, pages[] }`.
+  - `meta`: `{ id, name, author_id, cat_id, details, has_pdf, size }`.
+  - `indexes.headings[]`: `{ level, page, title }`, the full TOC.
+  - `indexes.hadiths`: hadith number to page map.
+  - `indexes.volumes[]` and `indexes_generated.volume_bounds`: volume layout.
+  - `pages[]`: `{ page, vol, text }`.
+- Per-page fallback: `https://api.turath.io/page?book_id={id}&pg={n}` returns
+  `{ text, meta }`, where `meta` is a stringified JSON with `page`, `vol`,
+  `headings`, `book_name`, `author_name`.
+
+Why it is a better starting point:
+
+- Page `text` is plain and already fully diacritized (sampled:
+  `إيّاها، إلّا أنّ كتابه...`), paragraphs separated by `\n\n`, no HTML. So the
+  turath adapter can skip the tashkeel stage and start from clean text, and there
+  are none of the `### $` or ellipsis misparses that caused the poetry bugs.
+- `meta` carries author, title, and category directly, feeding `metadata` and
+  `enrichment` without parsing an id.
+- `indexes.headings[]` maps straight to `heading` blocks and `chapters`, and the
+  hadith index can seed item numbers, giving turath books structure before the AI
   runs.
 
 Provenance is recorded in `metadata` (`source`, `source_id`, `source_url`) so
@@ -287,11 +303,19 @@ aligner for any data we keep. No production data depends on the old shape.
 - The recitation aligner internals. The format supports a derived word id; the
   exact handle the recitation engine uses is verified during planning.
 
+## Resolved
+
+- **turath.io access.** No key. `https://files.turath.io/books/{id}.json` (bulk)
+  with `api.turath.io/page` as a per-page fallback. Shape documented in the
+  turath.io adapter section. Text is plain and pre-diacritized, so the turath path
+  skips tashkeel.
+- **Recitation.** Keying on a derived `{block}:{wordIndex}` is fine; no stored
+  token id is required.
+- **Poetry renderer.** Use the derived `lines` shape (list of hemistich pairs),
+  not raw `hemistich` spans. The renderer consumes `lines`.
+
 ## Open questions
 
-- turath.io access: API key versus a dump, the exact page and metadata shape, and
-  one sample book to validate the adapter against.
-- Recitation: confirm the recitation aligner can key on a derived word id rather
-  than a stored token id.
-- Whether `lines` is the right derived shape for the poetry renderer or whether it
-  should consume `spans` labeled `hemistich` directly.
+- A specific turath book id to validate the adapter against during planning
+  (the file host 404s on some ids whose pages the API still serves, so the
+  adapter should fall back from bulk file to per-page fetch).
