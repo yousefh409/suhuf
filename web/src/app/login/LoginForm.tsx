@@ -1,11 +1,30 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 type Mode = "login" | "signup";
 type Step = "credentials" | "verify";
+
+const inputClass =
+  "w-full rounded-lg border border-ink/10 bg-parchment px-4 py-2.5 text-sm text-ink placeholder:text-ink/30 outline-none transition-colors focus:border-gold/40";
+const primaryButtonClass =
+  "w-full rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-ink/90 disabled:opacity-50";
+
+function CardShell({ subtitle, children }: { subtitle: string; children: ReactNode }) {
+  return (
+    <div className="w-full max-w-sm rounded-xl border border-ink/10 bg-parchment-warm p-7 shadow-[0_12px_40px_rgba(42,31,23,0.08)]">
+      <div className="mb-6 flex flex-col items-center text-center">
+        <Image src="/logo.png" alt="suhuf" width={40} height={40} className="rounded-xl" />
+        <h1 className="mt-3 font-serif text-2xl leading-none text-ink">suhuf</h1>
+        <p className="mt-1.5 text-sm text-ink/45">{subtitle}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
 
 export function LoginForm({ redirectTo }: { redirectTo: string }) {
   const router = useRouter();
@@ -79,11 +98,7 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
 
   if (step === "verify") {
     return (
-      <div className="w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-        <h1 className="mb-1 text-base font-semibold">Enter your code</h1>
-        <p className="mb-4 text-sm text-zinc-500">
-          We emailed a 6-digit code to {email}.
-        </p>
+      <CardShell subtitle={`We emailed a 6-digit code to ${email}.`}>
         <form onSubmit={onVerify} className="space-y-3">
           <input
             inputMode="numeric"
@@ -92,24 +107,20 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
             placeholder="123456"
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            className="w-full rounded border border-zinc-300 px-3 py-2 text-sm tracking-widest"
+            className={`${inputClass} text-center tracking-[0.4em]`}
           />
           {error && <p className="text-sm text-red-600">{error}</p>}
-          {info && <p className="text-sm text-emerald-600">{info}</p>}
-          <button
-            type="submit"
-            disabled={pending}
-            className="w-full rounded bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
+          {info && <p className="text-sm text-gold">{info}</p>}
+          <button type="submit" disabled={pending} className={primaryButtonClass}>
             {pending ? "…" : "Verify"}
           </button>
         </form>
-        <div className="mt-3 flex items-center justify-between text-xs">
+        <div className="mt-4 flex items-center justify-between text-xs">
           <button
             type="button"
             onClick={onResend}
             disabled={pending}
-            className="text-zinc-600 underline hover:text-zinc-900 disabled:opacity-50"
+            className="text-ink/50 transition-colors hover:text-gold disabled:opacity-50"
           >
             Resend code
           </button>
@@ -121,25 +132,25 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
               setInfo(null);
               setCode("");
             }}
-            className="text-zinc-600 underline hover:text-zinc-900"
+            className="text-ink/50 transition-colors hover:text-gold"
           >
             Back
           </button>
         </div>
-      </div>
+      </CardShell>
     );
   }
 
   return (
-    <div className="w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-      <div className="mb-4 flex gap-1 text-sm font-medium">
+    <CardShell subtitle={mode === "login" ? "Welcome back" : "Create your account"}>
+      <div className="mb-4 flex gap-1 rounded-lg bg-ink/[0.04] p-1 text-sm font-medium">
         <button
           type="button"
           onClick={() => {
             setMode("login");
             setError(null);
           }}
-          className={`flex-1 rounded px-3 py-1.5 ${mode === "login" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600"}`}
+          className={`flex-1 rounded-md px-3 py-1.5 transition-colors ${mode === "login" ? "bg-ink text-white" : "text-ink/60 hover:text-ink"}`}
         >
           Log in
         </button>
@@ -149,7 +160,7 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
             setMode("signup");
             setError(null);
           }}
-          className={`flex-1 rounded px-3 py-1.5 ${mode === "signup" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600"}`}
+          className={`flex-1 rounded-md px-3 py-1.5 transition-colors ${mode === "signup" ? "bg-ink text-white" : "text-ink/60 hover:text-ink"}`}
         >
           Sign up
         </button>
@@ -163,7 +174,7 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+          className={inputClass}
         />
         <input
           type="password"
@@ -172,17 +183,13 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+          className={inputClass}
         />
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={pending}
-          className="w-full rounded bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
+        <button type="submit" disabled={pending} className={primaryButtonClass}>
           {pending ? "…" : mode === "login" ? "Log in" : "Sign up"}
         </button>
       </form>
-    </div>
+    </CardShell>
   );
 }
