@@ -28,8 +28,10 @@ def test_find_marker_an_nabi_variant():
 
 
 def test_find_marker_action_verb():
-    # action-verb introducer "نهى رسول الله" (prophetic prohibition report)
-    assert _find_prophetic_marker(["عن", "ابن", "عمر", "نهى", "رسول", "الله"]) == 3
+    # action-verb introducer "نهى رسول الله" (prophetic prohibition report).
+    # Normalize the input as real callers do (نهى → نهي).
+    norm = [_norm(w) for w in ["عن", "ابن", "عمر", "نهى", "رسول", "الله"]]
+    assert _find_prophetic_marker(norm) == 3
 
 
 def test_find_marker_kana_nabi():
@@ -37,9 +39,10 @@ def test_find_marker_kana_nabi():
 
 
 def test_find_marker_allah_omitted_variant():
-    # "قال رسول [-] صلى الله …" — الله omitted after رسول; the empty string is the
-    # normalized dash; the blessing صلى confirms the prophetic subject.
-    assert _find_prophetic_marker(["قال", "قال", "رسول", "", "صلى", "الله"]) == 1
+    # "قال رسول [-] صلي الله …" — الله omitted after رسول; the empty string is the
+    # normalized dash; the NORMALIZED blessing صلي (folded from صلى) confirms the
+    # prophetic subject. Inputs to _find_prophetic_marker are already normalized.
+    assert _find_prophetic_marker(["قال", "قال", "رسول", "", "صلي", "الله"]) == 1
 
 
 def test_find_marker_rasul_fulan_is_not_prophetic():
@@ -88,6 +91,37 @@ def test_bulugh_shape_quote_and_takhrij(tmp_path):
 def test_negative_fiqh_quote_without_marker_is_not_hadith(tmp_path):
     body = "# الماء «الطهور» هو الباقي على اصل خلقته وهذا مذهب الجمهور\n"
     block = parse_file(_make_book(tmp_path, body), "0100Test.Fiqh").pages[0].content_blocks[0]
+    detect_hadith_structure(_one(block))
+    assert all(s.label not in ("isnad", "matn", "takhrij") for s in block.spans)
+
+
+def test_allah_omitted_variant_through_parse(tmp_path):
+    # End-to-end through _norm: raw "صلى" (with الله omitted after رسول) must be
+    # detected — this exercises the ى→ي fold that a pure-norm-list test misses.
+    body = "# وعن ابي امامة رضي الله عنه قال قال رسول صلى الله عليه وسلم اتقوا الله\n"
+    block = parse_file(_make_book(tmp_path, body), "0100Test.Variant").pages[0].content_blocks[0]
+    detect_hadith_structure(_one(block))
+    assert "matn" in _spans(block)
+
+
+def test_quote_fallback_possessive_nabi(tmp_path):
+    # Possessive "قدح النبي" gives no introducer+subject marker, but a
+    # transmission opener (وعن) + «…» matn fires the low-confidence fallback.
+    body = ("# وعن انس بن مالك رضي الله عنه ان قدح النبي صلى الله عليه وسلم انكسر "
+            "فجعل مكانه «سلسلة من فضة» رواه البخاري\n")
+    block = parse_file(_make_book(tmp_path, body), "0100Test.QFallback").pages[0].content_blocks[0]
+    detect_hadith_structure(_one(block))
+    sp = _spans(block)
+    assert "matn" in sp and "takhrij" in sp
+    texts = {t.id: t.text for t in block.tokens}
+    assert "«" in texts[sp["matn"].start_token_id] and "»" in texts[sp["matn"].end_token_id]
+    assert sp["matn"].confidence == LOW_CONF
+
+
+def test_quote_without_transmission_no_fallback(tmp_path):
+    # A «…» with no transmission opener (a fiqh definition) must NOT fire.
+    body = "# الماء «الطهور» هو الباقي على اصل خلقته وهذا قول الجمهور\n"
+    block = parse_file(_make_book(tmp_path, body), "0100Test.NoFall").pages[0].content_blocks[0]
     detect_hadith_structure(_one(block))
     assert all(s.label not in ("isnad", "matn", "takhrij") for s in block.spans)
 
