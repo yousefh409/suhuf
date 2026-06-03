@@ -13,7 +13,7 @@ flowchart LR
     E --> F[App download\nlocal SQLite]
 ```
 
-The annotate stage (Claude-powered semantic detection) exists in the pipeline but is **skipped for V1**. OpenITI mARkdown already tags hadith, isnad, biography, and poetry boundaries natively. Claude enrichment (hadith grading, Quran ayah identification, narrator chain extraction) is a future addition.
+The annotate stage (Claude-powered semantic detection) **runs by default** and supplies the bulk of the semantic structure. Although the OpenITI mARkdown *spec* defines hadith/isnad/biography tags (`$RWY$` / `@MATN@` / `$BIO_*`), the mainstream corpus does **not** carry them: a direct grep found **zero** across Sahih al-Bukhari (`.completed`), Sahih Muslim (top-tier `.mARkdown`), Sunan al-Tirmidhi, and Bulugh al-Maram — all of which have only the universal **structural** markup (thousands of `PageV` page markers and `### |` headings). So the parser builds blocks from that structural markup, and the Claude pass supplies `isnad`/`matn`/`takhrij` spans, person/place/qur'an labels, gradings, etc. The native-tag path in `parse.py` exists for the rare annotated text but almost never fires on real books.
 
 ---
 
@@ -38,7 +38,7 @@ The annotate stage (Claude-powered semantic detection) exists in the pipeline bu
 | `@YB####` / `@YD####` | Metadata | Birth/death years captured in biography block metadata |
 | All other tags | Stripped | Unrecognized tags are removed; text preserved as `prose` blocks |
 
-**Not all OpenITI files are equally well-tagged.** Files with `.mARkdown` extension are verified and fully tagged. Files with `.completed` or `.inProgress` extensions may have incomplete tagging. The 10-20 curated books for V1 should be selected from verified `.mARkdown` files.
+**The file extension reflects structural-conversion quality, not semantic tagging.** `.mARkdown` > `.completed` > `.inProgress` > raw is about how well the *structural* markup (page markers, headings, paragraphs) was vetted — none of the tiers implies semantic hadith/biography tags, which are absent even from top-tier `.mARkdown` files (e.g. Sahih Muslim). Prefer `.mARkdown` for the cleanest structure, but the isnad/matn/etc. layer comes from the Claude annotation pass regardless of tier.
 
 ---
 
@@ -581,7 +581,7 @@ Minimal word tokens (~35 bytes per word) keep payload reasonable:
 
 **Token IDs are position-based, not content-based.** If a source file is re-ingested after an edit that inserts or removes words, all downstream token IDs on that page shift. The `anchor_context` field mitigates this but is not automatic. Prefer source-stable edits (correcting diacritics within a word) over structural edits (inserting/removing words).
 
-**Not all OpenITI files have complete semantic tagging.** Only `.mARkdown` extension files are verified. When ingesting a book with incomplete tagging, unrecognized content defaults to `prose` blocks. The optional annotate stage can fill gaps later.
+**Real OpenITI files carry almost no semantic tagging — across every tier.** The `.mARkdown`/`.completed`/raw tiers reflect structural-conversion quality only. Because the source has no `$RWY$`/`@MATN@`/`$BIO_*` tags, hadith/biography content parses as `prose`, and the Claude annotate stage (which runs by default) supplies the semantic structure.
 
 **`content_plain` must stay in sync with `content_blocks`.** The plain text column is derived from blocks during ingestion (concatenate all token text with spaces). It exists solely for future full-text search. Never write to it independently.
 
