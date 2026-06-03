@@ -362,3 +362,15 @@ def test_force_allows_relabel_even_with_native_tags():
 
     assert stats["relabeled"] == 1
     assert stats.get("relabel_allowed") is True
+
+
+def test_serialize_block_includes_existing_spans():
+    from ingestion.annotate import _serialize_block
+    from ingestion.models import Block, Span, Token
+    tokens = [Token(id=f"p1_b0_w{i}", text=f"w{i}") for i in range(4)]
+    block = Block(key="b0", type="prose", tokens=tokens,
+                  spans=[Span(start_token_id="p1_b0_w1", end_token_id="p1_b0_w2",
+                              label="matn", confidence=0.7)])
+    payload = _serialize_block(1, block)
+    assert "spans" in payload
+    assert payload["spans"] == [[1, 2, "matn", 0.7]]
