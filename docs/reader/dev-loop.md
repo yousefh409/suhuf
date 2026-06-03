@@ -82,9 +82,15 @@ If you're iterating on parsing only and don't need tashkeel/enrichment:
 - `hadith.py` — deterministic hadith-structure detector, runs after parse:
   splits a prose hadith into `isnad`/`matn`/`takhrij` spans anchored on the
   universal prophetic-speech marker, with `«…»`/narrator-`قال:`/cross-ref
-  fallbacks. Lifts structural coverage from ~8% (LLM-only) to ~99% on Bulugh,
-  high precision on the marker tier; fallbacks are low-confidence proposals the
-  annotate pass may correct.
+  fallbacks. Groups blocks into hadith units so a matn split across blocks is
+  stitched (spans projected per-block); an open `«` quote keeps a unit open
+  across a chapter-like heading. Also re-types **misclassified poetry**: a
+  `### $` verse-tagged block that is really a hadith (isnad opener / prophetic
+  marker / `«»` quote) is flipped `poetry → prose` (hemistichs flattened to
+  tokens) so it can be structured — safe across the corpus's real verse.
+  Lifts structural coverage from ~8% (LLM-only) to ~99% on Bulugh with 0 matn
+  truncations; high precision on the marker tier; fallbacks are low-confidence
+  proposals the annotate pass may correct.
 - `quran.py` — bundled ayah index + sura-name table. `citation_to_ref`
   parses `"الأعراف: 158"` → `"7:158"`; `lookup_match` resolves a quote by
   exact/containment match.
@@ -92,8 +98,11 @@ If you're iterating on parsing only and don't need tashkeel/enrichment:
   (parse owns citation-anchored Qur'an); Claude fills the rest. Span vocab
   includes `isnad`/`matn`/`takhrij`, so the model can structure a running-line
   hadith inline (spans on one block) for books lacking native `@MATN@` tags.
-  Poetry is parser-owned: the pass never relabels a block to/from `poetry`
-  (content lives in `hemistichs`, so either direction would render blank).
+  Poetry relabel is one-directional: the pass never relabels a block TO
+  `poetry` (it can't reconstruct `hemistichs`), but it MAY relabel a `poetry`
+  block to prose/isnad/matn/takhrij when confident it is not real verse —
+  the hemistichs are flattened back to tokens automatically. This is the AI
+  safety net behind `hadith.py`'s deterministic poetry re-typing.
 - `tashkeel.py` — adds diacritics; engines: `shakkala`, `flan-t5`.
   Populates `text_raw` only when diacritization changed the token.
 - `enrich.py` — Claude metadata enrichment + `resolve_spans` (Qur'an refs:
