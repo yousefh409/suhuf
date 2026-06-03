@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
-@theme inline {
+/* Colors are var-backed (NOT inline) so [data-app-theme] on <html> can re-theme
+   the whole app at runtime. Utilities like bg-parchment / text-ink compile to
+   var(--color-*), and the theme blocks below remap those tokens. */
+@theme {
   --color-parchment: #F5EEE4;
   --color-parchment-light: #F8F0E6;
   --color-parchment-warm: #FFFDF9;
@@ -8,11 +11,59 @@
   --color-gold: #B47D3A;
   --color-dark: #0A0806;
   --color-cta-dark: #3D2E1E;
+}
 
+@theme inline {
   --font-serif: var(--font-instrument-serif), Georgia, serif;
   --font-sans: var(--font-dm-sans), system-ui, sans-serif;
   --font-arabic: var(--font-scheherazade), serif;
 }
+
+/* ============================================================
+   App-wide theme. Set on <html data-app-theme="..."> by the root
+   layout from the preferences cookie (no-flash). "paper" == the base
+   defaults above, so only sepia/night remap the tokens. Unlayered, so
+   these win over Tailwind's @layer theme :root declarations.
+   ============================================================ */
+[data-app-theme="sepia"] {
+  --color-parchment: #E8D6B3;
+  --color-parchment-light: #EFE0C2;
+  --color-parchment-warm: #F3E8CE;
+  --color-ink: #3A2E22;
+  --color-gold: #8B5A2B;
+  --color-dark: #2A2013;
+  --color-cta-dark: #4A3722;
+}
+[data-app-theme="night"] {
+  --color-parchment: #14110D;
+  --color-parchment-light: #1A1611;
+  --color-parchment-warm: #221D16;
+  --color-ink: #E8DDC9;
+  --color-gold: #D4A05A;
+  --color-dark: #0A0806;
+  /* Dark-on-light buttons invert: a light pill with dark text reads on a dark page.
+     text-parchment-warm (now dark) supplies the contrasting label automatically. */
+  --color-cta-dark: #E8DDC9;
+}
+
+/* Reading typography, set on <html> by [data-text-size] / [data-line-spacing];
+   consumed by the reader article. Defaults match the prior hard-coded values. */
+:root {
+  --reading-size: 21px;
+  --reading-leading: 1.95;
+}
+[data-text-size="s"] { --reading-size: 18px; }
+[data-text-size="m"] { --reading-size: 21px; }
+[data-text-size="l"] { --reading-size: 24px; }
+[data-text-size="xl"] { --reading-size: 27px; }
+[data-line-spacing="comfortable"] { --reading-leading: 1.95; }
+[data-line-spacing="compact"] { --reading-leading: 1.7; }
+
+/* Arabic reading font, set on <html> by [data-arabic-font]. Scheherazade is the
+   default (--font-arabic above); these override it. The alternate family vars are
+   provided by next/font in the root layout. */
+[data-arabic-font="amiri"] { --font-arabic: var(--font-amiri), serif; }
+[data-arabic-font="noto-naskh"] { --font-arabic: var(--font-noto-naskh), serif; }
 
 body {
   position: relative;
@@ -22,6 +73,7 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 200ms ease, color 200ms ease;
 }
 
 /* Marquee animation */
