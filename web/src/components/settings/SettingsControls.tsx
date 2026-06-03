@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   THEMES,
   TEXT_SIZES,
@@ -12,6 +13,11 @@ import {
 } from "@/lib/preferences/types";
 import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import { stripTashkeel } from "@/lib/reader/tashkeel";
+import {
+  PAGE_MARKERS_KEY,
+  HADITH_CARD_KEY,
+  READER_LAYOUT_KEY,
+} from "@/lib/reader/storageKeys";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -50,7 +56,7 @@ const LINE_SPACING_LABELS: Record<LineSpacing, string> = {
 
 // ─── Segmented control ───────────────────────────────────────────────────────
 
-function Segmented<T extends string>({
+export function Segmented<T extends string>({
   options,
   value,
   getLabel,
@@ -84,7 +90,7 @@ function Segmented<T extends string>({
 
 // ─── Section label ────────────────────────────────────────────────────────────
 
-const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+export const SectionLabel = ({ children }: { children: React.ReactNode }) => (
   <p className="text-[11px] tracking-wider uppercase text-ink/50 mb-3">
     {children}
   </p>
@@ -261,6 +267,124 @@ export function ReadingControls() {
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Reader-view controls ─────────────────────────────────────────────────────
+// Page markers and hadith cards are per-reader view options held in localStorage
+// (no persisted preference). ChapterScroll listens for the storage event these
+// dispatch, so the reader updates live.
+
+function useLocalToggle(key: string, fallback: boolean) {
+  const [on, setOn] = useState(fallback);
+
+  useEffect(() => {
+    const v = window.localStorage.getItem(key);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (v !== null) setOn(v === "1");
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === key && e.newValue !== null) setOn(e.newValue === "1");
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [key]);
+
+  const set = (next: boolean) => {
+    setOn(next);
+    window.localStorage.setItem(key, next ? "1" : "0");
+    window.dispatchEvent(new StorageEvent("storage", { key, newValue: next ? "1" : "0" }));
+  };
+
+  return [on, set] as const;
+}
+
+function useLocalString<T extends string>(key: string, fallback: T, allowed: readonly T[]) {
+  const [value, setValue] = useState<T>(fallback);
+
+  useEffect(() => {
+    const v = window.localStorage.getItem(key);
+    if (v !== null && (allowed as readonly string[]).includes(v)) setValue(v as T);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === key && e.newValue !== null && (allowed as readonly string[]).includes(e.newValue))
+        setValue(e.newValue as T);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  const set = (next: T) => {
+    setValue(next);
+    window.localStorage.setItem(key, next);
+    window.dispatchEvent(new StorageEvent("storage", { key, newValue: next }));
+  };
+
+  return [value, set] as const;
+}
+
+function ToggleRow({
+  label,
+  caption,
+  value,
+  onChange,
+}: {
+  label: string;
+  caption: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div>
+      <SectionLabel>{label}</SectionLabel>
+      <div className="flex flex-col gap-1.5">
+        <Segmented
+          options={["on", "off"] as const}
+          value={value ? "on" : "off"}
+          getLabel={(v) => (v === "on" ? "On" : "Off")}
+          onChange={(v) => onChange(v === "on")}
+        />
+        <p className="text-xs text-ink/50 mt-1">{caption}</p>
+      </div>
+    </div>
+  );
+}
+
+const LAYOUTS = ["scroll", "paged"] as const;
+
+export function ReaderViewControls() {
+  const [layout, setLayout] = useLocalString(READER_LAYOUT_KEY, "scroll", LAYOUTS);
+  const [pageMarkers, setPageMarkers] = useLocalToggle(PAGE_MARKERS_KEY, true);
+  const [cards, setCards] = useLocalToggle(HADITH_CARD_KEY, false);
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <SectionLabel>Layout</SectionLabel>
+        <div className="flex flex-col gap-1.5">
+          <Segmented
+            options={LAYOUTS}
+            value={layout}
+            getLabel={(v) => (v === "scroll" ? "Scroll" : "Pages")}
+            onChange={setLayout}
+          />
+          <p className="text-xs text-ink/50 mt-1">
+            Scroll continuously, or read one manuscript page at a time and flip with ← →.
+          </p>
+        </div>
+      </div>
+      <ToggleRow
+        label="Page markers"
+        caption="Show the ✦ markers where each original manuscript page breaks."
+        value={pageMarkers}
+        onChange={setPageMarkers}
+      />
+      <ToggleRow
+        label="Hadith cards"
+        caption="Group each hadith's chain (isnad) and text (matn) into a numbered card."
+        value={cards}
+        onChange={setCards}
+      />
     </div>
   );
 }

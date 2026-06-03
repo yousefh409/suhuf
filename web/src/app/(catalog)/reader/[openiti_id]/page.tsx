@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
 import {
   getBook,
   getEffectiveChapters,
@@ -7,12 +8,9 @@ import {
   hasTashkeel,
 } from "@/lib/reader/queries";
 import { ChapterScroll } from "@/components/reader/ChapterScroll";
-import { ChapterDrawer } from "@/components/reader/ChapterDrawer";
-import { ModeToggle } from "@/components/reader/ModeToggle";
-import { TashkeelToggle } from "@/components/reader/TashkeelToggle";
-import { PageMarkersToggle } from "@/components/reader/PageMarkersToggle";
-import { ThemeToggle } from "@/components/reader/ThemeToggle";
-import { HadithCardToggle } from "@/components/reader/HadithCardToggle";
+import { TocDrawer } from "@/components/reader/TocDrawer";
+import { DisplayPanel } from "@/components/reader/DisplayPanel";
+import { TashkeelButton } from "@/components/reader/TashkeelButton";
 import { ReaderThemeShell } from "@/components/reader/ReaderThemeShell";
 import {
   ReciteShell,
@@ -53,28 +51,43 @@ export default async function ReaderPage({
     <ReaderThemeShell>
       <ReciteShell chapterBlocks={chapterBlocks} recitable={recitable}>
         <header
-          className="sticky top-0 z-10 backdrop-blur px-4 py-2 flex items-center gap-3 flex-wrap border-b"
+          className="sticky top-0 z-10 grid items-center gap-3 border-b px-4 py-2.5 backdrop-blur sm:px-5"
           style={{
+            gridTemplateColumns: "1fr auto 1fr",
             background: "var(--reader-chrome-bg)",
             borderColor: "var(--reader-rule)",
           }}
         >
-          <Link
-            href="/library"
-            className="text-xs font-mono hover:opacity-80"
-            style={{ color: "var(--reader-fg-muted)" }}
-          >
-            ← library
-          </Link>
-          <div className="text-sm" dir="rtl">{result.book.title_ar}</div>
-          <div className="flex-1" />
-          <ChapterDrawer chapters={chapters} pages={pages} />
-          <ThemeToggle />
-          <TashkeelToggle />
-          <PageMarkersToggle />
-          <HadithCardToggle />
-          <ReciteShellToggle />
-          <ModeToggle mode="reader" />
+          {/* Left: back · table of contents · title */}
+          <div className="flex min-w-0 items-center gap-1 justify-self-start">
+            <Link
+              href="/library"
+              className="reader-iconbtn"
+              title="Library"
+              aria-label="Back to library"
+            >
+              <ChevronLeft size={20} />
+            </Link>
+            <TocDrawer chapters={chapters} pages={pages} />
+            <div
+              className="ms-1 truncate text-[17px]"
+              dir="rtl"
+              style={{ fontFamily: "var(--font-arabic), serif", color: "var(--reader-fg)" }}
+            >
+              {result.book.title_ar}
+            </div>
+          </div>
+
+          {/* Center: the one focal action */}
+          <div className="justify-self-center">
+            <ReciteShellToggle />
+          </div>
+
+          {/* Right: diacritics toggle · display & reading settings */}
+          <div className="flex items-center gap-1 justify-self-end">
+            <TashkeelButton />
+            <DisplayPanel />
+          </div>
         </header>
 
         <ReciteShellContent>

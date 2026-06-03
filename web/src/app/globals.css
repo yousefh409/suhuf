@@ -199,6 +199,131 @@ body {
   background: var(--reader-chip-bg-hover, rgb(228 228 231)); /* zinc-200 */
 }
 
+/* ── Reader header controls ──────────────────────────────────────────────────
+   The reader chrome (back, table-of-contents, display) uses quiet, theme-aware
+   buttons in place of the old monospace chips. */
+.reader-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  color: var(--reader-fg-muted);
+  background: transparent;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.reader-iconbtn:hover {
+  background: var(--reader-chip-bg);
+  color: var(--reader-fg);
+}
+.reader-iconbtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+  background: transparent;
+}
+.reader-textbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  color: var(--reader-fg-muted);
+  background: transparent;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.reader-textbtn:hover {
+  background: var(--reader-chip-bg);
+  color: var(--reader-fg);
+}
+/* "On" state for a header toggle (e.g. diacritics) — tinted in the accent. */
+.reader-textbtn.is-on {
+  color: var(--reader-accent);
+  background: color-mix(in srgb, var(--reader-accent) 12%, transparent);
+}
+.reader-textbtn.is-on:hover {
+  background: color-mix(in srgb, var(--reader-accent) 18%, transparent);
+}
+
+/* Recite — the reader's one focal action. Outlined in the accent so it reads as
+   an invitation, not a loud CTA; fills to solid accent while reciting. */
+.reader-recite {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 36px;
+  padding: 0 20px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--reader-accent);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--reader-accent) 45%, transparent);
+  transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+.reader-recite:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--reader-accent) 10%, transparent);
+}
+.reader-recite:disabled {
+  color: var(--reader-fg-faint);
+  border-color: var(--reader-rule);
+  cursor: default;
+}
+.reader-recite.is-active {
+  color: var(--reader-bg);
+  background: var(--reader-accent);
+  border-color: var(--reader-accent);
+}
+
+/* Overlay surfaces shared by the TOC drawer and (background scrim of) the
+   display sheet. */
+.reader-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(20, 17, 13, 0.28);
+}
+.reader-toc-sheet {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 50;
+  width: min(88vw, 330px);
+  display: flex;
+  flex-direction: column;
+  background: var(--reader-bg);
+  border-right: 1px solid var(--reader-rule);
+  box-shadow: 8px 0 40px rgba(42, 31, 23, 0.16);
+}
+
+/* Paged-mode navigation: a floating pill that flips manuscript pages. */
+.reader-pagenav {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--reader-chrome-bg);
+  border: 1px solid var(--reader-rule);
+  box-shadow: 0 8px 30px rgba(42, 31, 23, 0.14);
+  backdrop-filter: blur(8px);
+}
+.reader-pagenav-label {
+  min-width: 9.5rem;
+  text-align: center;
+  font-size: 13px;
+  color: var(--reader-fg);
+}
+
 /* Subtle accent on transmission verbs (حدثنا، أخبرنا، عن، قال…) inside isnad. */
 .reader-isnad-verb {
   color: var(--reader-accent);

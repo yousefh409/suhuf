@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Block as BlockT, Chapter, Page, ReaderMode } from "@/lib/reader/types";
 import { chapterAnchorMap } from "@/lib/reader/chapters";
 import {
@@ -8,6 +9,7 @@ import {
   DIFF_KEY,
   PAGE_MARKERS_KEY,
   HADITH_CARD_KEY,
+  READER_LAYOUT_KEY,
 } from "@/lib/reader/storageKeys";
 import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import { Block } from "./Block";
@@ -56,35 +58,97 @@ function groupBlocks(blocks: BlockT[], counter: { n: number }): RenderItem[] {
 
 export function ChapterScroll({ pages, chapters, mode }: Props) {
   const { prefs } = usePreferences();
-  // Diacritics default comes from preferences; the in-reader toggle (localStorage)
-  // is a live per-read override applied in the effect below.
-  const [showTashkeel, setShowTashkeel] = useState(prefs.tashkeel);
+  // Reader diacritics follow the saved preference (set from the Display panel),
+  // so the toggle there applies live. The inspector keeps its own localStorage
+  // override (its TashkeelToggle writes TASHKEEL_KEY).
+  const [tashkeelOverride, setTashkeelOverride] = useState<boolean | null>(null);
   const [showDiff, setShowDiff] = useState(false);
   const [showPageMarkers, setShowPageMarkers] = useState(true);
   const [hadithCard, setHadithCard] = useState(false);
+  const [layout, setLayout] = useState<"scroll" | "paged">("scroll");
+  const [pageIndex, setPageIndex] = useState(0);
   const anchors = useMemo(() => chapterAnchorMap(chapters), [chapters]);
+  const showTashkeel =
+    mode === "reader" ? prefs.tashkeel : tashkeelOverride ?? prefs.tashkeel;
+  // Paged layout is a reader-only affordance; the inspector always scrolls.
+  const paged = mode === "reader" && layout === "paged";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const t = window.localStorage.getItem(TASHKEEL_KEY);
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (t !== null) setShowTashkeel(t === "1");
+    if (t !== null) setTashkeelOverride(t === "1");
     const d = window.localStorage.getItem(DIFF_KEY);
     if (d !== null) setShowDiff(d === "1");
     const pm = window.localStorage.getItem(PAGE_MARKERS_KEY);
     if (pm !== null) setShowPageMarkers(pm === "1");
     const hc = window.localStorage.getItem(HADITH_CARD_KEY);
     if (hc !== null) setHadithCard(hc === "1");
+    const lo = window.localStorage.getItem(READER_LAYOUT_KEY);
+    if (lo === "paged" || lo === "scroll") setLayout(lo);
 
     const onStorage = (e: StorageEvent) => {
-      if (e.key === TASHKEEL_KEY && e.newValue !== null) setShowTashkeel(e.newValue === "1");
+      if (e.key === TASHKEEL_KEY && e.newValue !== null) setTashkeelOverride(e.newValue === "1");
       if (e.key === DIFF_KEY && e.newValue !== null) setShowDiff(e.newValue === "1");
       if (e.key === PAGE_MARKERS_KEY && e.newValue !== null) setShowPageMarkers(e.newValue === "1");
       if (e.key === HADITH_CARD_KEY && e.newValue !== null) setHadithCard(e.newValue === "1");
+      if (e.key === READER_LAYOUT_KEY && (e.newValue === "paged" || e.newValue === "scroll"))
+        setLayout(e.newValue);
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
+
+  // Resolve a URL hash (#p-V01P035 page anchor, or #h-12 chapter anchor) to the
+  // page index that contains it — lets TOC links jump pages in paged mode.
+  const pageIndexFromHash = useCallback(
+    (hash: string): number | null => {
+      const pm = hash.match(/^#p-V(\d+)P(\d+)$/);
+      if (pm) {
+        const vol = Number(pm[1]);
+        const pg = Number(pm[2]);
+        const i = pages.findIndex((p) => p.volume === vol && p.page_number === pg);
+        return i >= 0 ? i : null;
+      }
+      const hm = hash.match(/^#h-(\d+)$/);
+      if (hm) {
+        const so = Number(hm[1]);
+        const ch = chapters.find((c) => c.sort_order === so);
+        if (ch) {
+          const i = pages.findIndex(
+            (p) => p.volume === ch.volume && p.page_number === ch.page_number,
+          );
+          return i >= 0 ? i : null;
+        }
+      }
+      return null;
+    },
+    [pages, chapters],
+  );
+
+  // Paged mode: keep the visible page in sync with the URL hash and add keyboard
+  // paging (← previous, → next).
+  useEffect(() => {
+    if (!paged || typeof window === "undefined") return;
+    const initial = pageIndexFromHash(window.location.hash);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (initial !== null) setPageIndex(initial);
+
+    const onHash = () => {
+      const i = pageIndexFromHash(window.location.hash);
+      if (i !== null) setPageIndex(i);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight") setPageIndex((i) => Math.min(i + 1, pages.length - 1));
+      else if (e.key === "ArrowLeft") setPageIndex((i) => Math.max(i - 1, 0));
+    };
+    window.addEventListener("hashchange", onHash);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("hashchange", onHash);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [paged, pages.length, pageIndexFromHash]);
 
   // In inspector mode we always render flat — grouping is a reader-only affordance.
   const cardsOn = hadithCard && mode === "reader";
@@ -104,87 +168,159 @@ export function ChapterScroll({ pages, chapters, mode }: Props) {
       ? "reader-article text-[length:var(--reading-size)] leading-[var(--reading-leading)] max-w-[44rem] mx-auto px-6 py-12"
       : "font-arabic text-lg leading-loose text-zinc-900 max-w-[720px] mx-auto px-4 py-8";
 
+  const renderPage = (page: Page, pi: number) => {
+    const pageAnchors = anchors.get(page.page_number);
+    const items = itemsByPage[pi];
+    return (
+      <section
+        key={`${page.volume}-${page.page_number}`}
+        data-page-number={page.page_number}
+        data-volume={page.volume}
+      >
+        <PageBoundary
+          volume={page.volume}
+          pageNumber={page.page_number}
+          mode={mode}
+          visible={showPageMarkers && !paged}
+        />
+        {items.map((item, idx) => {
+          if (item.kind === "card") {
+            return (
+              <div key={`card-${idx}`} className="reader-hadith-card">
+                <span className="reader-hadith-num" aria-hidden>
+                  №{item.number}
+                </span>
+                {item.blocks.map(({ block: b, blockIdx }) => {
+                  const sortOrder = pageAnchors?.get(blockIdx);
+                  const anchorId = sortOrder !== undefined ? `h-${sortOrder}` : undefined;
+                  return (
+                    <Block
+                      key={b.key}
+                      block={b}
+                      pageNumber={page.page_number}
+                      mode={mode}
+                      showTashkeel={showTashkeel}
+                      showDiff={showDiff}
+                      anchorId={anchorId}
+                    />
+                  );
+                })}
+              </div>
+            );
+          }
+          const sortOrder = pageAnchors?.get(item.blockIdx);
+          const anchorId = sortOrder !== undefined ? `h-${sortOrder}` : undefined;
+          return (
+            <Block
+              key={item.block.key}
+              block={item.block}
+              pageNumber={page.page_number}
+              mode={mode}
+              showTashkeel={showTashkeel}
+              showDiff={showDiff}
+              anchorId={anchorId}
+            />
+          );
+        })}
+        {mode === "reader" && page.footnotes && page.footnotes.length > 0 && (
+          <div className="reader-footnotes">
+            {page.footnotes.map((fn) => (
+              <p key={fn.marker} className="reader-footnote">
+                <span className="reader-footnote-marker">{fn.marker}</span>{" "}
+                {fn.tokens.map((t) => (
+                  <TokenText
+                    key={t.id}
+                    token={t}
+                    mode={mode}
+                    showTashkeel={showTashkeel}
+                    showDiff={showDiff}
+                  />
+                ))}
+              </p>
+            ))}
+          </div>
+        )}
+      </section>
+    );
+  };
+
+  if (paged) {
+    const current = pages[Math.min(pageIndex, pages.length - 1)];
+    const goTo = (i: number) => {
+      setPageIndex(i);
+      window.scrollTo({ top: 0 });
+    };
+    return (
+      <>
+        <article
+          dir="rtl"
+          className={`${articleClass} pb-28`}
+          style={{ color: "var(--reader-fg)" }}
+        >
+          {renderPage(current, Math.min(pageIndex, pages.length - 1))}
+        </article>
+        <PageNav
+          index={Math.min(pageIndex, pages.length - 1)}
+          total={pages.length}
+          pageNumber={current.page_number}
+          onPrev={() => goTo(Math.max(pageIndex - 1, 0))}
+          onNext={() => goTo(Math.min(pageIndex + 1, pages.length - 1))}
+        />
+      </>
+    );
+  }
+
   return (
     <article
       dir="rtl"
       className={articleClass}
       style={mode === "reader" ? { color: "var(--reader-fg)" } : undefined}
     >
-      {pages.map((page, pi) => {
-        const pageAnchors = anchors.get(page.page_number);
-        const items = itemsByPage[pi];
-        return (
-          <section
-            key={`${page.volume}-${page.page_number}`}
-            data-page-number={page.page_number}
-            data-volume={page.volume}
-          >
-            <PageBoundary
-              volume={page.volume}
-              pageNumber={page.page_number}
-              mode={mode}
-              visible={showPageMarkers}
-            />
-            {items.map((item, idx) => {
-              if (item.kind === "card") {
-                return (
-                  <div key={`card-${idx}`} className="reader-hadith-card">
-                    <span className="reader-hadith-num" aria-hidden>
-                      №{item.number}
-                    </span>
-                    {item.blocks.map(({ block: b, blockIdx }) => {
-                      const sortOrder = pageAnchors?.get(blockIdx);
-                      const anchorId = sortOrder !== undefined ? `h-${sortOrder}` : undefined;
-                      return (
-                        <Block
-                          key={b.key}
-                          block={b}
-                          pageNumber={page.page_number}
-                          mode={mode}
-                          showTashkeel={showTashkeel}
-                          showDiff={showDiff}
-                          anchorId={anchorId}
-                        />
-                      );
-                    })}
-                  </div>
-                );
-              }
-              const sortOrder = pageAnchors?.get(item.blockIdx);
-              const anchorId = sortOrder !== undefined ? `h-${sortOrder}` : undefined;
-              return (
-                <Block
-                  key={item.block.key}
-                  block={item.block}
-                  pageNumber={page.page_number}
-                  mode={mode}
-                  showTashkeel={showTashkeel}
-                  showDiff={showDiff}
-                  anchorId={anchorId}
-                />
-              );
-            })}
-            {mode === "reader" && page.footnotes && page.footnotes.length > 0 && (
-              <div className="reader-footnotes">
-                {page.footnotes.map((fn) => (
-                  <p key={fn.marker} className="reader-footnote">
-                    <span className="reader-footnote-marker">{fn.marker}</span>{" "}
-                    {fn.tokens.map((t) => (
-                      <TokenText
-                        key={t.id}
-                        token={t}
-                        mode={mode}
-                        showTashkeel={showTashkeel}
-                        showDiff={showDiff}
-                      />
-                    ))}
-                  </p>
-                ))}
-              </div>
-            )}
-          </section>
-        );
-      })}
+      {pages.map((page, pi) => renderPage(page, pi))}
     </article>
+  );
+}
+
+function PageNav({
+  index,
+  total,
+  pageNumber,
+  onPrev,
+  onNext,
+}: {
+  index: number;
+  total: number;
+  pageNumber: number;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="reader-pagenav" dir="ltr">
+      <button
+        type="button"
+        className="reader-iconbtn"
+        onClick={onPrev}
+        disabled={index === 0}
+        aria-label="Previous page"
+      >
+        <ChevronLeft size={20} />
+      </button>
+      <span className="reader-pagenav-label tabular-nums">
+        Page {pageNumber}
+        <span style={{ color: "var(--reader-fg-faint)" }}>
+          {" · "}
+          {index + 1} / {total}
+        </span>
+      </span>
+      <button
+        type="button"
+        className="reader-iconbtn"
+        onClick={onNext}
+        disabled={index === total - 1}
+        aria-label="Next page"
+      >
+        <ChevronRight size={20} />
+      </button>
+    </div>
   );
 }
