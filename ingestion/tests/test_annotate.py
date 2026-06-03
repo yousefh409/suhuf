@@ -178,20 +178,26 @@ def test_apply_rejects_relabel_to_poetry():
     assert block.parser_type is None    # never stashed
 
 
-def test_apply_rejects_relabel_away_from_poetry():
-    # A parser-detected poetry block must not be relabeled: its content lives in
-    # hemistichs, so a heading/prose relabel would orphan it and render blank.
-    block = _make_block(btype="poetry")
+def test_apply_relabels_poetry_to_prose_and_flattens():
+    # A block the source laid out as verse (### $) but is really prose may be
+    # re-typed FROM poetry: we flatten hemistichs into tokens so the prose
+    # renderer shows it and spans can land. (Relabel TO poetry stays banned —
+    # we can't reconstruct hemistichs.)
+    toks = [Token(id=f"p1_b0_w{i}", text=w) for i, w in enumerate(["لا", "إله", "إلا", "الله"])]
+    block = Block(key="b0", type="poetry", tokens=[], hemistichs=[[toks[:2], toks[2:]]])
     ann = {
         "key": "p1_b0",
-        "type": "heading",
+        "type": "prose",
         "confidence": 0.95,
-        "spans": [],
+        "spans": [{"start": 0, "end": 3, "label": "matn", "confidence": 0.9}],
         "flags": [],
     }
     _apply_block_annotation(block, ann, allow_relabel=True)
-    assert block.type == "poetry"       # poetry is parser-owned
-    assert block.parser_type is None
+    assert block.type == "prose"                 # re-typed FROM poetry
+    assert block.parser_type == "poetry"          # original type stashed
+    assert [t.text for t in block.tokens] == ["لا", "إله", "إلا", "الله"]  # flattened
+    assert block.hemistichs == []
+    assert any(s.label == "matn" for s in block.spans)  # span maps onto flattened tokens
 
 
 def test_apply_accepts_frozen_block_relabel():
