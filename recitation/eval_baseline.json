@@ -2,8 +2,8 @@
   "config": {
     "source": "all",
     "quick": false,
-    "max_items": 10,
-    "corpus_limit": 3,
+    "max_items": null,
+    "corpus_limit": 12,
     "sessions_caps": [
       2,
       1
@@ -15,86 +15,98 @@
   },
   "sources": {
     "sessions": {
-      "fp_rate": 0.0,
-      "fp_count": 0,
-      "words": 83,
-      "detection_rate": 74.1,
-      "correct_type_rate": 65.1,
-      "mutations": 699,
-      "detected": 518,
-      "type_correct": 455,
+      "fp_rate": 1.84,
+      "fp_count": 6,
+      "words": 326,
+      "detection_rate": 66.6,
+      "correct_type_rate": 55.6,
+      "mutations": 2710,
+      "detected": 1804,
+      "type_correct": 1507,
       "by_category": {
         "i3rab": {
-          "total": 433,
-          "detected": 333,
-          "type_correct": 287
+          "total": 1720,
+          "detected": 1185,
+          "type_correct": 952
         },
         "tashkeel": {
-          "total": 166,
-          "detected": 94,
-          "type_correct": 86
+          "total": 622,
+          "detected": 338,
+          "type_correct": 303
         },
         "combo": {
-          "total": 80,
-          "detected": 71,
-          "type_correct": 69
+          "total": 306,
+          "detected": 223,
+          "type_correct": 218
         },
         "word": {
-          "total": 20,
-          "detected": 20,
-          "type_correct": 13
+          "total": 62,
+          "detected": 58,
+          "type_correct": 34
         }
       },
       "worst_subtypes": {
         "i3rab": [
           [
             "nasb",
-            49,
-            75,
-            65
-          ],
-          [
-            "raf3",
-            38,
-            57,
-            67
+            150,
+            288,
+            52
           ],
           [
             "jarr",
-            44,
-            61,
-            72
+            124,
+            233,
+            53
+          ],
+          [
+            "raf3",
+            169,
+            251,
+            67
           ],
           [
             "jarr_tanween",
-            68,
-            83,
-            82
+            235,
+            315,
+            75
           ],
           [
             "raf3_tanween",
-            63,
-            74,
-            85
+            247,
+            315,
+            78
           ],
           [
             "nasb_tanween",
-            71,
-            83,
-            86
+            260,
+            318,
+            82
           ]
         ],
         "tashkeel": [
           [
+            "tashkeel_sukoon_on_ه_sukoon",
+            0,
+            4,
+            0
+          ],
+          [
             "tashkeel_fatha_on_ف_sukoon",
+            0,
+            5,
+            0
+          ],
+          [
+            "tashkeel_fatha_on_ع_sukoon",
             0,
             3,
             0
           ],
           [
-            "tashkeel_sukoon_on_م_sukoon",
+            "tashkeel_sukoon_on_ر_sukoon",
             0,
-            6,
+            4,
             0
           ],
           [
@@ -104,179 +116,179 @@
             0
           ],
           [
-            "tashkeel_sukoon_on_و_sukoon",
-            0,
-            12,
-            0
-          ],
-          [
-            "tashkeel_sukoon_on_ل_sukoon",
-            0,
-            5,
-            0
-          ],
-          [
-            "tashkeel_sukoon_on_ت_sukoon",
+            "tashkeel_fatha_on_ر_sukoon",
             0,
             3,
             0
           ],
           [
-            "tashkeel_sukoon_on_ع_sukoon",
-            1,
-            4,
-            25
+            "tashkeel_damma_on_ذ",
+            0,
+            3,
+            0
           ],
           [
-            "tashkeel_fatha_on_ه",
-            1,
+            "tashkeel_sukoon_on_إ_sukoon",
+            0,
             3,
-            33
+            0
           ]
         ],
         "combo": [
           [
-            "combo_two_internal",
-            30,
-            36,
-            83
+            "combo_internal_plus_i3rab",
+            153,
+            215,
+            71
           ],
           [
-            "combo_internal_plus_i3rab",
-            41,
-            44,
-            93
+            "combo_two_internal",
+            70,
+            91,
+            77
           ]
         ],
         "word": []
       },
-      "elapsed_s": 98.3
+      "elapsed_s": 399.9
     },
     "corpus": {
-      "fp_rate": 3.77,
-      "fp_count": 2,
-      "words": 53,
-      "detection_rate": 83.4,
-      "correct_type_rate": 76.2,
-      "mutations": 445,
-      "detected": 371,
-      "type_correct": 339,
+      "fp_rate": 1.74,
+      "fp_count": 3,
+      "words": 172,
+      "detection_rate": 86.6,
+      "correct_type_rate": 81.6,
+      "mutations": 1447,
+      "detected": 1253,
+      "type_correct": 1181,
       "by_category": {
         "i3rab": {
-          "total": 280,
-          "detected": 242,
-          "type_correct": 221
+          "total": 914,
+          "detected": 779,
+          "type_correct": 737
         },
         "tashkeel": {
-          "total": 106,
-          "detected": 70,
-          "type_correct": 64
+          "total": 340,
+          "detected": 282,
+          "type_correct": 268
         },
         "combo": {
-          "total": 53,
-          "detected": 53,
-          "type_correct": 52
+          "total": 169,
+          "detected": 168,
+          "type_correct": 167
         },
         "word": {
-          "total": 6,
-          "detected": 6,
-          "type_correct": 2
+          "total": 24,
+          "detected": 24,
+          "type_correct": 9
         }
       },
       "worst_subtypes": {
         "i3rab": [
           [
             "jarr",
-            21,
-            30,
-            70
+            72,
+            107,
+            67
           ],
           [
             "nasb",
-            34,
-            47,
-            72
+            112,
+            158,
+            71
           ],
           [
             "raf3",
-            39,
-            45,
-            87
+            125,
+            150,
+            83
           ],
           [
             "jarr_tanween",
-            46,
-            52,
-            88
+            144,
+            158,
+            91
           ],
           [
             "raf3_tanween",
-            49,
-            53,
-            92
+            160,
+            172,
+            93
           ],
           [
             "nasb_tanween",
-            53,
-            53,
-            100
+            166,
+            169,
+            98
           ]
         ],
         "tashkeel": [
           [
-            "tashkeel_sukoon_on_ر_sukoon",
+            "tashkeel_sukoon_on_ف_sukoon",
             0,
             4,
-            0
-          ],
-          [
-            "tashkeel_sukoon_on_م_sukoon",
-            0,
-            3,
-            0
-          ],
-          [
-            "tashkeel_sukoon_on_أ_sukoon",
-            0,
-            3,
             0
           ],
           [
             "tashkeel_fatha_on_ل_sukoon",
-            2,
+            1,
+            6,
+            17
+          ],
+          [
+            "tashkeel_kasra_on_ب_sukoon",
+            1,
+            3,
+            33
+          ],
+          [
+            "tashkeel_sukoon_on_ج_sukoon",
+            1,
+            3,
+            33
+          ],
+          [
+            "tashkeel_sukoon_on_ن_sukoon",
+            1,
+            3,
+            33
+          ],
+          [
+            "tashkeel_sukoon_on_م_sukoon",
+            3,
+            8,
+            38
+          ],
+          [
+            "tashkeel_kasra_on_ل_sukoon",
             4,
+            8,
             50
           ],
           [
-            "tashkeel_damma_on_ت",
+            "tashkeel_sukoon_on_ب_sukoon",
+            2,
             3,
-            3,
-            100
-          ],
-          [
-            "tashkeel_damma_on_م",
-            4,
-            4,
-            100
+            67
           ]
         ],
         "combo": [
           [
-            "combo_two_internal",
-            22,
-            22,
-            100
+            "combo_internal_plus_i3rab",
+            105,
+            106,
+            99
           ],
           [
-            "combo_internal_plus_i3rab",
-            31,
-            31,
+            "combo_two_internal",
+            63,
+            63,
             100
           ]
         ],
         "word": []
       },
-      "elapsed_s": 312.7
+      "elapsed_s": 932.0
     }
   }
 }
