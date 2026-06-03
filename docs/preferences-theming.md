@@ -49,6 +49,15 @@ the `@supports color-mix(...)` form modern browsers use.
 Reading size, line spacing, and Arabic font are driven by `--reading-size`,
 `--reading-leading`, and `--font-arabic`, set from the matching `data-*` attributes.
 
+### Scope: app only, not marketing
+
+The theme applies to the product (dashboard, library, reader, settings, login). The
+marketing pages (`/` landing, `/welcome`) are designed light with white cards and light
+device mockups, so they opt out: their root element carries `data-app-theme="paper"`,
+and an explicit `[data-app-theme="paper"]` reset block restores the base palette for
+that subtree even when `<html>` is sepia/night. To keep a page light, wrap it the same
+way; to theme a new app page, do nothing (it inherits the global theme).
+
 ## Reader
 
 The reader shares the one theme system. Its CSS keys off the global `[data-app-theme]`
