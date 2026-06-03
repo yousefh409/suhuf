@@ -9,7 +9,12 @@ import Footer from "@/components/landing/Footer";
 
 export default function Home() {
   return (
-    <main className="flex flex-col items-center w-full">
+    // Marketing landing is designed light (white cards, light device mockups);
+    // keep it on the paper palette regardless of the user's app theme.
+    <main
+      data-app-theme="paper"
+      className="flex flex-col items-center w-full min-h-screen bg-parchment text-ink"
+    >
       <Nav />
       <Hero />
       <Features />

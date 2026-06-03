@@ -25,6 +25,18 @@
    defaults above, so only sepia/night remap the tokens. Unlayered, so
    these win over Tailwind's @layer theme :root declarations.
    ============================================================ */
+/* Explicit paper reset so a nested [data-app-theme="paper"] restores the base
+   palette even when <html> is sepia/night. Used to keep the light-designed
+   marketing pages (landing, welcome) light regardless of the user's theme. */
+[data-app-theme="paper"] {
+  --color-parchment: #F5EEE4;
+  --color-parchment-light: #F8F0E6;
+  --color-parchment-warm: #FFFDF9;
+  --color-ink: #2A1F17;
+  --color-gold: #B47D3A;
+  --color-dark: #0A0806;
+  --color-cta-dark: #3D2E1E;
+}
 [data-app-theme="sepia"] {
   --color-parchment: #E8D6B3;
   --color-parchment-light: #EFE0C2;

@@ -251,9 +251,13 @@ function WelcomeContent() {
 }
 
 export default function WelcomePage() {
+  // Onboarding page is designed light (white cards); keep it on the paper
+  // palette regardless of the user's app theme.
   return (
-    <Suspense fallback={<div className="min-h-screen bg-parchment" />}>
-      <WelcomeContent />
-    </Suspense>
+    <div data-app-theme="paper">
+      <Suspense fallback={<div className="min-h-screen bg-parchment" />}>
+        <WelcomeContent />
+      </Suspense>
+    </div>
   );
 }
