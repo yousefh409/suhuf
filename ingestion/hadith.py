@@ -28,17 +28,32 @@ def _norm(text: str) -> str:
     return "".join(c for c in text if "ء" <= c <= "ي")
 
 
-# Introducers (normalized) that, immediately before a prophetic subject, mark
-# the isnad→matn boundary: speech (قال/سمعت), transmission (عن/ان), and action
-# verbs (نهى/كان/أمر/…). The subject is matched by _is_prophetic_subject.
-PROPHETIC_INTRODUCERS = {
-    "قال", "عن", "ان", "سمعت",
-    "نهى", "كان", "امر", "مر", "رايت", "بعث", "قضى", "سئل",
-}
-_BLESSING = "صلى"  # opens "صلى الله عليه وسلم" — handles the الله-omitted "رسول ﷺ" form
+# Words that, immediately before a prophetic subject, mark the isnad→matn
+# boundary: speech/transmission (قال/عن/أن/سمعت) and prophetic-action verbs
+# (نهى/كان/أمر/خطب/…). Written in readable Arabic and **normalized
+# programmatically** so the set always matches _norm'd tokens (نهى→نهي, أن→ان,
+# أمر→امر …) — hand-normalizing once caused silent misses. The subject-gate
+# (_is_prophetic_subject) keeps a generous verb list safe: a verb only fires
+# when رسول الله / النبي actually follows it.
+_INTRODUCER_WORDS = [
+    # speech / transmission
+    "قال", "قالت", "عن", "أن", "سمعت", "حدثنا", "حدثني",
+    # prophetic-action verbs (+ common -نا conjugations)
+    "نهى", "نهانا", "أمر", "أمرنا", "كان", "رأى", "رأيت", "خطب", "خطبنا",
+    "صلى", "توضأ", "اغتسل", "قضى", "رخص", "لعن", "بعث", "بعثنا",
+    "استسقى", "دخل", "خرج", "مر", "أتى", "جاء", "نزل", "قدم", "كتب",
+    "علمنا", "أوصى", "حج", "اعتمر", "سئل", "صنع", "فعل",
+]
+PROPHETIC_INTRODUCERS = {_norm(w) for w in _INTRODUCER_WORDS}
+_BLESSING = _norm("صلى")  # opens "صلى الله عليه وسلم" — handles the الله-omitted form
 
 # Source-attribution keywords (normalized) that open a takhrij tail.
 TAKHRIJ_NORM = {"رواه", "اخرجه", "اخرجها", "رواها", "متفق"}
+
+# Transmission openers (normalized, incl. و-prefixed) that signal an isnad — the
+# hadith-context gate for the «…»-matn fallback.
+_TRANSMISSIONS = {_norm(w) for w in
+                  ["عن", "وعن", "حدثنا", "وحدثنا", "حدثني", "أخبرنا", "أخبرني", "أنبأنا", "سمعت"]}
 
 
 def _is_prophetic_subject(norm: list[str], j: int) -> bool:
@@ -82,18 +97,32 @@ def detect_hadith_structure(result: ParseResult) -> dict:
     return stats
 
 
+def _emit(block, toks, isnad, matn, takhrij, conf: float, stats: dict) -> None:
+    """Append the (start,end)-indexed isnad/matn/takhrij spans (None = skip)."""
+    for label, rng in (("isnad", isnad), ("matn", matn), ("takhrij", takhrij)):
+        if rng is None:
+            continue
+        s, e = rng
+        block.spans.append(Span(start_token_id=toks[s].id, end_token_id=toks[e].id,
+                                label=label, confidence=conf))
+        stats[label] += 1
+    stats["hadith"] += 1
+    stats["high_conf" if conf >= HIGH_CONF else "low_conf"] += 1
+
+
 def _detect_block(block, stats: dict) -> None:
     toks = block.tokens
     norm = [_norm(t.text) for t in toks]
     b = _find_prophetic_marker(norm)
-    if b is None:
-        return  # no reliable boundary — leave to the LLM residual
+    if b is not None:
+        _emit_from_marker(block, toks, norm, b, stats)
+    else:
+        _emit_from_quote(block, toks, norm, stats)  # gated «…»-matn fallback
+
+
+def _emit_from_marker(block, toks, norm, b: int, stats: dict) -> None:
     n = len(toks)
-
-    # takhrij tail = first attribution keyword after the marker.
     takhrij_idx = next((j for j in range(b + 1, n) if norm[j] in TAKHRIJ_NORM), None)
-
-    # quote close = first "»" at/after the marker (only if a "«" opened at/after b).
     quote_close = None
     if any("«" in toks[k].text for k in range(b, n)):
         quote_close = next((k for k in range(b, n) if "»" in toks[k].text), None)
@@ -108,16 +137,27 @@ def _detect_block(block, stats: dict) -> None:
         return  # self-check: matn would be empty
 
     conf = HIGH_CONF if (takhrij_idx is not None or quote_close is not None) else LOW_CONF
-    if b > 0:
-        block.spans.append(Span(start_token_id=toks[0].id, end_token_id=toks[b - 1].id,
-                                label="isnad", confidence=conf))
-        stats["isnad"] += 1
-    block.spans.append(Span(start_token_id=toks[b].id, end_token_id=toks[matn_end].id,
-                            label="matn", confidence=conf))
-    stats["matn"] += 1
-    if takhrij_idx is not None:
-        block.spans.append(Span(start_token_id=toks[takhrij_idx].id, end_token_id=toks[n - 1].id,
-                                label="takhrij", confidence=conf))
-        stats["takhrij"] += 1
-    stats["hadith"] += 1
-    stats["high_conf" if conf == HIGH_CONF else "low_conf"] += 1
+    isnad = (0, b - 1) if b > 0 else None
+    takhrij = (takhrij_idx, n - 1) if takhrij_idx is not None else None
+    _emit(block, toks, isnad, (b, matn_end), takhrij, conf, stats)
+
+
+def _emit_from_quote(block, toks, norm, stats: dict) -> None:
+    """Fallback for hadith with no prophetic marker (possessive/vocative/dialogue
+    forms): if a «…» matn quote sits in a transmission context, tag it.
+    Low-confidence — the LLM may correct it. Never fires on quote-less editions
+    (Bukhari/Tirmidhi)."""
+    n = len(toks)
+    q_open = next((k for k in range(n) if "«" in toks[k].text), None)
+    if q_open is None:
+        return
+    q_close = next((k for k in range(q_open, n) if "»" in toks[k].text), None)
+    if q_close is None:
+        return
+    # Hadith-context gate: a transmission opener (عن/حدثنا/…) before the quote.
+    if not any(norm[k] in _TRANSMISSIONS for k in range(q_open)):
+        return
+    takhrij_idx = next((j for j in range(q_close + 1, n) if norm[j] in TAKHRIJ_NORM), None)
+    isnad = (0, q_open - 1) if q_open > 0 else None
+    takhrij = (takhrij_idx, n - 1) if takhrij_idx is not None else None
+    _emit(block, toks, isnad, (q_open, q_close), takhrij, LOW_CONF, stats)
