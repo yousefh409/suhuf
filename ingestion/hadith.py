@@ -28,6 +28,12 @@ def _norm(text: str) -> str:
     return "".join(c for c in text if "ء" <= c <= "ي")
 
 
+def _deconj(n: str) -> str:
+    """Drop a leading conjunction ف/و so prefixed verbs (فقال/وصلى) still match a
+    bare introducer/hinge. Only when the remainder stays a plausible word."""
+    return n[1:] if len(n) > 3 and n[0] in ("ف", "و") else n
+
+
 # Words that, immediately before a prophetic subject, mark the isnad→matn
 # boundary: speech/transmission (قال/عن/أن/سمعت) and prophetic-action verbs
 # (نهى/كان/أمر/خطب/…). Written in readable Arabic and **normalized
@@ -60,8 +66,8 @@ _TRANSMISSIONS = {_norm(w) for w in
 # (digest works cite where else a hadith appears), not a fresh isnad: "وللبيهقي:",
 # "ولأبي داود", "وأصله في الصحيحين", "وأخرجه", "ومن حديث …". Matched on raw text.
 _CROSSREF_RE = re.compile(
-    r"^\s*(ولل|ولأ|وله\b|ولاب|وعند|وأخرج|وأصل|ورواه|ولدى|ولابن|وزاد|"
-    r"وفي رواية|ومن حديث|وفي حديث|وله[ا]? |وعنده)")
+    r"^\s*(ولل|ولأ|ولمسلم|ولاب|وعند|وعنده|وأخرج|وأصل|ورواه|ولدى|وزاد|"
+    r"ونحوه|وفي رواية|ومن حديث|وفي حديث|وله\b|ولها\b|ولهما\b|ولهم\b)")
 
 
 def _is_prophetic_subject(norm: list[str], j: int) -> bool:
@@ -84,7 +90,9 @@ def _find_prophetic_marker(norm_tokens: list[str]) -> int | None:
     """Return the index of the earliest introducer immediately followed by a
     prophetic subject (the isnad→matn boundary), or None if absent."""
     for i in range(len(norm_tokens)):
-        if norm_tokens[i] in PROPHETIC_INTRODUCERS and _is_prophetic_subject(norm_tokens, i + 1):
+        tok = norm_tokens[i]
+        if (tok in PROPHETIC_INTRODUCERS or _deconj(tok) in PROPHETIC_INTRODUCERS) \
+                and _is_prophetic_subject(norm_tokens, i + 1):
             return i
     return None
 
@@ -120,7 +128,7 @@ def _emit(block, toks, isnad, matn, takhrij, conf: float, stats: dict) -> None:
 
 # Narrator hinge (normalized): the report verb / complementizer that ends the
 # isnad in a marker-less hadith ("عن X قال: …" / "عن X أن Y …").
-_QAL_HINGE = {_norm(w) for w in ["قال", "قالت", "أن"]}
+_QAL_HINGE = {_norm(w) for w in ["قال", "قالت", "أن", "أنه", "أنها", "أنهم"]}
 
 
 def _detect_block(block, stats: dict) -> None:
@@ -195,15 +203,26 @@ def _emit_from_narrator_qal(block, toks, norm, stats: dict) -> bool:
     first = next((x for x in norm if x), "")
     if first not in _TRANSMISSIONS:
         return False
-    hinge = next((j for j in range(1, n) if norm[j] in _QAL_HINGE), None)
+    # Hinge: the narrator's report verb/complementizer (قال/قالت/أن[ـه]), a
+    # ف/و-prefixed one (فقال), or a colon-terminated lead ("في صفة الوضوء:").
+    hinge = next((j for j in range(1, n)
+                  if norm[j] in _QAL_HINGE or _deconj(norm[j]) in _QAL_HINGE
+                  or toks[j].text.rstrip().endswith(":")), None)
     if hinge is None or hinge == 0:
         return False
-    takhrij_idx = next((j for j in range(hinge + 1, n) if norm[j] in TAKHRIJ_NORM), None)
+    # A report word (قال/أن) belongs in the matn; a colon-lead ("…الوضوء:") is
+    # the end of the isnad, so the matn starts after it.
+    hinge_is_word = norm[hinge] in _QAL_HINGE or _deconj(norm[hinge]) in _QAL_HINGE
+    matn_start = hinge if hinge_is_word else hinge + 1
+    isnad_end = hinge - 1 if hinge_is_word else hinge
+    if matn_start >= n or isnad_end < 0:
+        return False
+    takhrij_idx = next((j for j in range(matn_start + 1, n) if norm[j] in TAKHRIJ_NORM), None)
     matn_end = (takhrij_idx - 1) if takhrij_idx is not None else (n - 1)
-    if matn_end < hinge:
+    if matn_end < matn_start:
         return False
     takhrij = (takhrij_idx, n - 1) if takhrij_idx is not None else None
-    _emit(block, toks, (0, hinge - 1), (hinge, matn_end), takhrij, LOW_CONF, stats)
+    _emit(block, toks, (0, isnad_end), (matn_start, matn_end), takhrij, LOW_CONF, stats)
     return True
 
 
