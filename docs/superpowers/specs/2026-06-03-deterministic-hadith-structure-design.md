@@ -152,3 +152,30 @@ Fixtures, one per shape above:
 
 Plus a coverage check: re-run Bulugh and assert structural coverage rises from
 ~8% toward ~80%.
+
+## Results (Bulugh al-Maram, 1,573 numbered hadith)
+
+Structural coverage rose **8% → 99.4%** deterministically, via four detection
+tiers (each gated to generalise across collections and never fire on quote-less
+editions or non-hadith prose):
+
+1. **Prophetic-marker** (`قال/عن/نهى/كان/… + رسول الله/النبي`, incl. the
+   `الله`-omitted `قال رسول ﷺ` form and ف/و-prefixed verbs) — high confidence.
+2. **`«…»`-matn fallback** (transmission context + quote) — low confidence.
+3. **Narrator-`قال:`/`أن`/colon hinge** (`عن X قال: [report]`) — low confidence.
+4. **Cross-reference / source-attribution** (وللبيهقي: «…» → matn+takhrij;
+   `وأصله…`/grading notes → takhrij) — low confidence.
+
+Marker/hinge vocabularies are written in readable Arabic and **normalised
+programmatically** (`_norm`/`_deconj`) to avoid silent match misses (a recurring
+bug: `نهى`→`نهي`, `صلى`→`صلي`).
+
+**Precision (LLM-judge, Sonnet):** the high-confidence marker tier has **~0%
+incorrect** matn boundaries (remaining "partials" are a defensible convention —
+the matn includes the `قال رسول الله ﷺ:` intro). The low-confidence fallback
+tiers are ~70% precise and are emitted as **proposals the LLM-verify merge may
+correct** (confidence-gated). The end-to-end hybrid preserves the deterministic
+spans (verified) and layers entities (person/book_ref/qur'an) on top.
+
+The irreducible residual (~10 blocks) is numbering artifacts (`و442`),
+`«»`-wrapped book names, and non-hadith scholarly notes.
