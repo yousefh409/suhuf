@@ -11,6 +11,7 @@ from ingestion.cli import build_parser
 from ingestion.corpus import find_book_file, find_author_metadata
 from ingestion.metadata import parse_author_yml
 from ingestion.enrich import resolve_spans
+from ingestion.hadith import detect_hadith_structure
 from ingestion.parse import parse_file
 from ingestion.tashkeel import diacritize_blocks, load_engine
 
@@ -53,6 +54,14 @@ def _ingest_one(uri: str, args, engine, client):
     logger.info(f"Found file: {path.name}")
     result = parse_file(path, uri)
     logger.info(f"Parsed: {len(result.pages)} pages, {len(result.chapters)} chapters")
+
+    # Deterministic hadith-structure pass (isnad/matn/takhrij spans) — runs
+    # before the parsed.json dump so the structure is part of the parse tier.
+    hstats = detect_hadith_structure(result)
+    logger.info(
+        f"Hadith structure: {hstats['matn']} matn, {hstats['isnad']} isnad, "
+        f"{hstats['takhrij']} takhrij ({hstats['high_conf']} high / {hstats['low_conf']} low conf)"
+    )
 
     # Author yml — used by enrichment context, dump, and upload
     author_data: dict = {}
@@ -212,6 +221,7 @@ def run_parse(args):
     logger.info(f"Found file: {path.name}")
     result = parse_file(path, uri)
     logger.info(f"Parsed: {len(result.pages)} pages, {len(result.chapters)} chapters")
+    detect_hadith_structure(result)
 
     dump_dir = Path(args.dump)
     dump_dir.mkdir(parents=True, exist_ok=True)
