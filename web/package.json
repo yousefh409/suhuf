@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "seed:sample": "node scripts/seed-sample.mjs"
+    "seed:sample": "node scripts/seed-sample.mjs",
+    "seed:dashboard": "node --env-file=.env.local scripts/seed-dashboard.mjs"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.19",
