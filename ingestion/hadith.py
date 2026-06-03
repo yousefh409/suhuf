@@ -107,11 +107,45 @@ def _find_prophetic_marker(norm_tokens: list[str]) -> int | None:
     return None
 
 
+def _poetry_is_hadith(toks) -> bool:
+    """A `### $` verse-tagged block that is really a prose hadith: it opens an
+    isnad (transmission verb / prophetic marker) or carries a hadith quote
+    («/»). Clean across the corpus's 1203 genuinely-poetic blocks
+    (Alfiyya / Da'wa Dawa'), which never contain any of these."""
+    norm = [_norm(t.text) for t in toks]
+    first = next((x for x in norm if x), "")
+    if first in _TRANSMISSIONS or _find_prophetic_marker(norm) is not None:
+        return True
+    return any("«" in t.text or "»" in t.text for t in toks)
+
+
+def _retype_misclassified_poetry(result: ParseResult) -> None:
+    """Source files sometimes tag formulaic prose (a dhikr, a centered matn)
+    with a `### $` verse marker, so it lands as a poetry block (content under
+    `hemistichs`, empty `tokens`). Flip such a block poetry→prose and flatten
+    its hemistichs into tokens so the hadith detector can structure it. Token
+    IDs are untouched (no re-keying); the original type is stashed in
+    `parser_type`."""
+    for page in result.pages:
+        for b in page.content_blocks:
+            if b.type != "poetry" or not b.hemistichs:
+                continue
+            toks = [t for verse in b.hemistichs for hemi in verse for t in hemi]
+            if not _poetry_is_hadith(toks):
+                continue
+            if b.parser_type is None:
+                b.parser_type = b.type
+            b.type = "prose"
+            b.tokens = toks
+            b.hemistichs = []
+
+
 def detect_hadith_structure(result: ParseResult) -> dict:
     """Group blocks into hadith units, detect structure across each unit, and
     write per-block isnad/matn/takhrij spans. Returns a stats dict."""
     stats = {"hadith": 0, "isnad": 0, "matn": 0, "takhrij": 0,
              "high_conf": 0, "low_conf": 0}
+    _retype_misclassified_poetry(result)
     flat = [(p.page_number, i, b)
             for p in result.pages for i, b in enumerate(p.content_blocks)]
     pruned: set[tuple[int, int]] = set()    # (page_number, block_index) fragment headings

@@ -314,3 +314,50 @@ def test_single_block_hadith_unchanged(tmp_path):
     b = result.pages[0].content_blocks[0]
     labels = {s.label for s in b.spans}
     assert {"isnad", "matn", "takhrij"} <= labels
+
+
+def _poetry_blk(key, verses):
+    """Build a poetry block: verses = list of hemistich-pairs (list of str)."""
+    toks, hem, i = [], [], 0
+    for pair in verses:
+        verse = []
+        for hemi in pair:
+            row = []
+            for w in hemi.split():
+                t = Token(id=f"p1_{key}_w{i}", text=w); i += 1
+                row.append(t); toks.append(t)
+            verse.append(row)
+        hem.append(verse)
+    return Block(key=key, type="poetry", tokens=[], hemistichs=hem)
+
+
+def test_retype_misclassified_poetry_hadith():
+    # A prose hadith the OpenITI source laid out with a ### $ verse marker:
+    # it must be re-typed poetry→prose, hemistichs flattened into tokens, and
+    # picked up by hadith detection (isnad/matn spans appear).
+    blk = _poetry_blk("b1", [
+        ["وعن ابي هريرة رضي الله عنه قال قال رسول الله صلى الله عليه وسلم «من قال",
+         "سبحان الله وبحمده مائه مره حطت خطاياه» متفق عليه"],
+    ])
+    result = _one(blk)
+    detect_hadith_structure(result)
+    b = result.pages[0].content_blocks[0]
+    assert b.type == "prose"                 # re-typed
+    assert b.hemistichs == []                # flattened
+    assert len(b.tokens) > 0                  # tokens carry the content now
+    assert b.parser_type == "poetry"          # original type preserved
+    assert {"isnad", "matn"} <= {s.label for s in b.spans}
+
+
+def test_real_poetry_not_retyped():
+    # Genuine verse (no isnad opener, no prophetic marker, no « » quote) must
+    # stay poetry — the discriminator must not over-fire on real poems.
+    blk = _poetry_blk("b1", [
+        ["واذا راى ابليس طلعه وجهه حيا", "وقال فديت من لا يفلح"],
+    ])
+    result = _one(blk)
+    detect_hadith_structure(result)
+    b = result.pages[0].content_blocks[0]
+    assert b.type == "poetry"
+    assert b.hemistichs != []
+    assert b.spans == []
