@@ -117,12 +117,13 @@ body {
 }
 
 /* ============================================================
-   Reader theme tokens. Applied via [data-reader-theme] on the
-   ReaderThemeShell wrapper so reader chrome + content inherit
-   the same palette without leaking into other internal pages.
+   Reader theme tokens. Keyed off the global [data-app-theme] on
+   <html> (set from the preferences cookie) so the reader shares the
+   one app-wide theme. The richer --reader-* palette is only consumed
+   by .reader-* classes, so defining it globally is harmless.
    ============================================================ */
 
-[data-reader-theme="paper"] {
+[data-app-theme="paper"] {
   --reader-bg:           #F5EEE4;
   --reader-fg:           #2A1F17;
   --reader-fg-muted:     #6B5B4A;
@@ -135,7 +136,7 @@ body {
   --reader-chip-bg:      rgba(42, 31, 23, 0.06);
   --reader-chip-bg-hover:rgba(42, 31, 23, 0.10);
 }
-[data-reader-theme="sepia"] {
+[data-app-theme="sepia"] {
   --reader-bg:           #E8D6B3;
   --reader-fg:           #3A2E22;
   --reader-fg-muted:     #6E5640;
@@ -148,7 +149,7 @@ body {
   --reader-chip-bg:      rgba(58, 46, 34, 0.08);
   --reader-chip-bg-hover:rgba(58, 46, 34, 0.14);
 }
-[data-reader-theme="night"] {
+[data-app-theme="night"] {
   --reader-bg:           #14110D;
   --reader-fg:           #E8DDC9;
   --reader-fg-muted:     #A0917D;
@@ -204,7 +205,7 @@ body {
   color: var(--reader-quran, #1a6b46);
   border-bottom: 1px solid rgba(26, 122, 70, 0.25);
 }
-[data-reader-theme="night"] .reader-span-quran {
+[data-app-theme="night"] .reader-span-quran {
   border-bottom: 1px solid rgba(111, 214, 160, 0.30);
 }
 /* Inline hadith spans — mirror the display-block visual language so a hadith
@@ -232,7 +233,7 @@ body {
   line-height: 2.1;
   margin: 2rem 0;
 }
-[data-reader-theme="night"] .reader-quran-block { color: #6fd6a0; }
+[data-app-theme="night"] .reader-quran-block { color: #6fd6a0; }
 
 /* Clean Edition heading hierarchy — driven by size/weight/space, not color.
    Level 1 (book/كتاب) is largest with a hairline rule under just the title
