@@ -251,6 +251,75 @@ def _ranges_from_crossref(toks, norm):
     return (None, None, (0, n - 1), LOW_CONF)
 
 
+_OPEN_DELIMS = {"«": "»", "{": "}", "﴿": "﴾"}
+
+
+def _is_hadith_start(block) -> bool:
+    """True if the block begins a new hadith/variant: a numbered item, a prose
+    isnad-opener (transmission verb / prophetic marker), or a cross-ref variant."""
+    if block.number:
+        return True
+    if block.type != "prose":
+        return False
+    norm = [_norm(t.text) for t in block.tokens]
+    first = next((x for x in norm if x), "")
+    if first in _TRANSMISSIONS or _find_prophetic_marker(norm) is not None:
+        return True
+    return bool(_CROSSREF_RE.match(" ".join(t.text for t in block.tokens)))
+
+
+def _is_real_chapter(block) -> bool:
+    """A `### |` heading that is a genuine section title, not a matn fragment."""
+    if block.type != "heading":
+        return False
+    text = " ".join(t.text for t in block.tokens).strip()
+    if not text or text[0] in (":", "«") or "«" in text or "»" in text:
+        return False
+    return True
+
+
+def _is_takhrij_continuation(block) -> bool:
+    """A trailing takhrij-line or grading note that belongs to the prior hadith
+    (but is not itself a cross-ref *variant* opener)."""
+    if block.type == "takhrij":
+        return True
+    norm = [_norm(t.text) for t in block.tokens]
+    first = next((x for x in norm if x), "")
+    return first in TAKHRIJ_NORM or any(n in _GRADING_VOCAB for n in norm)
+
+
+def _unit_open_delim(unit) -> bool:
+    text = " ".join(t.text for _, _, b in unit for t in b.tokens)
+    return any(text.count(o) > text.count(c) for o, c in _OPEN_DELIMS.items())
+
+
+def _group_hadith_units(flat):
+    """Group a document-ordered [(page_number, block_index, block), …] list into
+    hadith units. Each unit is such a list. See spec."""
+    units, cur = [], None
+    for entry in flat:
+        block = entry[2]
+        if _is_real_chapter(block):
+            if cur:
+                units.append(cur); cur = None
+            continue
+        if _is_hadith_start(block):
+            if cur:
+                units.append(cur)
+            cur = [entry]
+            continue
+        if cur is not None and (_unit_open_delim(cur)
+                                or _is_takhrij_continuation(block)
+                                or block.type == "heading"):
+            cur.append(entry)
+            continue
+        if cur:
+            units.append(cur); cur = None
+    if cur:
+        units.append(cur)
+    return units
+
+
 def _detect_block(block, stats: dict) -> None:
     toks = block.tokens
     ranges = _detect_ranges(toks, [_norm(t.text) for t in toks])

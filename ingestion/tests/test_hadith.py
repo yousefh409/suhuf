@@ -227,3 +227,38 @@ def test_full_parse_then_detect_adds_structure(tmp_path):
     result = parse_file(_make_book(tmp_path, body), "0100Test.Two")
     stats = detect_hadith_structure(result)
     assert stats["matn"] == 2 and stats["takhrij"] == 2
+
+
+from ingestion.hadith import _group_hadith_units, _is_hadith_start, _is_real_chapter
+from ingestion.models import Block, Token
+
+
+def _blk(key, type, text, number=None):
+    toks = [Token(id=f"p1_{key}_w{i}", text=w) for i, w in enumerate(text.split())]
+    return Block(key=key, type=type, tokens=toks, number=number)
+
+
+def test_group_absorbs_open_quote_fragment():
+    # b3 opens « but never closes; b4 (a heading) closes it → same unit.
+    b3 = _blk("b3", "prose", "وعن ابي سعيد قال قال رسول الله «ان", number="2")
+    b4 = _blk("b4", "heading", "الماء طهور لا ينجسه شيء».")
+    b5 = _blk("b5", "takhrij", "اخرجه الثلاثة")
+    units = _group_hadith_units([(1, 0, b3), (1, 1, b4), (1, 2, b5)])
+    assert len(units) == 1
+    assert [t[2].key for t in units[0]] == ["b3", "b4", "b5"]
+
+
+def test_real_chapter_heading_ends_unit():
+    b1 = _blk("b1", "prose", "وعن انس قال قال رسول الله صلى الله عليه وسلم كذا", number="1")
+    chap = _blk("b2", "heading", "كتاب الطهارة")
+    b3 = _blk("b3", "prose", "وعن عمر قال قال رسول الله كذا", number="2")
+    units = _group_hadith_units([(1, 0, b1), (1, 1, chap), (1, 2, b3)])
+    assert len(units) == 2                 # chapter is not absorbed into either
+    assert [t[2].key for t in units[0]] == ["b1"]
+    assert [t[2].key for t in units[1]] == ["b3"]
+
+
+def test_real_chapter_vs_fragment_heading():
+    assert _is_real_chapter(_blk("b0", "heading", "كتاب الطهارة")) is True
+    assert _is_real_chapter(_blk("b0", "heading", "الماء طهور لا ينجسه شيء».")) is False  # ends »
+    assert _is_real_chapter(_blk("b0", "prose", "كتاب")) is False                         # not a heading
