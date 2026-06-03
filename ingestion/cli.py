@@ -24,4 +24,13 @@ def build_parser() -> argparse.ArgumentParser:
     parse_cmd.add_argument("--corpus-path", default="./RELEASE")
     parse_cmd.add_argument("--dump", required=True, help="Output directory for parsed JSON")
 
+    # tagged command: new tagged-format pipeline (parse -> detect -> align ->
+    # annotate(tagged) -> resolve), dumps <uri>.book.json
+    tagged_cmd = sub.add_parser("tagged", help="Build the tagged-format book")
+    tagged_cmd.add_argument("uri", help="OpenITI URI")
+    tagged_cmd.add_argument("--corpus-path", default="./RELEASE")
+    tagged_cmd.add_argument("--dump", required=True, help="Output directory for <uri>.book.json")
+    tagged_cmd.add_argument("--skip-annotate", action="store_true",
+                            help="Skip the Claude tagged-annotate pass (no API)")
+
     return parser

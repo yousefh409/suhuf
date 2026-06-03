@@ -230,6 +230,19 @@ def run_parse(args):
     logger.info(f"Wrote: {out}")
 
 
+def run_tagged(args):
+    """Execute the tagged-format pipeline and dump <uri>.book.json."""
+    from ingestion.pipeline_tagged import build_tagged_book
+    book, _ = build_tagged_book(
+        args.uri, corpus_path=args.corpus_path, annotate=not args.skip_annotate
+    )
+    dump_dir = Path(args.dump)
+    dump_dir.mkdir(parents=True, exist_ok=True)
+    out = dump_dir / f"{args.uri}.book.json"
+    out.write_text(book.model_dump_json(indent=2), encoding="utf-8")
+    logger.info(f"Wrote: {out}")
+
+
 def main():
     parser = build_parser()
     args = parser.parse_args()
@@ -238,6 +251,8 @@ def main():
         run_ingest(args)
     elif args.command == "parse":
         run_parse(args)
+    elif args.command == "tagged":
+        run_tagged(args)
     else:
         parser.print_help()
         sys.exit(1)
