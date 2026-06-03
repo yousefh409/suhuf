@@ -9,7 +9,7 @@ export default async function LoginPage({
   const { redirectTo } = await searchParams;
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-zinc-50 px-4">
+    <main className="min-h-screen flex items-center justify-center px-4">
       <LoginForm redirectTo={safeRedirect(redirectTo)} />
     </main>
   );
