@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 
 import { TASHKEEL_KEY as KEY } from "@/lib/reader/storageKeys";
+import { usePreferences } from "@/components/preferences/PreferencesProvider";
 
 export function TashkeelToggle() {
-  const [on, setOn] = useState(true);
+  const { prefs } = usePreferences();
+  const [on, setOn] = useState(prefs.tashkeel);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
