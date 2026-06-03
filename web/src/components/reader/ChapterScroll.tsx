@@ -9,6 +9,7 @@ import {
   PAGE_MARKERS_KEY,
   HADITH_CARD_KEY,
 } from "@/lib/reader/storageKeys";
+import { usePreferences } from "@/components/preferences/PreferencesProvider";
 import { Block } from "./Block";
 import { PageBoundary } from "./PageBoundary";
 import { TokenText } from "./TokenText";
@@ -54,7 +55,10 @@ function groupBlocks(blocks: BlockT[], counter: { n: number }): RenderItem[] {
 }
 
 export function ChapterScroll({ pages, chapters, mode }: Props) {
-  const [showTashkeel, setShowTashkeel] = useState(true);
+  const { prefs } = usePreferences();
+  // Diacritics default comes from preferences; the in-reader toggle (localStorage)
+  // is a live per-read override applied in the effect below.
+  const [showTashkeel, setShowTashkeel] = useState(prefs.tashkeel);
   const [showDiff, setShowDiff] = useState(false);
   const [showPageMarkers, setShowPageMarkers] = useState(true);
   const [hadithCard, setHadithCard] = useState(false);
@@ -97,7 +101,7 @@ export function ChapterScroll({ pages, chapters, mode }: Props) {
 
   const articleClass =
     mode === "reader"
-      ? "reader-article text-[21px] leading-[1.95] max-w-[44rem] mx-auto px-6 py-12"
+      ? "reader-article text-[length:var(--reading-size)] leading-[var(--reading-leading)] max-w-[44rem] mx-auto px-6 py-12"
       : "font-arabic text-lg leading-loose text-zinc-900 max-w-[720px] mx-auto px-4 py-8";
 
   return (
