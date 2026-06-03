@@ -43,8 +43,9 @@ Emit a list of units, each a list of `(page_number, block_index, block)`.
   prose block whose first token is a transmission opener (`عن`/`وعن`/`حدثنا`…)
   or a prophetic marker.
 - The open unit **absorbs the next block** as a continuation when either:
-  - the unit currently has an **unclosed `«` quote** (a split matn — absorb
-    regardless of the next block's type, including `heading`), or
+  - the unit currently has an **unclosed delimiter** — `«`, `{`, or `﴿` (a split
+    matn or a split Qur'an citation inside the hadith — absorb regardless of the
+    next block's type, including `heading`), or
   - the next block is a **takhrij/grading/source continuation** (a takhrij-line,
     or a short cross-ref/grading note) and is *not* itself a hadith-start.
 - The unit **closes** at the next hadith-start, at a **real chapter heading**
@@ -98,6 +99,14 @@ single-block hadith (regression-guarded).
   deterministic prior it builds on).
 - Any storage/schema/reader change (none needed).
 - Entity spans (person/qur'an/…) — unchanged, stay in the annotate pass.
+- A **standalone** Qur'an passage (or any non-hadith content) splitting across a
+  page **outside** a hadith unit. The same fragmentation is structurally possible
+  for anything block-scoped, but a direct grep found **0** split Qur'an citations
+  (`{}`/`﴿﴾`) vs **199** split hadith matns (`«»`) in Bulugh — Qur'an citations are
+  self-contained units the source keeps together. A split Qur'an *inside* a
+  hadith is covered for free by the general `« { ﴿` continuation set above; a
+  split outside any hadith would need its own non-hadith stitching pass and is
+  not built for a 0-occurrence case.
 
 ## Testing (`ingestion/tests/test_hadith.py`)
 
