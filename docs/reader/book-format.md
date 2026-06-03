@@ -126,6 +126,29 @@ Tokenization is **whitespace-based**. Arabic words are space-separated in the so
 
 ---
 
+## Inline Spans and `ref` Conventions
+
+Blocks carry inline **spans** — `{ start_token_id, end_token_id, label, sub_label?, ref?, confidence? }` — that tag a contiguous token range with a semantic label. Spans nest (a `person` inside an `isnad`; a `book_ref` inside a `takhrij`); at render time the most specific span styles each token.
+
+**Detection vs. resolution — the core contract.** A label's `ref` must be a **standard, machine-usable identifier**, and it is produced by a **deterministic resolver**, never emitted by the LLM directly (the model invents IDs that don't exist). The model marks the span and the surface text; a resolver matches that against a source of truth and writes the canonical `ref`. This is exactly how `quran` already works (`resolve_spans` → bundled ayah index). Detection and resolution are **decoupled**: a span is always detected and styled even when its resolver/dataset doesn't exist yet — `ref` is simply `null` until it can be filled.
+
+### `ref` registry (the contract)
+
+| Label | `ref` format | Resolver → source of truth | Status |
+|---|---|---|---|
+| `quran` | `"2:255"` / `"68:44-45"` (sura:ayah[-ayah]) | citation marker / `resolve_spans` → `quran.json` | implemented |
+| `book_ref` | OpenITI URI, e.g. `0676Nawawi.RiyadSalihin` | normalized-title match → book catalog | resolver TBD |
+| `date_hijri` | integer AH year as string, e.g. `"256"` | digit-normalize the matched text | resolver TBD |
+| `person` | narrator/scholar ID (gazetteer key) | name match → narrator dataset | dataset TBD |
+| `place` | toponym / place ID | match → Althurayya places | dataset TBD |
+| `hadith_ref` | `collection:number` | match → hadith index | dataset TBD |
+| `footnote` | the marker text, e.g. `"1"` | parse (correlation-gated) | implemented |
+| `isnad` / `matn` / `takhrij` | *none* (structural span, no `ref`) | — | n/a |
+
+**Normalization for matching** (book_ref, person, place): strip tashkeel, normalize alef/ya/ta-marbuta variants, and drop leading descriptors (`كتاب`, `صحيح`, …) before comparison — the same normalization family `quran.normalize` uses.
+
+---
+
 ## Storage Format: Supabase Schema
 
 Supabase Postgres is the canonical store for book data. The ingestion pipeline writes to Supabase; the app reads from it at download time only.
