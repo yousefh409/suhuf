@@ -139,6 +139,9 @@ def _emit(block, toks, isnad, matn, takhrij, conf: float, stats: dict) -> None:
 # Narrator hinge (normalized): the report verb / complementizer that ends the
 # isnad in a marker-less hadith ("عن X قال: …" / "عن X أن Y …").
 _QAL_HINGE = {_norm(w) for w in ["قال", "قالت", "أن", "أنه", "أنها", "أنهم"]}
+# Subset whose token introduces the matn (goes IN the matn), vs قال/قالت which
+# end the isnad (stay in isnad).
+_AN_HINGE = {_norm(w) for w in ["أن", "أنه", "أنها", "أنهم"]}
 
 
 def _detect_block(block, stats: dict) -> None:
@@ -220,11 +223,15 @@ def _emit_from_narrator_qal(block, toks, norm, stats: dict) -> bool:
                   or toks[j].text.rstrip().endswith(":")), None)
     if hinge is None or hinge == 0:
         return False
-    # A report word (قال/أن) belongs in the matn; a colon-lead ("…الوضوء:") is
-    # the end of the isnad, so the matn starts after it.
-    hinge_is_word = norm[hinge] in _QAL_HINGE or _deconj(norm[hinge]) in _QAL_HINGE
-    matn_start = hinge if hinge_is_word else hinge + 1
-    isnad_end = hinge - 1 if hinge_is_word else hinge
+    # Boundary convention: the narrator's report verb "قال/قالت:" ends the isnad
+    # (so it stays in isnad, matn starts after); the complementizer "أن[ـه]"
+    # introduces the report (so it goes in the matn); a colon-lead ends the isnad.
+    hn, dn = norm[hinge], _deconj(norm[hinge])
+    is_an = hn in _AN_HINGE or dn in _AN_HINGE
+    if is_an:
+        matn_start, isnad_end = hinge, hinge - 1
+    else:  # قال/قالت report-verb or colon-lead — hinge belongs to the isnad
+        matn_start, isnad_end = hinge + 1, hinge
     if matn_start >= n or isnad_end < 0:
         return False
     takhrij_idx = next((j for j in range(matn_start + 1, n) if norm[j] in TAKHRIJ_NORM), None)
