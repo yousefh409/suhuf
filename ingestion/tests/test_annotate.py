@@ -364,6 +364,38 @@ def test_force_allows_relabel_even_with_native_tags():
     assert stats.get("relabel_allowed") is True
 
 
+def test_low_confidence_structural_span_is_overridable():
+    block = _make_block(n_tokens=6)
+    block.spans = [Span(start_token_id="p1_b0_w0", end_token_id="p1_b0_w2",
+                        label="matn", confidence=0.7)]   # low-conf proposal
+    ann = {"spans": [{"start": 0, "end": 3, "label": "matn", "confidence": 0.9}], "flags": []}
+    _apply_block_annotation(block, ann)
+    matn = [s for s in block.spans if s.label == "matn"]
+    assert len(matn) == 1
+    assert matn[0].end_token_id == "p1_b0_w3"          # the model's corrected span
+
+
+def test_high_confidence_structural_span_is_locked():
+    block = _make_block(n_tokens=6)
+    block.spans = [Span(start_token_id="p1_b0_w0", end_token_id="p1_b0_w2",
+                        label="matn", confidence=0.95)]  # locked
+    ann = {"spans": [{"start": 0, "end": 3, "label": "matn", "confidence": 0.9}], "flags": []}
+    _apply_block_annotation(block, ann)
+    matn = [s for s in block.spans if s.label == "matn"]
+    assert len(matn) == 1
+    assert matn[0].end_token_id == "p1_b0_w2"           # original, model dropped
+
+
+def test_different_label_model_span_coexists_with_soft_span():
+    block = _make_block(n_tokens=6)
+    block.spans = [Span(start_token_id="p1_b0_w0", end_token_id="p1_b0_w4",
+                        label="matn", confidence=0.7)]
+    ann = {"spans": [{"start": 1, "end": 1, "label": "person", "confidence": 0.9}], "flags": []}
+    _apply_block_annotation(block, ann)
+    labels = sorted(s.label for s in block.spans)
+    assert labels == ["matn", "person"]                # person nests inside the soft matn
+
+
 def test_serialize_block_includes_existing_spans():
     from ingestion.annotate import _serialize_block
     from ingestion.models import Block, Span, Token
