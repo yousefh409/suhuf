@@ -157,135 +157,103 @@ _QAL_HINGE = {_norm(w) for w in ["قال", "قالت", "أن", "أنه", "أنه
 _AN_HINGE = {_norm(w) for w in ["أن", "أنه", "أنها", "أنهم"]}
 
 
-def _detect_block(block, stats: dict) -> None:
-    toks = block.tokens
-    norm = [_norm(t.text) for t in toks]
+def _detect_ranges(toks, norm):
+    """Compute (isnad, matn, takhrij, conf) ranges over a token list, or None.
+    Ranges are inclusive (start, end) index pairs in `toks` coords, or None."""
     b = _find_prophetic_marker(norm)
     if b is not None:
-        _emit_from_marker(block, toks, norm, b, stats)        # tier 1: high conf
-        return
-    if _emit_from_quote(block, toks, norm, stats):            # tier 2: «…» matn
-        return
-    if _emit_from_narrator_qal(block, toks, norm, stats):     # tier 3: عن X قال:
-        return
-    _emit_from_crossref(block, toks, norm, stats)             # tier 4: cross-ref
+        return _ranges_from_marker(toks, norm, b)
+    return (_ranges_from_quote(toks, norm)
+            or _ranges_from_narrator_qal(toks, norm)
+            or _ranges_from_crossref(toks, norm))
 
 
-def _emit_from_marker(block, toks, norm, b: int, stats: dict) -> None:
+def _ranges_from_marker(toks, norm, b):
     n = len(toks)
     takhrij_idx = next((j for j in range(b + 1, n) if norm[j] in TAKHRIJ_NORM), None)
     quote_close = None
     if any("«" in toks[k].text for k in range(b, n)):
         quote_close = next((k for k in range(b, n) if "»" in toks[k].text), None)
-
-    candidates = [n - 1]
+    cands = [n - 1]
     if takhrij_idx is not None:
-        candidates.append(takhrij_idx - 1)
+        cands.append(takhrij_idx - 1)
     if quote_close is not None:
-        candidates.append(quote_close)
-    matn_end = min(candidates)
+        cands.append(quote_close)
+    matn_end = min(cands)
     if matn_end < b:
-        return  # self-check: matn would be empty
-
+        return None
     conf = HIGH_CONF if (takhrij_idx is not None or quote_close is not None) else LOW_CONF
     isnad = (0, b - 1) if b > 0 else None
     takhrij = (takhrij_idx, _takhrij_end(toks, takhrij_idx, n)) if takhrij_idx is not None else None
-    _emit(block, toks, isnad, (b, matn_end), takhrij, conf, stats)
+    return (isnad, (b, matn_end), takhrij, conf)
 
 
-def _emit_from_quote(block, toks, norm, stats: dict) -> bool:
-    """Fallback for hadith with no prophetic marker (possessive/vocative/dialogue
-    forms): if a «…» matn quote sits in a transmission context, tag it.
-    Low-confidence — the LLM may correct it. Never fires on quote-less editions
-    (Bukhari/Tirmidhi). Returns True if it emitted spans."""
+def _ranges_from_quote(toks, norm):
     n = len(toks)
     q_open = next((k for k in range(n) if "«" in toks[k].text), None)
     if q_open is None:
-        return False
+        return None
     q_close = next((k for k in range(q_open, n) if "»" in toks[k].text), None)
     if q_close is None:
-        return False
-    # Hadith-context gate: a transmission opener (عن/حدثنا/…) before the quote.
+        return None
     if not any(norm[k] in _TRANSMISSIONS for k in range(q_open)):
-        return False
+        return None
     takhrij_idx = next((j for j in range(q_close + 1, n) if norm[j] in TAKHRIJ_NORM), None)
     isnad = (0, q_open - 1) if q_open > 0 else None
     takhrij = (takhrij_idx, _takhrij_end(toks, takhrij_idx, n)) if takhrij_idx is not None else None
-    _emit(block, toks, isnad, (q_open, q_close), takhrij, LOW_CONF, stats)
-    return True
+    return (isnad, (q_open, q_close), takhrij, LOW_CONF)
 
 
-def _emit_from_narrator_qal(block, toks, norm, stats: dict) -> bool:
-    """Last-resort fallback for marker-less, quote-less hadith (Companion
-    statements, descriptions of the Prophet): a block that OPENS with a
-    transmission isnad and has a narrator hinge (قال/قالت/أن) — isnad before the
-    hinge, matn after. Low-confidence; the LLM may correct it. Returns True if it
-    emitted spans."""
+def _ranges_from_narrator_qal(toks, norm):
     n = len(toks)
     if n < 3:
-        return False
-    # Gate: the block must OPEN with an isnad — a strong "this is a hadith" signal
-    # (a fiqh discussion rarely starts with "عن X … قال:").
+        return None
     first = next((x for x in norm if x), "")
     if first not in _TRANSMISSIONS:
-        return False
-    # Hinge: the narrator's report verb/complementizer (قال/قالت/أن[ـه]), a
-    # ف/و-prefixed one (فقال), or a colon-terminated lead ("في صفة الوضوء:").
+        return None
     hinge = next((j for j in range(1, n)
                   if norm[j] in _QAL_HINGE or _deconj(norm[j]) in _QAL_HINGE
                   or toks[j].text.rstrip().endswith(":")), None)
     if hinge is None or hinge == 0:
-        return False
-    # Boundary convention: the narrator's report verb "قال/قالت:" ends the isnad
-    # (so it stays in isnad, matn starts after); the complementizer "أن[ـه]"
-    # introduces the report (so it goes in the matn); a colon-lead ends the isnad.
-    hn, dn = norm[hinge], _deconj(norm[hinge])
-    is_an = hn in _AN_HINGE or dn in _AN_HINGE
-    if is_an:
-        matn_start, isnad_end = hinge, hinge - 1
-    else:  # قال/قالت report-verb or colon-lead — hinge belongs to the isnad
-        matn_start, isnad_end = hinge + 1, hinge
+        return None
+    is_an = norm[hinge] in _AN_HINGE or _deconj(norm[hinge]) in _AN_HINGE
+    matn_start = hinge if is_an else hinge + 1
+    isnad_end = hinge - 1 if is_an else hinge
     if matn_start >= n or isnad_end < 0:
-        return False
+        return None
     takhrij_idx = next((j for j in range(matn_start + 1, n) if norm[j] in TAKHRIJ_NORM), None)
     matn_end = (takhrij_idx - 1) if takhrij_idx is not None else (n - 1)
     if matn_end < matn_start:
-        return False
+        return None
     takhrij = (takhrij_idx, _takhrij_end(toks, takhrij_idx, n)) if takhrij_idx is not None else None
-    _emit(block, toks, (0, isnad_end), (matn_start, matn_end), takhrij, LOW_CONF, stats)
-    return True
+    return ((0, isnad_end), (matn_start, matn_end), takhrij, LOW_CONF)
 
 
-def _emit_from_crossref(block, toks, norm, stats: dict) -> None:
-    """Tier 4: a block opening with a cross-reference / source-attribution
-    variant (وللبيهقي: …). Three shapes, all low-confidence:
-      - «…» quote        → opener = takhrij, quote = matn
-      - report after ":" → opener = takhrij, the report = matn (e.g. ولمسلم: …)
-      - pure source note → whole block = takhrij (وللترمذي: عن X / وأبي سعيد نحوه)
-    """
+def _ranges_from_crossref(toks, norm):
     raw = " ".join(t.text for t in toks)
     if not (_CROSSREF_RE.match(raw) or any(x in _GRADING_VOCAB for x in norm)):
-        return
+        return None
     n = len(toks)
     q_open = next((k for k in range(n) if "«" in toks[k].text), None)
     q_close = next((k for k in range(q_open, n) if "»" in toks[k].text), None) if q_open is not None else None
     if q_open is not None and q_close is not None and q_open > 0:
-        _emit(block, toks, None, (q_open, q_close), (0, q_open - 1), LOW_CONF, stats)
-        return
-    # No clean quote: split a report-variant ("ولمسلم: <report>") at the colon.
+        return (None, (q_open, q_close), (0, q_open - 1), LOW_CONF)
     colon = next((k for k in range(n) if toks[k].text.rstrip().endswith(":")), None)
     if colon is not None and colon + 1 < n:
         rest0 = colon + 1
-        # If what follows the colon is just more attribution (عن X / من حديث X),
-        # it's a pure source note; otherwise it's a cited matn.
         rest_is_source = (norm[rest0] in _TRANSMISSIONS
                           or " ".join(t.text for t in toks[rest0:rest0 + 2]).startswith(("من حديث", "من رواية")))
         if not rest_is_source:
-            # opener is the source (takhrij); the report after the colon is the
-            # matn, capped before any trailing رواه tail.
-            tk_idx = next((j for j in range(rest0, n) if norm[j] in TAKHRIJ_NORM), None)
-            matn_end = (tk_idx - 1) if tk_idx is not None else (n - 1)
+            tk = next((j for j in range(rest0, n) if norm[j] in TAKHRIJ_NORM), None)
+            matn_end = (tk - 1) if tk is not None else (n - 1)
             if matn_end >= rest0:
-                _emit(block, toks, None, (rest0, matn_end), (0, colon), LOW_CONF, stats)
-                return
-    _emit(block, toks, None, None, (0, n - 1), LOW_CONF, stats)  # pure source note
+                return (None, (rest0, matn_end), (0, colon), LOW_CONF)
+    return (None, None, (0, n - 1), LOW_CONF)
+
+
+def _detect_block(block, stats: dict) -> None:
+    toks = block.tokens
+    ranges = _detect_ranges(toks, [_norm(t.text) for t in toks])
+    if ranges is not None:
+        isnad, matn, takhrij, conf = ranges
+        _emit(block, toks, isnad, matn, takhrij, conf, stats)
