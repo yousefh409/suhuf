@@ -13,6 +13,9 @@ _PAGE_RE = re.compile(r"PageV(\d+)P(\d+)")
 _PAGE_TOKEN_RE = re.compile(r"(PageV\d+P\d+)")
 _HEADING_RE = re.compile(r"^###\s+(\|+)\s+(.*)")
 _EDITOR_RE = re.compile(r"^###\s+\|EDITOR\|")
+# Print-edition sheet/page reference, e.g. "[ص: 6]". Some raw OpenITI files tag
+# these as ### | headings; they are editorial pagination, not chapters.
+_SHEET_REF_RE = re.compile(r"^\[\s*ص\s*:\s*[\d٠-٩]+\s*\]$")
 _HADITH_RE = re.compile(r"^\$RWY\$\s*(.*)")
 _BIO_MARKER_RE = re.compile(r"^###\s+\$(?:BIO_MAN|BIO_WOM|\$?)\$?\s*(.*)")
 # Matches a leading printed ordinal: one or more digits (Arabic-Indic U+0660–U+0669
@@ -49,6 +52,31 @@ _FOOTNOTE_MARKER_RE = re.compile(r"\(([0-9\u0660-\u0669]+)\)$")
 # First-word keywords that identify a takhrij (source-attribution) line.
 # Matched against the first whitespace-delimited token only.
 _TAKHRIJ_KEYWORDS: tuple[str, ...] = ("رواه", "أخرجه", "أخرجها", "رواها", "متفق")
+
+# Ellipsis hemistich separator. Many diwans (e.g. Alfiyyat Ibn Malik) and
+# embedded verse split a bayt's two hemistichs with a standalone "..." / "…"
+# rather than the %~% tag. We only treat it as verse when guards hold (single
+# standalone separator, both halves >= 2 words, balanced length) so prose
+# elisions aren't mistaken for poetry.
+_ELLIPSIS_TOKENS = {"...", "…"}
+_ELLIPSIS_MIN_WORDS = 2
+_ELLIPSIS_BALANCE = 0.4  # shorter half must be >= 40% of the longer half
+
+
+def _split_ellipsis_hemistichs(line_text: str) -> list[str] | None:
+    """Return ``[hemistich1, hemistich2]`` if *line_text* is a single bayt split
+    by one standalone ellipsis token into two balanced halves, else ``None``."""
+    words = line_text.split()
+    seps = [i for i, w in enumerate(words) if w in _ELLIPSIS_TOKENS]
+    if len(seps) != 1:
+        return None
+    left, right = words[: seps[0]], words[seps[0] + 1:]
+    if len(left) < _ELLIPSIS_MIN_WORDS or len(right) < _ELLIPSIS_MIN_WORDS:
+        return None
+    lo, hi = sorted((len(left), len(right)))
+    if lo / hi < _ELLIPSIS_BALANCE:
+        return None
+    return [" ".join(left), " ".join(right)]
 
 # Ornate Quranic bracket glyphs.
 _QURAN_OPEN = "\uFD3F"   # ﴿ U+FD3F ORNATE RIGHT PARENTHESIS — opens the ayah
@@ -274,6 +302,10 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
     hadith_number: str | None = None
     pending_text = ""
     chapter_sort = 0
+    # An ordinal-only heading ("### | 12 -") is a printed item number for the
+    # NEXT content block (numbered hadith), not a chapter. Held here until the
+    # following block consumes it.
+    pending_block_number: str | None = None
     # Footnote definitions collected during current page (marker -> note_text).
     # Resolved at _flush_page via correlation with inline markers in body tokens.
     pending_fn_defs: dict[str, str] = {}
@@ -362,9 +394,29 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
             key=f"b{block_idx}", type="prose", tokens=tokens, spans=spans, number=number,
         ))
 
+    def _emit_prose(text: str, number: str | None = None) -> bool:
+        """Tokenize *text* into a prose block (with inline quran spans) and
+        append it. Returns True if a block was emitted (non-empty)."""
+        block_idx = len(current_blocks)
+        words, quran_spans = _extract_inline_quran(text.split())
+        tokens = [
+            Token(id=f"p{current_page_num}_b{block_idx}_w{i}", text=w)
+            for i, w in enumerate(words)
+        ]
+        if not tokens:
+            return False
+        spans = [
+            Span(start_token_id=tokens[s].id, end_token_id=tokens[e].id, label="quran", ref=r)
+            for s, e, r in quran_spans
+        ]
+        current_blocks.append(Block(
+            key=f"b{block_idx}", type="prose", tokens=tokens, spans=spans, number=number,
+        ))
+        return True
+
     def _dispatch(line_text: str):
         """Process a complete content line (after stripping prefix and joining continuations)."""
-        nonlocal in_hadith, hadith_words, hadith_number, chapter_sort
+        nonlocal in_hadith, hadith_words, hadith_number, chapter_sort, pending_block_number
 
         # Drop OpenITI milestone markers (msNN); they are tooling artifacts, not text.
         line_text = _MILESTONE_RE.sub("", line_text)
@@ -382,6 +434,27 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
             _flush_hadith()
             level = len(m.group(1))
             title = m.group(2).strip()
+            # An ordinal-only heading ("### | 12 -") is a printed item number for
+            # the next content block (numbered hadith), not a chapter.
+            ord_num, ord_rest = _extract_leading_ordinal(title)
+            if ord_num is not None and not ord_rest.strip():
+                pending_block_number = ord_num
+                return
+            # Print-sheet reference ("[ص: 6]") — editorial pagination, not a
+            # chapter. Drop it (leave any pending item number intact).
+            if _SHEET_REF_RE.match(title):
+                return
+            # A heading that opens with content punctuation (":" or an opening
+            # quote «) is mistagged body text, not a chapter title (common in raw
+            # files where hadith continuations get a ### | marker). Preserve it as
+            # prose so the text survives without polluting the chapter list.
+            if title[:1] in (":", "«"):
+                _emit_prose(title[1:].strip() if title[:1] == ":" else title,
+                            number=pending_block_number)
+                pending_block_number = None
+                return
+            # A real titled heading ends any pending item number.
+            pending_block_number = None
             block_idx = len(current_blocks)
             tokens = _tokenize(title, current_page_num, block_idx)
             current_blocks.append(Block(key=f"b{block_idx}", type="heading", level=level, tokens=tokens))
@@ -475,6 +548,30 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
                     )
             return
 
+        # Ellipsis-separated verse: "hemistich1 ... hemistich2" (e.g. Alfiyya).
+        # Guarded against prose elisions by _split_ellipsis_hemistichs. Not while
+        # accumulating a hadith, so hadith text containing "..." isn't stolen.
+        if not in_hadith:
+            hemi = _split_ellipsis_hemistichs(line_text)
+            if hemi:
+                block_idx = len(current_blocks)
+                hemistichs = []
+                w_idx = 0
+                for part in hemi:
+                    words = part.split()
+                    h_tokens = [
+                        Token(id=f"p{current_page_num}_b{block_idx}_w{w_idx + j}", text=w)
+                        for j, w in enumerate(words)
+                    ]
+                    w_idx += len(words)
+                    if h_tokens:
+                        hemistichs.append(h_tokens)
+                if hemistichs:
+                    current_blocks.append(
+                        Block(key=f"b{block_idx}", type="poetry", hemistichs=[hemistichs])
+                    )
+                return
+
         # @MATN@ boundary (only meaningful in hadith mode)
         if "@MATN@" in line_text and in_hadith:
             before, _, after = line_text.partition("@MATN@")
@@ -547,25 +644,8 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
         # Default: prose
         prose_text = line_text.strip()
         prose_number, prose_text = _extract_leading_ordinal(prose_text)
-        block_idx = len(current_blocks)
-        words, quran_spans = _extract_inline_quran(prose_text.split())
-        tokens = [
-            Token(id=f"p{current_page_num}_b{block_idx}_w{i}", text=w)
-            for i, w in enumerate(words)
-        ]
-        if tokens:
-            spans = [
-                Span(
-                    start_token_id=tokens[start].id,
-                    end_token_id=tokens[end].id,
-                    label="quran",
-                    ref=ref,
-                )
-                for start, end, ref in quran_spans
-            ]
-            current_blocks.append(Block(
-                key=f"b{block_idx}", type="prose", tokens=tokens, spans=spans, number=prose_number,
-            ))
+        if _emit_prose(prose_text, number=prose_number or pending_block_number):
+            pending_block_number = None
 
     def _flush_pending():
         nonlocal pending_text
@@ -574,9 +654,10 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
             pending_text = ""
 
     def _flush_page():
-        nonlocal current_blocks, pending_fn_defs
+        nonlocal current_blocks, pending_fn_defs, pending_block_number
         _flush_pending()
         _flush_hadith()
+        pending_block_number = None  # item numbers do not cross page boundaries
         if current_blocks and current_page_num > 0:
             # Correlation-gated footnote resolution.
             # Walk all body tokens; for each token whose text ends with (N),
