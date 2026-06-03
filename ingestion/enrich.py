@@ -143,8 +143,9 @@ def resolve_spans(result: ParseResult) -> int:
     token list (block.tokens for prose/heading/etc., flattened hemistichs for
     poetry) and an id-to-position map. For each span with label=='quran',
     reconstructs the quoted text by joining token texts from start to end
-    (inclusive), calls quran.lookup(), and if resolved sets span.ref to
-    'sura:ayah' overwriting any prior value.
+    (inclusive) and calls quran.lookup_match(). An exact match (the span is a
+    whole ayah) overwrites any prior ref; a weaker containment match only fills
+    a missing ref, so an authoritative ref from a citation marker is preserved.
 
     Non-quran spans are left completely untouched.
 
@@ -179,9 +180,16 @@ def resolve_spans(result: ParseResult) -> int:
                     continue
 
                 quote = " ".join(t.text for t in flat[start_pos:end_pos + 1])
-                hit = _quran.lookup(quote)
-                if hit is not None:
-                    sura, ayah = hit
+                hit = _quran.lookup_match(quote)
+                if hit is None:
+                    continue
+                sura, ayah, kind = hit
+                # Exact matches (the span IS a whole ayah) are authoritative and
+                # override any prior ref. Containment matches are weaker — they
+                # may only FILL a missing ref, never overwrite one. This guards
+                # citation markers like "[آل عمران: ١٨٧]" whose span text reduces
+                # to a sura name that coincidentally falls inside one ayah.
+                if kind == "exact" or span.ref is None:
                     span.ref = f"{sura}:{ayah}"
                     resolved += 1
 

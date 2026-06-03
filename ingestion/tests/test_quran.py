@@ -1,6 +1,6 @@
 """Tests for ingestion.quran — Quran ayah index and matcher."""
 import pytest
-from ingestion.quran import normalize, lookup
+from ingestion.quran import normalize, lookup, lookup_match
 
 
 def test_normalize_strips_diacritics_and_brackets():
@@ -44,6 +44,21 @@ def test_lookup_ambiguous_returns_none():
     # "الله" appears in very many ayat — not a unique match
     result = lookup("الله")
     assert result is None
+
+
+def test_lookup_match_reports_exact():
+    # A full ayah resolves as an exact match.
+    assert lookup_match("الحمد لله رب العالمين") == (1, 2, "exact")
+
+
+def test_lookup_match_reports_containment():
+    # A sura name ("آل عمران") is not a whole ayah but uniquely appears
+    # inside ayah 3:33 — a weaker containment match.
+    assert lookup_match("آل عمران") == (3, 33, "containment")
+
+
+def test_lookup_match_no_match_returns_none():
+    assert lookup_match("هذا كلام ليس من القرآن أبدا") is None
 
 
 def test_index_completeness():

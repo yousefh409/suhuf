@@ -208,3 +208,43 @@ def test_resolve_spans_returns_count():
     count = resolve_spans(result)
     assert isinstance(count, int)
     assert count == 1
+
+
+def _make_sura_name_result(ref: str | None) -> tuple[ParseResult, Span]:
+    """ParseResult with one quran span whose text is the sura name "آل عمران".
+
+    The normalized phrase uniquely *contains*-matches ayah 3:33, so a naive
+    containment override would clobber any pre-existing ref. Mirrors the
+    Ibn Kathir citation-bracket case: Claude reads "[آل عمران: 187]" and sets
+    the correct ref, but the span text reduces to just the sura name.
+    """
+    tokens = [
+        Token(id="p1_b0_w0", text="آل"),       # آل
+        Token(id="p1_b0_w1", text="عمران"),  # عمران
+    ]
+    span = Span(start_token_id="p1_b0_w0", end_token_id="p1_b0_w1", label="quran", ref=ref)
+    block = Block(key="b0", type="prose", tokens=tokens, spans=[span])
+    page = Page(page_number=1, volume=1, content_blocks=[block])
+    meta = BookMetadata(
+        openiti_id="test.book",
+        title_ar="كتاب اختبار",
+        author_openiti_id="0000Test",
+    )
+    return ParseResult(metadata=meta, pages=[page], chapters=[]), span
+
+
+def test_resolve_spans_containment_does_not_override_existing_ref():
+    # The author's citation already gave the correct ref; a weak containment
+    # match on the embedded sura name must NOT overwrite it.
+    result, span = _make_sura_name_result(ref="3:187")
+    count = resolve_spans(result)
+    assert span.ref == "3:187"
+    assert count == 0
+
+
+def test_resolve_spans_containment_fills_missing_ref():
+    # With no prior ref, a unique containment match is still useful — fill it.
+    result, span = _make_sura_name_result(ref=None)
+    count = resolve_spans(result)
+    assert span.ref == "3:33"
+    assert count == 1
