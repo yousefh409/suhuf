@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { AudioLines, Square } from "lucide-react";
 
 type Props = {
   onStart: (anchorBlockKey: string) => void;
@@ -59,14 +60,11 @@ export function ReciteToggle({ onStart, onStop, disabled, isActive }: Props) {
       type="button"
       onClick={handle}
       disabled={disabled}
-      className={`text-xs px-2 py-1 rounded font-mono ${
-        isActive
-          ? "bg-red-100 text-red-800 animate-pulse"
-          : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 disabled:opacity-40"
-      }`}
-      title={disabled ? "No tashkeel — recite unavailable" : isActive ? "Stop" : "Recite"}
+      className={`reader-recite${isActive ? " is-active" : ""}`}
+      title={disabled ? "No tashkeel — recite unavailable" : isActive ? "Stop reciting" : "Recite"}
     >
-      {isActive ? "● Stop" : "Recite"}
+      {isActive ? <Square size={13} fill="currentColor" strokeWidth={0} /> : <AudioLines size={16} />}
+      <span>{isActive ? "Stop" : "Recite"}</span>
     </button>
   );
 }
