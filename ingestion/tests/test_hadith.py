@@ -118,6 +118,26 @@ def test_quote_fallback_possessive_nabi(tmp_path):
     assert sp["matn"].confidence == LOW_CONF
 
 
+def test_narrator_qal_fallback(tmp_path):
+    # Companion action report, no prophetic subject, no «…»: "عن X أن Y …".
+    body = "# وعن حمران ان عثمان رضي الله عنه دعا بوضوء فغسل كفيه ثلاث مرات ثم مضمض\n"
+    block = parse_file(_make_book(tmp_path, body), "0100Test.NQ").pages[0].content_blocks[0]
+    detect_hadith_structure(_one(block))
+    sp = _spans(block)
+    assert "isnad" in sp and "matn" in sp
+    texts = {t.id: t.text for t in block.tokens}
+    assert texts[sp["isnad"].start_token_id] == "وعن"   # isnad opens the block
+    assert sp["matn"].confidence == LOW_CONF
+
+
+def test_narrator_qal_requires_transmission_opener(tmp_path):
+    # A non-hadith block that merely contains قال must not fire (no isnad opener).
+    body = "# هذه مسالة فقهية قال فيها الجمهور بالجواز وخالف بعضهم\n"
+    block = parse_file(_make_book(tmp_path, body), "0100Test.NotHadith").pages[0].content_blocks[0]
+    detect_hadith_structure(_one(block))
+    assert all(s.label not in ("isnad", "matn", "takhrij") for s in block.spans)
+
+
 def test_quote_without_transmission_no_fallback(tmp_path):
     # A «…» with no transmission opener (a fiqh definition) must NOT fire.
     body = "# الماء «الطهور» هو الباقي على اصل خلقته وهذا قول الجمهور\n"
