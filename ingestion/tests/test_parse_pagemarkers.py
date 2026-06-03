@@ -128,3 +128,22 @@ def test_pagev00p000_inline_ignored(tmp_path):
         for block in page.content_blocks:
             for token in block.tokens:
                 assert "PageV" not in token.text, f"PageV found in token: {token.text!r}"
+
+
+def test_pagev_glued_to_continuation_prefix_ignored(tmp_path):
+    """A page marker glued to a ~~ continuation prefix (e.g. '~~PageV00P000',
+    common in the Bulugh source) must be recognized as a marker, not leak into
+    content as a token. Regression for the reader showing 'PageV00P000'."""
+    src = _make_book(tmp_path, [
+        "# PageV01P001",
+        "# نص قبل العلامة",
+        "~~PageV00P000",
+        "~~PageV01P002",
+        "# نص بعد العلامة",
+    ])
+    result = parse_file(src, "0100Test.GluedMarker")
+
+    for page in result.pages:
+        for block in page.content_blocks:
+            for token in block.tokens:
+                assert "PageV" not in token.text, f"PageV leaked into token: {token.text!r}"
