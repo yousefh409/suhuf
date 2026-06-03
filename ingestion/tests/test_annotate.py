@@ -9,7 +9,7 @@ from ingestion.annotate import (
     _apply_block_annotation,
     annotate_book,
 )
-from ingestion.models import Block, BookMetadata, Page, ParseResult, Token
+from ingestion.models import Block, BookMetadata, Page, ParseResult, Span, Token
 
 
 # ---------------------------------------------------------------------------
@@ -56,6 +56,58 @@ def test_apply_accepts_frozen_span_labels():
     assert "quran" in stored_labels
     assert "book_ref" in stored_labels
     assert len(block.spans) == 3
+
+
+def test_apply_preserves_parse_spans():
+    # A deterministic span emitted by parse (e.g. a footnote marker) survives,
+    # and non-overlapping model spans are added alongside it.
+    block = _make_block(n_tokens=6)
+    block.spans = [Span(start_token_id="p1_b0_w5", end_token_id="p1_b0_w5", label="footnote", ref="1")]
+    ann = {
+        "spans": [
+            {"start": 0, "end": 0, "label": "person", "confidence": 0.9},
+        ],
+        "flags": [],
+    }
+    _apply_block_annotation(block, ann)
+    labels = [s.label for s in block.spans]
+    assert "footnote" in labels and "person" in labels
+    assert len(block.spans) == 2
+
+
+def test_apply_model_span_does_not_clobber_overlapping_parse_span():
+    # Parse marked tokens 1–3 as quran (citation-anchored). A model span over
+    # the same range must be dropped — parse wins.
+    block = _make_block(n_tokens=6)
+    block.spans = [Span(start_token_id="p1_b0_w1", end_token_id="p1_b0_w3", label="quran", ref="2:255")]
+    ann = {
+        "spans": [
+            {"start": 2, "end": 2, "label": "quran", "ref": "9:99", "confidence": 0.9},
+        ],
+        "flags": [],
+    }
+    _apply_block_annotation(block, ann)
+    quran = [s for s in block.spans if s.label == "quran"]
+    assert len(quran) == 1
+    assert quran[0].ref == "2:255"  # the parse span, not the model's 9:99
+
+
+def test_apply_parse_owns_quran_in_block():
+    # When parse found a cited ayah, drop the model's *non-overlapping* quran
+    # span too (avoids a duplicate span on the trailing citation bracket), but
+    # keep the model's other labels.
+    block = _make_block(n_tokens=8)
+    block.spans = [Span(start_token_id="p1_b0_w0", end_token_id="p1_b0_w2", label="quran", ref="6:19")]
+    ann = {
+        "spans": [
+            {"start": 4, "end": 5, "label": "quran", "ref": "3:33", "confidence": 0.9},
+            {"start": 6, "end": 7, "label": "person", "confidence": 0.9},
+        ],
+        "flags": [],
+    }
+    _apply_block_annotation(block, ann)
+    labels = sorted(s.label for s in block.spans)
+    assert labels == ["person", "quran"]  # only the parse quran + model person
 
 
 def test_apply_rejects_old_span_labels():
