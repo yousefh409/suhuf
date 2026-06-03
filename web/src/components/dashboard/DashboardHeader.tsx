@@ -1,13 +1,16 @@
 import type { FC } from "react";
+import ProfileMenu from "@/components/dashboard/ProfileMenu";
 
 interface DashboardHeaderProps {
   name?: string;
   userInitials?: string;
+  email?: string;
 }
 
 const DashboardHeader: FC<DashboardHeaderProps> = ({
   name = "Reader",
   userInitials = "YH",
+  email,
 }) => {
   return (
     <div className="flex items-end justify-between">
@@ -17,10 +20,7 @@ const DashboardHeader: FC<DashboardHeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Avatar */}
-        <div className="w-10 h-10 flex items-center justify-center rounded-full bg-cta-dark text-parchment-warm font-sans text-sm font-medium select-none">
-          {userInitials}
-        </div>
+        <ProfileMenu email={email} initials={userInitials} />
       </div>
     </div>
   );
