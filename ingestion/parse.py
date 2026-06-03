@@ -295,6 +295,73 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
         in_hadith = False
         hadith_number = None
 
+    def _emit_inline_hadith(isnad_text: str, matn_text: str, number: str | None):
+        """Emit ONE prose block for a running-line hadith.
+
+        isnad/matn/takhrij live as inline spans over token ranges instead of
+        separate blocks. An embedded ``{ayah} [sura:ayah]`` citation in the matn
+        keeps its quran span. The ``@MATN@`` marker itself is never tokenized.
+        """
+        isnad_words = isnad_text.split()
+        matn_words, quran_spans = _extract_inline_quran(matn_text.split())
+
+        all_words = isnad_words + matn_words
+        if not all_words:
+            return
+        block_idx = len(current_blocks)
+        tokens = [
+            Token(id=f"p{current_page_num}_b{block_idx}_w{i}", text=w)
+            for i, w in enumerate(all_words)
+        ]
+
+        spans: list[Span] = []
+        n_isnad = len(isnad_words)
+        if n_isnad:
+            spans.append(Span(
+                start_token_id=tokens[0].id,
+                end_token_id=tokens[n_isnad - 1].id,
+                label="isnad",
+            ))
+
+        # An optional trailing takhrij begins at the first source-attribution
+        # keyword inside the matn portion (mirrors the standalone-line rule).
+        takhrij_local: int | None = None
+        for j, w in enumerate(matn_words):
+            if w in _TAKHRIJ_KEYWORDS:
+                takhrij_local = j
+                break
+
+        if matn_words:
+            matn_end_local = (
+                takhrij_local - 1 if takhrij_local is not None else len(matn_words) - 1
+            )
+            if matn_end_local >= 0:
+                spans.append(Span(
+                    start_token_id=tokens[n_isnad].id,
+                    end_token_id=tokens[n_isnad + matn_end_local].id,
+                    label="matn",
+                ))
+            if takhrij_local is not None:
+                spans.append(Span(
+                    start_token_id=tokens[n_isnad + takhrij_local].id,
+                    end_token_id=tokens[-1].id,
+                    label="takhrij",
+                ))
+
+        # Quran spans sit inside the matn portion; append last so they win on
+        # overlap with the matn span (reader: later span wins per token).
+        for start, end, ref in quran_spans:
+            spans.append(Span(
+                start_token_id=tokens[n_isnad + start].id,
+                end_token_id=tokens[n_isnad + end].id,
+                label="quran",
+                ref=ref,
+            ))
+
+        current_blocks.append(Block(
+            key=f"b{block_idx}", type="prose", tokens=tokens, spans=spans, number=number,
+        ))
+
     def _dispatch(line_text: str):
         """Process a complete content line (after stripping prefix and joining continuations)."""
         nonlocal in_hadith, hadith_words, hadith_number, chapter_sort
@@ -332,14 +399,25 @@ def parse_file(path: Path, openiti_uri: str) -> ParseResult:
         m = _HADITH_RE.match(line_text)
         if m:
             _flush_hadith()
-            in_hadith = True
-            hadith_words = []
-            hadith_number = None
             remainder = m.group(1).strip()
+            hadith_number = None
             if remainder:
                 hadith_number, remainder = _extract_leading_ordinal(remainder)
-                if remainder:
-                    hadith_words.extend(remainder.split())
+            # Inline hadith: isnad and matn share one source line, joined by
+            # @MATN@. Emit one prose block with spans, not separate blocks.
+            if remainder and "@MATN@" in remainder:
+                before, _, after = remainder.partition("@MATN@")
+                _emit_inline_hadith(before.strip(), after.strip(), hadith_number)
+                in_hadith = False
+                hadith_words = []
+                hadith_number = None
+                return
+            # Separate-line hadith: accumulate isnad words; a later @MATN@
+            # dispatch (or a flush) closes it as separate blocks.
+            in_hadith = True
+            hadith_words = []
+            if remainder:
+                hadith_words.extend(remainder.split())
             return
 
         # Poetry (check before @MATN@ since %~% is unambiguous)
