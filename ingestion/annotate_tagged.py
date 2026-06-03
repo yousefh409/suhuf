@@ -10,6 +10,7 @@ and entity tags nest inside structural ones instead of being dropped.
 from __future__ import annotations
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 from ingestion import tagged_format as tf
 from ingestion.tags import compile_tagged, render_tagged, TagError
@@ -20,6 +21,7 @@ PROMPT_VERSION = "annotate-tagged-v1"
 MODEL = "claude-sonnet-4-6"
 CHUNK_SIZE = 30
 MAX_TOKENS = 16384
+MAX_WORKERS = 8
 LOCK_THRESHOLD = 0.9
 _STRUCT = {"isnad", "matn", "takhrij"}
 
@@ -86,11 +88,10 @@ def annotate_book_tagged(book: tf.Book, client=None) -> dict:
     targets = [(i, b) for i, b in enumerate(blocks)
                if b.type != "poetry" and b.text.strip()]
     system = _system_prompt()
+    chunks = [targets[ci:ci + CHUNK_SIZE] for ci in range(0, len(targets), CHUNK_SIZE)]
 
-    for ci in range(0, len(targets), CHUNK_SIZE):
-        chunk = targets[ci:ci + CHUNK_SIZE]
-        stats["chunks"] += 1
-        stats["blocks_sent"] += len(chunk)
+    def _call(chunk):
+        """One API call for a chunk. Returns (anns, usage) or (None, None)."""
         payload = [{"key": str(idx), "tagged": b.tagged} for idx, b in chunk]
         user = "Annotate these blocks:\n\n" + json.dumps(payload, ensure_ascii=False)
         try:
@@ -100,22 +101,29 @@ def annotate_book_tagged(book: tf.Book, client=None) -> dict:
             )
         except Exception as e:
             logger.warning(f"annotate_tagged: API call failed: {e}")
-            stats["api_errors"] += 1
-            continue
-        try:
-            stats["input_tokens"] += resp.usage.input_tokens
-            stats["output_tokens"] += resp.usage.output_tokens
-        except AttributeError:
-            pass
-
+            return None, None
         body = resp.content[0].text if resp.content else ""
+        usage = getattr(resp, "usage", None)
         try:
             data = json.loads(body[body.find("{"):body.rfind("}") + 1])
-            anns = data.get("blocks") or []
+            return (data.get("blocks") or []), usage
         except (ValueError, json.JSONDecodeError):
+            return None, usage
+
+    # Fan the chunk calls out concurrently (the slow part is network I/O), then
+    # apply the merges single-threaded so block mutation and stats stay simple.
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
+        results = list(ex.map(_call, chunks))
+
+    for chunk, (anns, usage) in zip(chunks, results):
+        stats["chunks"] += 1
+        stats["blocks_sent"] += len(chunk)
+        if usage is not None:
+            stats["input_tokens"] += getattr(usage, "input_tokens", 0)
+            stats["output_tokens"] += getattr(usage, "output_tokens", 0)
+        if anns is None:
             stats["api_errors"] += 1
             continue
-
         for ann in anns:
             try:
                 idx = int(ann.get("key"))
