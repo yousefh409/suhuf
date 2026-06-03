@@ -150,6 +150,42 @@ def test_crossref_quote_variant(tmp_path):
     assert sp["takhrij"].start_token_id == block.tokens[0].id   # opener is the takhrij
 
 
+def test_crossref_report_variant_splits_to_matn(tmp_path):
+    # Fix #1: "ولمسلم: <report>" (no «…») → opener=takhrij, the report=matn.
+    body = "# ولمسلم: لقد كنت افرك المني من ثوب رسول الله صلى الله عليه وسلم فيصلي فيه\n"
+    block = parse_file(_make_book(tmp_path, body), "0100Test.RV").pages[0].content_blocks[0]
+    detect_hadith_structure(_one(block))
+    sp = _spans(block)
+    assert "matn" in sp and "takhrij" in sp        # not takhrij-only
+    texts = {t.id: t.text for t in block.tokens}
+    assert "ولمسلم" in texts[sp["takhrij"].start_token_id]
+    assert texts[sp["matn"].start_token_id] == "لقد"
+
+
+def test_crossref_pure_note_stays_takhrij(tmp_path):
+    # A note whose post-colon content is just attribution stays takhrij-only.
+    body = "# وللترمذي: عن سعيد بن زيد رضي الله عنه\n"
+    block = parse_file(_make_book(tmp_path, body), "0100Test.PN").pages[0].content_blocks[0]
+    detect_hadith_structure(_one(block))
+    sp = _spans(block)
+    assert "takhrij" in sp and "matn" not in sp
+
+
+def test_takhrij_capped_before_following_variant(tmp_path):
+    # Fix #2: takhrij stops at the sentence end, not swallowing a trailing variant.
+    body = ("# وعن ابي هريرة رضي الله عنه قال قال رسول الله صلى الله عليه وسلم «انما الاعمال» "
+            "رواه البخاري. ولمسلم نحوه\n")
+    block = parse_file(_make_book(tmp_path, body), "0100Test.Cap").pages[0].content_blocks[0]
+    detect_hadith_structure(_one(block))
+    sp = _spans(block)
+    texts = {t.id: t.text for t in block.tokens}
+    assert texts[sp["takhrij"].end_token_id].rstrip().endswith(".")   # ends at "البخاري."
+    ids = [t.id for t in block.tokens]
+    i0, i1 = ids.index(sp["takhrij"].start_token_id), ids.index(sp["takhrij"].end_token_id)
+    takhrij_text = " ".join(block.tokens[i].text for i in range(i0, i1 + 1))
+    assert "ولمسلم" not in takhrij_text
+
+
 def test_crossref_source_note_is_takhrij(tmp_path):
     # "وأصله في الصحيحين …" — a pure source/grading note → whole block = takhrij.
     body = "# وأصله في الصحيحين من حديث عبد الله بن زيد بن عاصم المازني\n"
