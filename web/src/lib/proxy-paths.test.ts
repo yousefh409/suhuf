@@ -3,9 +3,6 @@ import { isProtectedPath, loginRedirectTarget, safeRedirect } from "./proxy-path
 
 describe("isProtectedPath", () => {
   it("matches protected roots and their children", () => {
-    expect(isProtectedPath("/reader")).toBe(true);
-    expect(isProtectedPath("/reader/0123Book")).toBe(true);
-    expect(isProtectedPath("/library")).toBe(true);
     expect(isProtectedPath("/inspector/0123Book")).toBe(true);
     expect(isProtectedPath("/dashboard")).toBe(true);
   });
@@ -16,6 +13,10 @@ describe("isProtectedPath", () => {
     expect(isProtectedPath("/welcome")).toBe(false);
     expect(isProtectedPath("/r/abc")).toBe(false);
     expect(isProtectedPath("/readerly")).toBe(false);
+    // Discover + Reader are public.
+    expect(isProtectedPath("/library")).toBe(false);
+    expect(isProtectedPath("/reader")).toBe(false);
+    expect(isProtectedPath("/reader/0123Book")).toBe(false);
   });
 });
 

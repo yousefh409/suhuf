@@ -1,6 +1,6 @@
+// Public: /library (Discover) and /reader/<id> render for logged-out visitors.
+// Gated: the personal dashboard and the inspector.
 export const PROTECTED_PREFIXES = [
-  "/reader",
-  "/library",
   "/inspector",
   "/dashboard",
 ] as const;
