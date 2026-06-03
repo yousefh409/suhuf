@@ -4,12 +4,15 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import type { Preferences } from "@/lib/preferences/types";
 import { preferencesToAttributes } from "@/lib/preferences/attributes";
 import { writePreferencesCookie } from "@/lib/preferences/cookie";
+import { mergePreferences } from "@/lib/preferences/merge";
 
 interface PreferencesContextValue {
   prefs: Preferences;
@@ -35,6 +38,52 @@ interface PreferencesProviderProps {
 
 export function PreferencesProvider({ initial, children }: PreferencesProviderProps) {
   const [prefs, setPrefs] = useState<Preferences>(initial);
+  const signedInRef = useRef(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // On mount: fetch DB prefs and reconcile with the cookie (initial).
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/preferences")
+      .then(async (res) => {
+        if (cancelled) return;
+
+        if (res.status === 401) {
+          signedInRef.current = false;
+          return;
+        }
+
+        if (!res.ok) return;
+
+        signedInRef.current = true;
+
+        const { prefs: dbPrefs } = (await res.json()) as { prefs: Preferences | null };
+        if (cancelled) return;
+
+        const { effective, seedDb } = mergePreferences(initial, dbPrefs ?? null);
+
+        if (seedDb) {
+          // No DB row yet — push the cookie preferences to seed the DB.
+          fetch("/api/preferences", {
+            method: "PUT",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(effective),
+          }).catch(() => {});
+        } else {
+          // DB wins: apply the authoritative preferences from the server.
+          setPrefs(effective);
+          writePreferencesCookie(effective);
+          applyAttributes(effective);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const setPref = useCallback(
     <K extends keyof Preferences>(key: K, value: Preferences[K]) => {
@@ -42,7 +91,19 @@ export function PreferencesProvider({ initial, children }: PreferencesProviderPr
         const next = { ...prev, [key]: value };
         writePreferencesCookie(next);
         applyAttributes(next);
-        // Phase 4 seam: signed-in users also sync `next` to the server here.
+
+        // Write-through to the DB for signed-in users, debounced.
+        if (signedInRef.current) {
+          if (debounceRef.current !== null) clearTimeout(debounceRef.current);
+          debounceRef.current = setTimeout(() => {
+            fetch("/api/preferences", {
+              method: "PUT",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(next),
+            }).catch(() => {});
+          }, 400);
+        }
+
         return next;
       });
     },
