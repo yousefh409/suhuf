@@ -262,3 +262,43 @@ def test_real_chapter_vs_fragment_heading():
     assert _is_real_chapter(_blk("b0", "heading", "كتاب الطهارة")) is True
     assert _is_real_chapter(_blk("b0", "heading", "الماء طهور لا ينجسه شيء».")) is False  # ends »
     assert _is_real_chapter(_blk("b0", "prose", "كتاب")) is False                         # not a heading
+
+
+def test_split_matn_spans_both_blocks(tmp_path):
+    # A hadith whose matn quote opens in one block and closes in the next, with
+    # the tail pulled into a ### | heading — must produce a matn span in BOTH,
+    # the heading re-typed to prose, and dropped from chapters.
+    src = tmp_path / "split.mARkdown"
+    src.write_text(
+        "######OpenITI#\n#META#Header#End#\n# PageV01P001\n"
+        "### | 1 - \n"
+        "# وعن ابي سعيد الخدري رضي الله عنه قال قال رسول الله صلى الله عليه وسلم «ان\n"
+        "### | الماء طهور لا ينجسه شيء».\n"
+        "# اخرجه الثلاثة\n",
+        encoding="utf-8",
+    )
+    from ingestion.parse import parse_file
+    result = parse_file(src, "0100Test.Split")
+    detect_hadith_structure(result)
+    blocks = result.pages[0].content_blocks
+    matn_blocks = [b for b in blocks if any(s.label == "matn" for s in b.spans)]
+    assert len(matn_blocks) == 2                         # matn spans BOTH blocks
+    frag = [b for b in blocks if "طهور" in " ".join(t.text for t in b.tokens)][0]
+    assert frag.type == "prose"                          # re-typed from heading
+    assert all("طهور" not in c.title for c in result.chapters)  # pruned from chapters
+
+
+def test_single_block_hadith_unchanged(tmp_path):
+    # Regression: a self-contained hadith still gets one isnad+matn+takhrij set.
+    src = tmp_path / "one.mARkdown"
+    src.write_text(
+        "######OpenITI#\n#META#Header#End#\n# PageV01P001\n"
+        "# وعن ابي هريرة رضي الله عنه قال قال رسول الله صلى الله عليه وسلم «انما الاعمال» رواه البخاري\n",
+        encoding="utf-8",
+    )
+    from ingestion.parse import parse_file
+    result = parse_file(src, "0100Test.One")
+    detect_hadith_structure(result)
+    b = result.pages[0].content_blocks[0]
+    labels = {s.label for s in b.spans}
+    assert {"isnad", "matn", "takhrij"} <= labels
