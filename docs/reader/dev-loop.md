@@ -79,6 +79,12 @@ If you're iterating on parsing only and don't need tashkeel/enrichment:
   an item `number` on the next block (not a chapter); `[ص: N]` print-sheet refs
   are dropped and `:`/`«`-prefixed headings become prose (mistagged body text in
   raw OpenITI files).
+- `hadith.py` — deterministic hadith-structure detector, runs after parse:
+  splits a prose hadith into `isnad`/`matn`/`takhrij` spans anchored on the
+  universal prophetic-speech marker, with `«…»`/narrator-`قال:`/cross-ref
+  fallbacks. Lifts structural coverage from ~8% (LLM-only) to ~99% on Bulugh,
+  high precision on the marker tier; fallbacks are low-confidence proposals the
+  annotate pass may correct.
 - `quran.py` — bundled ayah index + sura-name table. `citation_to_ref`
   parses `"الأعراف: 158"` → `"7:158"`; `lookup_match` resolves a quote by
   exact/containment match.
