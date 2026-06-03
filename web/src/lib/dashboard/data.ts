@@ -10,13 +10,12 @@ import type {
   DiscoverBook,
   DiscoverQuery,
 } from "./types";
-import { mockStats } from "./mock";
 import { queryDiscover, queryGenres } from "./catalog";
 import { queryLibrary, queryContinueReading, queryRecommended } from "./library";
+import { queryStats } from "./stats";
 
-// TODO(group0): swap to Supabase — reading_sessions aggregate (sum pages_read, words_learned, streak, minutes)
 export async function getStats(): Promise<DashboardStats> {
-  return mockStats;
+  return queryStats();
 }
 
 export async function getContinueReading(): Promise<ContinueReadingItem[]> {
