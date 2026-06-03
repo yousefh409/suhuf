@@ -15,5 +15,5 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   if (!user) redirect("/login");
 
-  return <div className="min-h-screen bg-white text-zinc-900">{children}</div>;
+  return <div className="min-h-screen bg-parchment text-ink">{children}</div>;
 }
