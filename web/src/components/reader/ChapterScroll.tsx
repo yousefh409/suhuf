@@ -110,7 +110,11 @@ export function ChapterScroll({ pages, chapters, mode }: Props) {
         const pageAnchors = anchors.get(page.page_number);
         const items = itemsByPage[pi];
         return (
-          <section key={`${page.volume}-${page.page_number}`}>
+          <section
+            key={`${page.volume}-${page.page_number}`}
+            data-page-number={page.page_number}
+            data-volume={page.volume}
+          >
             <PageBoundary
               volume={page.volume}
               pageNumber={page.page_number}

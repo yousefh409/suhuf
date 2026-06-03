@@ -20,6 +20,8 @@ import {
   ReciteShellContent,
 } from "@/components/reader/recite/ReciteShell";
 import { WordPopoverShell } from "@/components/reader/word/WordPopoverShell";
+import ReadingTracker from "@/components/reader/ReadingTracker";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +42,12 @@ export default async function ReaderPage({
 
   const recitable = hasTashkeel(pages, Number.POSITIVE_INFINITY);
   const chapterBlocks = pages.flatMap((p) => p.content_blocks);
+
+  // Record reading activity only for signed-in readers (the route is public).
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   return (
     <ReaderThemeShell>
@@ -72,6 +80,7 @@ export default async function ReaderPage({
         <ReciteShellContent>
           <WordPopoverShell>
             <ChapterScroll pages={pages} chapters={chapters} mode="reader" />
+            {user && <ReadingTracker openitiId={decoded} />}
           </WordPopoverShell>
         </ReciteShellContent>
       </ReciteShell>
