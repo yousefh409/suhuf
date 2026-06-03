@@ -178,6 +178,22 @@ def test_apply_rejects_relabel_to_poetry():
     assert block.parser_type is None    # never stashed
 
 
+def test_apply_rejects_relabel_away_from_poetry():
+    # A parser-detected poetry block must not be relabeled: its content lives in
+    # hemistichs, so a heading/prose relabel would orphan it and render blank.
+    block = _make_block(btype="poetry")
+    ann = {
+        "key": "p1_b0",
+        "type": "heading",
+        "confidence": 0.95,
+        "spans": [],
+        "flags": [],
+    }
+    _apply_block_annotation(block, ann, allow_relabel=True)
+    assert block.type == "poetry"       # poetry is parser-owned
+    assert block.parser_type is None
+
+
 def test_apply_accepts_frozen_block_relabel():
     block = _make_block(btype="prose")
     ann = {

@@ -94,7 +94,7 @@ For each block, return a JSON object with:
 Block-type definitions:
 - "prose": general running text (default when no more specific type applies)
 - "heading": section or chapter heading
-- "poetry": verse in metered form; hemistichs separated by a caesura. Do NOT relabel a block TO poetry — poetry is detected upstream with its hemistich structure; if a prose block is actually verse, leave its type unchanged
+- "poetry": verse in metered form; hemistichs separated by a caesura. Poetry is detected upstream and is parser-owned: never relabel a block TO poetry, and never relabel a block whose type is already poetry to something else — leave poetry blocks' type unchanged (you may still add spans to them)
 - "isnad": chain of transmitters, e.g. "حدثنا/أخبرنا … عن … عن …" leading into a hadith
 - "matn": the actual reported text of a hadith, often (but not always) wrapped in « » or "..."
 - "takhrij": source attribution after the matn naming which collections recorded it, e.g. "رواه البخاري في صحيحه"
@@ -217,9 +217,12 @@ def _apply_block_annotation(
         and isinstance(new_type, str)
         and new_type in BLOCK_TYPES
         and new_type != block.type
-        # Poetry is parser-owned: it carries hemistich structure the model can't
-        # produce, so a model relabel to poetry would render blank. Reject it.
+        # Poetry is parser-owned in BOTH directions: its content lives in
+        # `hemistichs`, not `tokens`. Relabeling TO poetry (no hemistichs to
+        # build) or FROM poetry (orphans the hemistichs under a tokens-based
+        # renderer) renders blank. Never relabel across the poetry boundary.
         and new_type != "poetry"
+        and block.type != "poetry"
         and conf is not None
         and conf >= MIN_RELABEL_CONFIDENCE
     ):
