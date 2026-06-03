@@ -89,8 +89,15 @@ for _norm, _s, _a in _ayat_list:
 # Lookup
 # ---------------------------------------------------------------------------
 
-def lookup(quote: str) -> tuple[int, int] | None:
-    """Resolve *quote* to (sura, ayah), or None if not found / ambiguous.
+def lookup_match(quote: str) -> tuple[int, int, str] | None:
+    """Resolve *quote* to (sura, ayah, kind), or None if not found / ambiguous.
+
+    ``kind`` is "exact" when the normalized phrase equals a whole ayah, or
+    "containment" when it uniquely appears *inside* exactly one ayah. Callers
+    use the kind to weight the result: an exact match is the whole verse and
+    trustworthy; a containment match is weaker (a fragment, or — for a citation
+    marker like "[آل عمران: ١٨٧]" — just the sura name, which can coincide with
+    an unrelated ayah).
 
     Priority:
     1. Exact match on normalized text — must be unique.
@@ -103,11 +110,20 @@ def lookup(quote: str) -> tuple[int, int] | None:
     # 1. Exact match
     hits = _exact.get(norm)
     if hits and len(hits) == 1:
-        return hits[0]
+        return (hits[0][0], hits[0][1], "exact")
 
     # 2. Containment scan
     matches = [(s, a) for (t, s, a) in _ayat_list if norm in t]
     if len(matches) == 1:
-        return matches[0]
+        return (matches[0][0], matches[0][1], "containment")
 
     return None
+
+
+def lookup(quote: str) -> tuple[int, int] | None:
+    """Resolve *quote* to (sura, ayah), or None if not found / ambiguous.
+
+    Thin wrapper over :func:`lookup_match` that drops the match kind.
+    """
+    hit = lookup_match(quote)
+    return (hit[0], hit[1]) if hit is not None else None
