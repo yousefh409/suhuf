@@ -8,7 +8,7 @@ import {
   hasTashkeel,
 } from "@/lib/reader/queries";
 import { ChapterScroll } from "@/components/reader/ChapterScroll";
-import { TocDrawer } from "@/components/reader/TocDrawer";
+import { ChapterSelect } from "@/components/reader/ChapterSelect";
 import { DisplayPanel } from "@/components/reader/DisplayPanel";
 import { TashkeelButton } from "@/components/reader/TashkeelButton";
 import { ReaderThemeShell } from "@/components/reader/ReaderThemeShell";
@@ -58,8 +58,8 @@ export default async function ReaderPage({
             borderColor: "var(--reader-rule)",
           }}
         >
-          {/* Left: back · table of contents · title */}
-          <div className="flex min-w-0 items-center gap-1 justify-self-start">
+          {/* Left: back · title */}
+          <div className="flex min-w-0 items-center gap-1.5 justify-self-start">
             <Link
               href="/library"
               className="reader-iconbtn"
@@ -68,9 +68,8 @@ export default async function ReaderPage({
             >
               <ChevronLeft size={20} />
             </Link>
-            <TocDrawer chapters={chapters} pages={pages} />
             <div
-              className="ms-1 truncate text-[17px]"
+              className="truncate text-[17px]"
               dir="rtl"
               style={{ fontFamily: "var(--font-arabic), serif", color: "var(--reader-fg)" }}
             >
@@ -78,9 +77,10 @@ export default async function ReaderPage({
             </div>
           </div>
 
-          {/* Center: the one focal action */}
-          <div className="justify-self-center">
+          {/* Center: the focal action, with the current chapter under it */}
+          <div className="flex flex-col items-center gap-1 justify-self-center">
             <ReciteShellToggle />
+            <ChapterSelect chapters={chapters} pages={pages} />
           </div>
 
           {/* Right: diacritics toggle · display & reading settings */}

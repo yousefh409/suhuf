@@ -3,11 +3,15 @@ import type { ReaderMode } from "@/lib/reader/types";
 type Props = {
   volume: number;
   pageNumber: number;
+  // Sequential reader page number (1-based position in the book). The reader
+  // shows this so pages read 1, 2, 3…; the printed pageNumber lives only in the
+  // anchor id (for citations/deep links) and the inspector label.
+  seq: number;
   mode: ReaderMode;
   visible: boolean;
 };
 
-export function PageBoundary({ volume, pageNumber, mode, visible }: Props) {
+export function PageBoundary({ volume, pageNumber, seq, mode, visible }: Props) {
   const label = `V${String(volume).padStart(2, "0")}P${String(pageNumber).padStart(3, "0")}`;
   // Anchor id matches the visible label so the URL hash (#p-V01P054) reads
   // identically to the citation. scroll-mt offset keeps the anchor below
@@ -37,7 +41,7 @@ export function PageBoundary({ volume, pageNumber, mode, visible }: Props) {
           className="text-xs tabular-nums"
           style={{ color: "var(--reader-fg-faint)", letterSpacing: "0.05em" }}
         >
-          {pageNumber}
+          {seq}
         </span>
       </div>
     );

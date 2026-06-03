@@ -1,17 +1,28 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { AudioLines, Square } from "lucide-react";
+import { AudioLines, Loader2, AlertCircle } from "lucide-react";
+import type { ConnectionState } from "@/lib/recitation/types";
 
 type Props = {
   onStart: (anchorBlockKey: string) => void;
   onStop: () => void;
   disabled?: boolean;
-  isActive: boolean;
+  connectionState: ConnectionState;
+  error?: string;
 };
 
-export function ReciteToggle({ onStart, onStop, disabled, isActive }: Props) {
+export function ReciteToggle({ onStart, onStop, disabled, connectionState, error }: Props) {
+  const isActive = connectionState !== "idle" && connectionState !== "error";
   const [topVisibleKey, setTopVisibleKey] = useState<string | null>(null);
   const ioRef = useRef<IntersectionObserver | null>(null);
+
+  // After a failed start, show the error for a few seconds, then quietly reset
+  // to idle so the button doesn't stay stuck on "Try again".
+  useEffect(() => {
+    if (connectionState !== "error") return;
+    const t = setTimeout(() => onStop(), 4000);
+    return () => clearTimeout(t);
+  }, [connectionState, onStop]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -55,16 +66,59 @@ export function ReciteToggle({ onStart, onStop, disabled, isActive }: Props) {
     if (anchor) onStart(anchor);
   };
 
+  const phase = disabled
+    ? "disabled"
+    : connectionState === "connecting" || connectionState === "reconnecting"
+      ? "connecting"
+      : connectionState === "connected"
+        ? "listening"
+        : connectionState === "error"
+          ? "error"
+          : "idle";
+
+  const view = {
+    disabled: {
+      cls: "",
+      title: "No tashkeel — recite unavailable",
+      icon: <AudioLines size={16} />,
+      label: "Recite",
+    },
+    idle: {
+      cls: "",
+      title: "Recite — read aloud and get scored",
+      icon: <AudioLines size={16} />,
+      label: "Recite",
+    },
+    connecting: {
+      cls: " is-connecting",
+      title: "Connecting — tap to cancel",
+      icon: <Loader2 size={15} className="animate-spin" />,
+      label: "Connecting…",
+    },
+    listening: {
+      cls: " is-active",
+      title: "Listening — tap to stop",
+      icon: <span className="reader-recite-dot" aria-hidden />,
+      label: "Listening",
+    },
+    error: {
+      cls: " is-error",
+      title: error ?? "Couldn't start — tap to try again",
+      icon: <AlertCircle size={15} />,
+      label: "Try again",
+    },
+  }[phase];
+
   return (
     <button
       type="button"
       onClick={handle}
       disabled={disabled}
-      className={`reader-recite${isActive ? " is-active" : ""}`}
-      title={disabled ? "No tashkeel — recite unavailable" : isActive ? "Stop reciting" : "Recite"}
+      className={`reader-recite${view.cls}`}
+      title={view.title}
     >
-      {isActive ? <Square size={13} fill="currentColor" strokeWidth={0} /> : <AudioLines size={16} />}
-      <span>{isActive ? "Stop" : "Recite"}</span>
+      {view.icon}
+      <span>{view.label}</span>
     </button>
   );
 }

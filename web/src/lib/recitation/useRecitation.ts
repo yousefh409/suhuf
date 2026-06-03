@@ -86,10 +86,23 @@ export function useRecitation({ chapterBlocks, wsUrl, tokenProvider }: Opts) {
       client.onError((e) => dispatch({ type: "error", event: e }));
       client.onState((s) => dispatch({ type: "connection", state: s }));
 
-      await client.connect({
-        passage: { id: `chapter-${anchor}`, phrases: initial.phrases },
-        lookbehind_count: initial.startCursor,
-      });
+      try {
+        await client.connect({
+          passage: { id: `chapter-${anchor}`, phrases: initial.phrases },
+          lookbehind_count: initial.startCursor,
+        });
+      } catch {
+        dispatch({
+          type: "error",
+          event: {
+            type: "error",
+            code: "connect_failed",
+            message: "Couldn't reach the recitation server.",
+          },
+        });
+        client.close();
+        return;
+      }
 
       // Start audio capture and forward to client
       const { startCapture } = await import("./audio");

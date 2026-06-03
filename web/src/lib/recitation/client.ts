@@ -46,7 +46,9 @@ export class RecitationClient {
     return new Promise((resolve, reject) => {
       const ws = new Impl(this.opts.url);
       this.ws = ws;
+      let opened = false;
       ws.onopen = () => {
+        opened = true;
         const payload: InitMessage = {
           passage: init.passage,
           lookbehind_count: init.lookbehind_count ?? 0,
@@ -62,7 +64,15 @@ export class RecitationClient {
         reject(new Error("WS error"));
       };
       ws.onclose = () => {
-        if (this.state !== "error") this.setState("idle");
+        if (!opened) {
+          // Closed before it ever opened → the connection failed (e.g. the
+          // recitation server is unreachable). Surface it as an error so the
+          // UI can show feedback, and settle the pending connect promise.
+          if (this.state !== "error") this.setState("error");
+          reject(new Error("WS closed before open"));
+        } else if (this.state !== "error") {
+          this.setState("idle");
+        }
       };
     });
   }
