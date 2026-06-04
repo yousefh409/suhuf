@@ -149,6 +149,9 @@ function renderInner(
   const spanIndex = indexSpans(block.tokens, block.spans);
   const selMap = isReader ? buildSelectionMap(block.tokens) : null;
 
+  // Headings/chapter titles stay visible in hide-text mode — they're structural
+  // landmarks, not text to recite (buildPassage skips them).
+  const concealable = block.type !== "heading";
   const tokens = block.tokens.map((t) => {
     const span = spanIndex.get(t.id);
     return (
@@ -162,6 +165,7 @@ function renderInner(
         spanLabel={span?.label}
         spanRef={span?.ref ?? undefined}
         selection={selMap?.get(t.id)}
+        concealable={concealable}
       />
     );
   });

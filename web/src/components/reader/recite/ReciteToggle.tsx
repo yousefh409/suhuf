@@ -1,28 +1,31 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { AudioLines, Loader2, AlertCircle } from "lucide-react";
-import type { ConnectionState } from "@/lib/recitation/types";
+import { AudioLines, Loader2, AlertCircle, Pause, Play } from "lucide-react";
+import type { RecitePhase } from "@/lib/recitation/state";
 
 type Props = {
   onStart: (anchorBlockKey: string) => void;
-  onStop: () => void;
+  onPause: () => void;
+  onResume: () => void;
+  onEnd: () => void;
   disabled?: boolean;
-  connectionState: ConnectionState;
+  phase: RecitePhase;
   error?: string;
 };
 
-export function ReciteToggle({ onStart, onStop, disabled, connectionState, error }: Props) {
-  const isActive = connectionState !== "idle" && connectionState !== "error";
+export function ReciteToggle({
+  onStart, onPause, onResume, onEnd, disabled, phase, error,
+}: Props) {
   const [topVisibleKey, setTopVisibleKey] = useState<string | null>(null);
   const ioRef = useRef<IntersectionObserver | null>(null);
 
-  // After a failed start, show the error for a few seconds, then quietly reset
-  // to idle so the button doesn't stay stuck on "Try again".
+  // After a failed start, show the error briefly, then quietly reset to idle so
+  // the button doesn't stay stuck on "Try again".
   useEffect(() => {
-    if (connectionState !== "error") return;
-    const t = setTimeout(() => onStop(), 4000);
+    if (phase !== "error") return;
+    const t = setTimeout(() => onEnd(), 4000);
     return () => clearTimeout(t);
-  }, [connectionState, onStop]);
+  }, [phase, onEnd]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -51,30 +54,16 @@ export function ReciteToggle({ onStart, onStop, disabled, connectionState, error
 
   const handle = () => {
     if (disabled) return;
-    if (isActive) {
-      onStop();
-      return;
-    }
-    // Prefer the topmost block visible in the viewport. If the
-    // IntersectionObserver hasn't fired yet (initial render, very short
-    // chapter, headless viewport), fall back to the first block on the
-    // page so the user can still start.
+    if (phase === "listening") return onPause();
+    if (phase === "paused") return onResume();
+    if (phase === "connecting") return; // use the End button to cancel
+    // idle or error → start at the topmost block visible in the viewport.
     const anchor =
       topVisibleKey ??
       (document.querySelector("[data-block-key]") as HTMLElement | null)?.dataset
         .blockKey;
     if (anchor) onStart(anchor);
   };
-
-  const phase = disabled
-    ? "disabled"
-    : connectionState === "connecting" || connectionState === "reconnecting"
-      ? "connecting"
-      : connectionState === "connected"
-        ? "listening"
-        : connectionState === "error"
-          ? "error"
-          : "idle";
 
   const view = {
     disabled: {
@@ -91,15 +80,21 @@ export function ReciteToggle({ onStart, onStop, disabled, connectionState, error
     },
     connecting: {
       cls: " is-connecting",
-      title: "Connecting — tap to cancel",
+      title: "Connecting — use the stop button to cancel",
       icon: <Loader2 size={15} className="animate-spin" />,
       label: "Connecting…",
     },
     listening: {
       cls: " is-active",
-      title: "Listening — tap to stop",
-      icon: <span className="reader-recite-dot" aria-hidden />,
-      label: "Listening",
+      title: "Listening — tap to pause",
+      icon: <Pause size={15} />,
+      label: "Pause",
+    },
+    paused: {
+      cls: " is-paused",
+      title: "Paused — tap to resume",
+      icon: <Play size={15} />,
+      label: "Resume",
     },
     error: {
       cls: " is-error",
@@ -107,7 +102,7 @@ export function ReciteToggle({ onStart, onStop, disabled, connectionState, error
       icon: <AlertCircle size={15} />,
       label: "Try again",
     },
-  }[phase];
+  }[disabled ? "disabled" : phase];
 
   return (
     <button

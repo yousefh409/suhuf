@@ -3,7 +3,7 @@
 import type { Token, ReaderMode, SpanLabel } from "@/lib/reader/types";
 import { stripTashkeel } from "@/lib/reader/tashkeel";
 import { inlineSpanClass, isTransmissionVerb } from "@/lib/reader/spanStyles";
-import { useRecitationStatus } from "./recite/RecitationProvider";
+import { useRecitationStatus, useRecitationConcealed } from "./recite/RecitationProvider";
 import { useWordPopover } from "./word/WordPopoverProvider";
 import type { WordSelection } from "@/lib/reader/sentences";
 import "./recite/recite.css";
@@ -17,15 +17,18 @@ type Props = {
   spanLabel?: SpanLabel;   // when this token sits inside an annotated span
   spanRef?: string | null; // ref payload (e.g. "51:56" for quran) — exposed via title attr
   selection?: WordSelection;   // reader-mode tap target; absent → not tappable
+  concealable?: boolean;   // default true; false keeps the token visible in hide-text mode (headings)
 };
 
-export function TokenText({ token, mode, showTashkeel, showDiff, accentClass, spanLabel, spanRef, selection }: Props) {
+export function TokenText({ token, mode, showTashkeel, showDiff, accentClass, spanLabel, spanRef, selection, concealable }: Props) {
   const display = showTashkeel ? token.text : stripTashkeel(token.text);
   const raw = token.text_raw ?? null;
   const showRawAbove = mode === "inspector" && showDiff && raw && raw !== token.text;
   const spanClass = spanLabel ? `reader-span reader-span-${spanLabel}` : undefined;
   const recitationStatus = useRecitationStatus(token.id);
   const recitationClass = recitationStatus ? `tok--${recitationStatus}` : undefined;
+  const concealed = useRecitationConcealed(token.id);
+  const concealedClass = concealed && concealable !== false ? "tok--concealed" : undefined;
   const title = spanRef ?? undefined;
   const popover = useWordPopover();
 
@@ -39,7 +42,7 @@ export function TokenText({ token, mode, showTashkeel, showDiff, accentClass, sp
       : undefined;
     const tappable = !!selection && !!popover;
     const className =
-      [accentClass, styledSpanClass, recitationClass, tappable ? "reader-word" : null]
+      [accentClass, styledSpanClass, recitationClass, concealedClass, tappable ? "reader-word" : null]
         .filter(Boolean)
         .join(" ") || undefined;
     const onClick = tappable

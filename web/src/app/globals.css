@@ -222,6 +222,14 @@ body {
   cursor: default;
   background: transparent;
 }
+/* "On" state for an icon-only header toggle (e.g. hide-text). */
+.reader-iconbtn.is-on {
+  color: var(--reader-accent);
+  background: color-mix(in srgb, var(--reader-accent) 12%, transparent);
+}
+.reader-iconbtn.is-on:hover {
+  background: color-mix(in srgb, var(--reader-accent) 18%, transparent);
+}
 .reader-textbtn {
   display: inline-flex;
   align-items: center;
