@@ -91,9 +91,12 @@ create table if not exists pages (
   book_id uuid not null references books(id) on delete cascade,
   page_number int not null,
   volume int not null default 1,
-  content_blocks jsonb not null,
-  content_plain text not null,
-  content_hash text not null,
+  content_blocks jsonb,                       -- legacy block array (nullable: flow pages carry `tagged`)
+  content_plain text not null,                -- page plain text
+  content_hash text,
+  tagged text,                                -- flow: this page's slice of the continuous tagged document
+  open_tags jsonb default '[]'::jsonb,        -- flow: tag stack open at this page's start
+  start_offset int,                           -- flow: page start in the book's plain-text offset line
   created_at timestamptz default now(),
   unique (book_id, volume, page_number)
 );
@@ -112,3 +115,18 @@ create table if not exists chapters (
 );
 
 create index if not exists idx_chapters_book on chapters(book_id);
+
+-- Flow annotations: resolved metadata layer, one row per in-text tag id.
+create table if not exists annotations (
+  id uuid primary key default gen_random_uuid(),
+  book_id uuid not null references books(id) on delete cascade,
+  tag_id text not null,                       -- 'h2', 'p7', 'q5'
+  label text not null,
+  start_offset int,
+  end_offset int,
+  meta jsonb default '{}'::jsonb,
+  unique (book_id, tag_id)
+);
+
+create index if not exists idx_annotations_book on annotations(book_id);
+create index if not exists idx_annotations_book_label on annotations(book_id, label);
