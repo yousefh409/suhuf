@@ -108,11 +108,11 @@ Run the self-review at the bottom before starting Phase 1, and re-read it after 
 - Download stays per page. Annotations for a book are small and fetched once up front.
 
 **Tasks:**
-- [ ] **Migration.** Test/verify first: write the migration (new `pages` columns, drop `content_blocks`, create `annotations`), apply it to a local Supabase, confirm the schema. Mirror it in `web/supabase-schema.sql`.
-- [ ] **Upload.** Test first: uploading the Nawawi book writes the expected page rows and annotation rows; re-upload is idempotent. Update `upload_tagged.py`.
-- [ ] **Read path.** Test first: the queries layer fetches a book's pages and annotations and returns the in-memory book object the reader expects. Update `queries.ts`. Keep the local-dump dev path working alongside the Supabase path.
+- [x] **Migration.** **DONE (written, not yet applied)** — `supabase/migrations/20260605000000_flow_format.sql`, mirrored in `web/supabase-schema.sql`. Made **ADDITIVE** (not a drop): adds `tagged`/`open_tags`/`start_offset` to `pages`, relaxes `content_blocks` to nullable, creates `annotations` (public-read RLS). The destructive `content_blocks` drop is deferred to a cleanup after the reader migrates. *Applying to live Supabase is pending (needs DB access / user action).*
+- [x] **Upload.** **DONE** — new `ingestion/upload_flow.py` (`upload_flow_book`), `--upload` flag on the `flow` CLI subcommand, 8 tests; commit `c6d400d`. Pages carry `tagged`/`open_tags`/`start_offset`/`content_plain` with `content_blocks` left NULL; annotations upserted by `(book_id, tag_id)`. *Real upload is pending (live DB).*
+- [ ] **Read path.** Fetch flow pages + annotations in `queries.ts`. **Folded into Phase 4** (the reader consumes the flow shape there); the local-dump dev path can drive Phase 4 without the live DB.
 
-**Checkpoint:** Round-trip a real book through Supabase and back. Commit.
+**Checkpoint:** Code complete and tested (343 tests). Live steps pending: apply the additive migration to Supabase and run `python -m ingestion flow … --upload`. These need DB access (the `.env` has REST keys, not a Postgres connection string) and explicit user go-ahead.
 
 ---
 
