@@ -4,6 +4,7 @@ import path from "node:path";
 import { cache } from "react";
 import type { Author, Book, BookListItem, Chapter, NewBlock, NewBook, Page } from "./types";
 import { convertNewBook } from "./newFormat";
+import { flowToNewBook, type FlowBook } from "./flowFormat";
 import { createClient } from "@/lib/supabase/server";
 
 // The reader loads books from Supabase (the tagged format in pages.content_blocks)
@@ -124,7 +125,7 @@ type LocalBookFile = {
   author_data?: AuthorYmlData;
 };
 
-type LoadTier = "book" | "enriched" | "annotated" | "tashkeeled" | "parsed";
+type LoadTier = "flow" | "book" | "enriched" | "annotated" | "tashkeeled" | "parsed";
 
 const TASHKEEL_RE = /[\u064B-\u065F\u0670]/u;
 
@@ -232,13 +233,22 @@ const _loadBookFile = cache(async (
 ): Promise<{ data: LocalBookFile; tier: LoadTier } | null> => {
   if (USE_SUPABASE) return _loadBookFromSupabase(openitiId);
   // Read all tiers in parallel; missing files just return null.
-  const [bookRaw, enrichedRaw, annotatedRaw, tashkeeledRaw, parsedRaw] = await Promise.all([
+  const [flowRaw, bookRaw, enrichedRaw, annotatedRaw, tashkeeledRaw, parsedRaw] = await Promise.all([
+    readFileIfExists(path.join(DATA_DIR, `${openitiId}.flow.json`)),
     readFileIfExists(path.join(DATA_DIR, `${openitiId}.book.json`)),
     readFileIfExists(path.join(DATA_DIR, `${openitiId}.enriched.json`)),
     readFileIfExists(path.join(DATA_DIR, `${openitiId}.annotated.json`)),
     readFileIfExists(path.join(DATA_DIR, `${openitiId}.tashkeeled.json`)),
     readFileIfExists(path.join(DATA_DIR, `${openitiId}.parsed.json`)),
   ]);
+
+  // FLOW format wins when present: the continuous tagged document sliced into
+  // page rows. flowToNewBook parses each page (with its open-tag stack) into the
+  // NewBook shape, then convertNewBook normalises it like any other new book.
+  if (flowRaw) {
+    const normalised = convertNewBook(flowToNewBook(JSON.parse(flowRaw) as FlowBook));
+    return { data: normalised as LocalBookFile, tier: "flow" };
+  }
 
   // NEW format wins when present: it's the whole Book object, normalised into
   // the legacy LocalBookFile shape so everything downstream is unchanged.
