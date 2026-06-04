@@ -62,7 +62,7 @@ def _resolve_meta(label: str, quote: str,
 
     quran -> ``{sura, ayah}`` via the deterministic ayah index (exact first,
     then the Uthmani-tolerant loose matcher); hadith -> ``{number}`` from the
-    nearest numbered unit whose start falls inside the hadith's range; every
+    first numbered unit whose start falls inside the hadith's range; every
     other label -> ``{}``.
     """
     if label == "quran":
