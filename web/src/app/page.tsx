@@ -13,8 +13,12 @@ export default function Home() {
     // keep it on the paper palette regardless of the user's app theme.
     <main
       data-app-theme="paper"
-      className="flex flex-col items-center w-full min-h-screen bg-parchment text-ink"
+      className="flex flex-col items-center w-full min-h-screen text-ink"
     >
+      {/* Paper base behind the fixed PaperShader (layout.tsx, z-index -1). Kept
+          transparent on <main> so the shader shows through; this layer supplies
+          the light parchment so the landing stays light under sepia/night. */}
+      <div aria-hidden className="fixed inset-0 bg-parchment" style={{ zIndex: -2 }} />
       <Nav />
       <Hero />
       <Features />
