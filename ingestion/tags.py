@@ -83,20 +83,37 @@ def render_tagged(text: str, spans: list[Span], lines: list[list[str]]) -> str:
             out.append("</verse>")
         return "".join(out)
 
-    # Order at a shared offset: closes before opens; among opens widest-first;
-    # among closes innermost-first (LIFO), so nesting stays well-formed.
-    events = []
+    # Walk boundary points; keep a stack of open spans. Spans may partially
+    # cross (an entity straddling a structural edge), which tags cannot express
+    # directly — so close-and-reopen: to close a span that is not on top, close
+    # the spans above it, close it, then reopen the survivors. This yields valid
+    # nested markup for ANY span set (crossing spans are split into pieces).
+    points = sorted({0, len(text)}
+                    | {s.start for s in spans} | {s.end for s in spans})
+    starts: dict[int, list] = {}
     for s in spans:
-        events.append((s.start, 1, -s.end, s))    # open
-        events.append((s.end, 0, -s.start, s))     # close
-    events.sort(key=lambda e: (e[0], e[1], e[2]))
+        starts.setdefault(s.start, []).append(s)
+    # Open wider spans first so nesting is stable.
+    for p in starts:
+        starts[p].sort(key=lambda s: (-(s.end), s.label))
 
-    out, pos = [], 0
-    for ev_pos, is_open, _, s in events:
-        if ev_pos > pos:
-            out.append(_escape(text[pos:ev_pos]))
-            pos = ev_pos
-        out.append(f"<{s.label}>" if is_open else f"</{s.label}>")
-    if pos < len(text):
-        out.append(_escape(text[pos:]))
+    out, stack, pos = [], [], 0
+    for p in points:
+        if p > pos:
+            out.append(_escape(text[pos:p]))
+            pos = p
+        if any(s.end == p for s in stack):
+            lo = min(i for i, s in enumerate(stack) if s.end == p)
+            reopen = []
+            while len(stack) > lo:
+                top = stack.pop()
+                out.append(f"</{top.label}>")
+                if top.end != p:
+                    reopen.append(top)
+            for s in reversed(reopen):
+                out.append(f"<{s.label}>")
+                stack.append(s)
+        for s in starts.get(p, []):
+            out.append(f"<{s.label}>")
+            stack.append(s)
     return "".join(out)
