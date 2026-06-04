@@ -6,9 +6,14 @@ import type { Author, Book, BookListItem, Chapter, NewBlock, NewBook, Page } fro
 import { convertNewBook } from "./newFormat";
 import { createClient } from "@/lib/supabase/server";
 
-// When READER_SOURCE=supabase the reader loads books from Supabase (the new
-// tagged format stored in pages.content_blocks); otherwise it reads local dumps.
-const USE_SUPABASE = process.env.READER_SOURCE === "supabase";
+// The reader loads books from Supabase (the tagged format in pages.content_blocks)
+// in production — local-file reads via node:fs do not work on Cloudflare Workers —
+// and whenever READER_SOURCE=supabase. In dev it defaults to the local dumps, so
+// the edit -> dump -> reload loop is unchanged (set READER_SOURCE=local to force
+// local even in production-like builds).
+const USE_SUPABASE =
+  process.env.READER_SOURCE === "supabase" ||
+  (process.env.NODE_ENV === "production" && process.env.READER_SOURCE !== "local");
 
 type PageRange = { volume: number; page_number: number };
 
@@ -277,6 +282,8 @@ const _loadBookFile = cache(async (
 });
 
 const _listDataIds = cache(async (): Promise<string[]> => {
+  // No local data dir in Supabase mode (and node:fs is unavailable on Workers).
+  if (USE_SUPABASE) return [];
   let entries: string[];
   try {
     entries = await fs.readdir(DATA_DIR);
