@@ -199,7 +199,11 @@ engine = None
 async def load_engine():
     global engine
     from engine import RecitationEngine
-    engine = RecitationEngine(str(MODEL_PATH))
+    from ensemble import load_ensemble_or_engine
+    # RoutedEnsemble when ensemble_config.json (next to server.py) has routing;
+    # otherwise a single base RecitationEngine — the safe, unchanged default.
+    _cfg = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ensemble_config.json")
+    engine = load_ensemble_or_engine(RecitationEngine, str(MODEL_PATH), _cfg)
 
 
 def load_passages():
@@ -790,6 +794,23 @@ def classify_words(word_results, all_words, streaming=False):
             status = "correct"
             error_type = None
             error_detail = None
+
+        # ── Ensemble override (RoutedEnsemble, Phase 4) ──
+        # Active ONLY when ensemble_config.json supplies routing — then each word
+        # carries ensemble_* agreement verdicts. In single-model mode these keys
+        # are absent and this block is a no-op (default behavior unchanged).
+        # The decorrelated-agreement verdict owns i3rab/tashkeel/consonant;
+        # wrong-word/skipped (consonant-structure & position) stay with the rules above.
+        if "ensemble_i3rab" in wr:
+            if status == "correct" or error_type in ("i3rab", "tashkeel", "consonant"):
+                if wr.get("ensemble_consonant"):
+                    status, error_type, error_detail = "error", "consonant", None
+                elif wr.get("ensemble_i3rab"):
+                    status, error_type, error_detail = "error", "i3rab", wr.get("best_alt_word")
+                elif wr.get("ensemble_tashkeel"):
+                    status, error_type, error_detail = "error", "tashkeel", wr.get("best_tashkeel_word")
+                elif error_type in ("i3rab", "tashkeel"):
+                    status, error_type, error_detail = "correct", None, None
 
         scored.append({
             "idx": wi,

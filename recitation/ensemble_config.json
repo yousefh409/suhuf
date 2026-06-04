@@ -1,0 +1,17 @@
+{
+  "_comment": "ACTIVE ensemble config (decorrelated agreement). Routes i3rab/tashkeel/consonant through >=k member agreement above per-member FP-safe thresholds. PROVISIONAL: the member set + thresholds were selected on the ~206-word careful sessions and are OVERFIT (held-out CV: i3rab ~92, tashkeel ~86, consonant ~88, FP ~2.5%). Pending general-dataset validation. SAFE TO DEPLOY: load_ensemble_or_engine resolves these member dirs relative to this file; if any used member ('base','i3rab_v2','consv2','consfix') is missing on disk it falls back to single-model and logs, so a server with only 'base' present runs exactly as before. Drop the member dirs in next to this file and the full ensemble auto-activates on next startup. The 5 non-base members currently live on the region-locked RunPod volume (29p3s0lzcq, US-IL-1).",
+  "primary": "base",
+  "members": {
+    "base": "models/ssl_xls_r_v5",
+    "i3rab_contr": "models/xlsr_i3rab_contr",
+    "i3rab_v2": "models/xlsr_i3rab_v2",
+    "consfix": "models/xlsr_consfix",
+    "consv2": "models/xlsr_consv2",
+    "tashcontr": "models/xlsr_tashcontr"
+  },
+  "routing": {
+    "i3rab": { "members": ["base", "i3rab_v2"], "k": 2, "thresholds": { "base": 0.0, "i3rab_v2": 0.01 } },
+    "tashkeel": { "members": ["base", "i3rab_v2", "consv2"], "k": 2, "thresholds": { "base": 0.0, "i3rab_v2": 0.01, "consv2": 0.01 } },
+    "consonant": { "members": ["base", "consfix", "consv2"], "k": 2, "thresholds": { "base": 0.05, "consfix": 0.05, "consv2": 0.05 } }
+  }
+}
