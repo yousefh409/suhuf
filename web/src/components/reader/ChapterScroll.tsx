@@ -173,7 +173,10 @@ export function ChapterScroll({ pages, chapters, mode }: Props) {
     const items = itemsByPage[pi];
     return (
       <section
-        key={`${page.volume}-${page.page_number}`}
+        // Include the page index: some sources reprint a marker out of order
+        // (Alfiyya prints v1p60/p62 twice), so volume+page is not unique. Only
+        // the key must be unique; reading order is unchanged.
+        key={`${page.volume}-${page.page_number}-${pi}`}
         data-page-number={page.page_number}
         data-volume={page.volume}
       >
@@ -196,7 +199,9 @@ export function ChapterScroll({ pages, chapters, mode }: Props) {
                   const anchorId = sortOrder !== undefined ? `h-${sortOrder}` : undefined;
                   return (
                     <Block
-                      key={b.key}
+                      // blockIdx is unique within a page; b.key is not after a
+                      // duplicate-page merge (each page numbers blocks b0..bN).
+                      key={`${b.key}-${blockIdx}`}
                       block={b}
                       pageNumber={page.page_number}
                       mode={mode}
@@ -213,7 +218,7 @@ export function ChapterScroll({ pages, chapters, mode }: Props) {
           const anchorId = sortOrder !== undefined ? `h-${sortOrder}` : undefined;
           return (
             <Block
-              key={item.block.key}
+              key={`${item.block.key}-${item.blockIdx}`}
               block={item.block}
               pageNumber={page.page_number}
               mode={mode}
