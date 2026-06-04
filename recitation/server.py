@@ -185,7 +185,7 @@ def _classify_with_gbm(wr, word_text):
 TEST_DIR = BASE_DIR / "test_data" / "recordings"
 MANIFEST = BASE_DIR / "test_data" / "manifest.jsonl"
 SESSION_LOG_DIR = BASE_DIR / "test_data" / "sessions"
-MODEL_PATH = BASE_DIR / "models" / "ssl_xls_r_v5"
+MODEL_PATH = BASE_DIR / "models" / "xlsr_mixed"
 PASSAGES_FILE = BASE_DIR / "passage.json"
 
 app = FastAPI()
