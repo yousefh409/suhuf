@@ -1,0 +1,146 @@
+"""Flow AI structure pass: the model tags a whole passage from scratch.
+
+Unlike :mod:`ingestion.annotate_tagged` (which adds entity tags to text that
+already carries detector structure), the flow pass starts from PLAIN text and
+asks the model to return the SAME words with ALL structure added: each hadith
+wrapped in ``<hadith>`` containing ``<isnad>/<matn>/<takhrij>``, plus the entity
+tags. Tags are attribute-free; ids are assigned later by ``assign_ids``.
+
+Each returned chunk is validated with ``compile_tagged``. If it raises
+``TagError`` or its tags-stripped text differs from the input chunk, the chunk
+falls back to the original plain text (no tags) and is counted in stats. The pass
+operates on a list of plain chunks and returns a parallel list of tagged chunks
+plus a stats dict. The chunk calls fan out across a thread pool (network-bound).
+"""
+from __future__ import annotations
+import json
+import logging
+import os
+from concurrent.futures import ThreadPoolExecutor
+
+from ingestion.tags import compile_tagged, TagError
+
+logger = logging.getLogger(__name__)
+
+PROMPT_VERSION = "annotate-flow-v1"
+MODEL = "claude-sonnet-4-6"
+MAX_TOKENS = 16384
+MAX_WORKERS = 8
+
+
+def _system_prompt() -> str:
+    return """You tag one passage of classical Arabic / Islamic text (hadith, fiqh, tafsir).
+
+You receive ONE passage of plain Arabic text. Return the SAME text with structure
+and entity boundary tags added. Do NOT change, add, or remove any words — the
+visible text with every tag removed must be byte-identical to the input.
+
+Structure tags:
+- Wrap each complete hadith in <hadith>...</hadith>.
+- Inside a hadith, wrap the chain of narration in <isnad>...</isnad>, the body of
+  the report in <matn>...</matn>, and any sourcing/grading in <takhrij>...</takhrij>.
+- Text that is not part of a hadith (chapter titles, author commentary) stays
+  untagged.
+
+Entity tags (nest freely inside the structure tags):
+- <person> for narrator and other personal names.
+- <place> for place names.
+- <quran> for a Quran quotation.
+- <book_ref> for a cited book title.
+- <hadith_ref> for a cross-reference to another hadith.
+- <date_hijri> for a Hijri date.
+
+Rules:
+- Tags carry NO attributes. Write <person>...</person>, never <person sub="x">.
+- Allowed tags only: hadith isnad matn takhrij person place quran book_ref
+  hadith_ref date_hijri. Any other tag is an error.
+- Tags must nest properly (no crossing).
+
+Return ONLY JSON: {"tagged":"<the tagged passage>"} — no markdown, no explanation."""
+
+
+def _build_client(client):
+    """Return a usable client, or None when one cannot be built offline-safely.
+
+    A caller-supplied client is used as-is. Otherwise a client is built only when
+    ``ANTHROPIC_API_KEY`` is present, so tests with the key unset never touch the
+    network.
+    """
+    if client is not None:
+        return client
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return None
+    try:
+        from anthropic import Anthropic
+        return Anthropic()
+    except Exception as e:  # pragma: no cover - construction rarely fails
+        logger.warning(f"annotate_flow: could not create client: {e}")
+        return None
+
+
+def annotate_flow(chunks: list[str], client=None) -> tuple[list[str], dict]:
+    """Tag each plain chunk with full structure; validate or fall back to plain.
+
+    Returns ``(tagged_chunks, stats)`` where ``tagged_chunks`` is parallel to
+    ``chunks``. ``stats`` carries ``chunks``, ``fallbacks`` (validation or API
+    failures that reverted to plain), ``api_errors``, ``input_tokens``,
+    ``output_tokens``, ``no_client``, ``model``, and ``prompt_version``.
+    """
+    stats = {"chunks": len(chunks), "fallbacks": 0, "api_errors": 0,
+             "input_tokens": 0, "output_tokens": 0, "no_client": False,
+             "model": MODEL, "prompt_version": PROMPT_VERSION}
+
+    client = _build_client(client)
+    if client is None:
+        stats["no_client"] = True
+        # No AI pass: every chunk passes through as plain text (no tags).
+        return list(chunks), stats
+
+    system = _system_prompt()
+
+    def _call(chunk: str):
+        """One API call. Returns (tagged_or_None, usage)."""
+        user = "Tag this passage:\n\n" + json.dumps({"text": chunk}, ensure_ascii=False)
+        try:
+            resp = client.messages.create(
+                model=MODEL, max_tokens=MAX_TOKENS, system=system,
+                messages=[{"role": "user", "content": user}],
+            )
+        except Exception as e:
+            logger.warning(f"annotate_flow: API call failed: {e}")
+            return None, None
+        body = resp.content[0].text if resp.content else ""
+        usage = getattr(resp, "usage", None)
+        try:
+            data = json.loads(body[body.find("{"):body.rfind("}") + 1])
+            return data.get("tagged"), usage
+        except (ValueError, json.JSONDecodeError):
+            return None, usage
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
+        results = list(ex.map(_call, chunks))
+
+    out: list[str] = []
+    for chunk, (tagged, usage) in zip(chunks, results):
+        if usage is not None:
+            stats["input_tokens"] += getattr(usage, "input_tokens", 0)
+            stats["output_tokens"] += getattr(usage, "output_tokens", 0)
+        if tagged is None:
+            stats["api_errors"] += 1
+            stats["fallbacks"] += 1
+            out.append(chunk)
+            continue
+        try:
+            plain, _, _ = compile_tagged(tagged)
+        except TagError:
+            stats["fallbacks"] += 1
+            out.append(chunk)
+            continue
+        if plain != chunk:
+            # The model altered the words; discard the tags, keep the plain text.
+            stats["fallbacks"] += 1
+            out.append(chunk)
+            continue
+        out.append(tagged)
+
+    return out, stats
