@@ -15,7 +15,6 @@ import logging
 
 from ingestion.corpus import find_book_file
 from ingestion.parse import parse_file
-from ingestion.hadith import detect_hadith_structure
 from ingestion.assemble import assemble, numbered_units
 from ingestion.chunk import chunk_text
 from ingestion.annotate_flow import annotate_flow
@@ -66,6 +65,10 @@ def flow_from_result(result: ParseResult, annotate: bool = True,
     # Page breaks are the interior page start offsets (exclude the first page's 0).
     breaks = [off for (_pn, _vol, off) in page_offsets[1:]]
     slices = slice_tagged(numbered, breaks)
+    # Defense-in-depth: slice_tagged drops a break that is strictly past the text
+    # length, which would silently lose trailing pages in the zip below. The
+    # assembler never emits such an offset, so this asserts that invariant.
+    assert len(slices) == len(page_offsets), (len(slices), len(page_offsets))
 
     pages: list[FlowPage] = []
     for (page_number, volume, start_offset), sl in zip(page_offsets, slices):
@@ -93,9 +96,8 @@ def build_flow_book(uri: str, corpus_path: str = "./RELEASE",
     logger.info(f"Found file: {path.name}")
     result = parse_file(path, uri)
     logger.info(f"Parsed: {len(result.pages)} pages, {len(result.chapters)} chapters")
-    # Deterministic hadith-structure pass for parity with the other pipelines;
-    # the flow AI pass tags from scratch, so this is informational only here.
-    detect_hadith_structure(result)
+    # No deterministic hadith pass here: the flow AI pass tags structure from the
+    # assembled plain text, which ignores detector spans.
     book, stats = flow_from_result(result, annotate=annotate, client=client)
     if annotate:
         a = stats.get("annotate", {})
