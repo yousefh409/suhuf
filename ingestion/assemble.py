@@ -38,6 +38,33 @@ def _page_plain(page: Page) -> str:
     return " ".join(words)
 
 
+def numbered_units(result: ParseResult) -> list[tuple[int, str]]:
+    """Return ``(start_offset, number)`` for every block carrying a printed item
+    number, in document order.
+
+    Used to stamp each hadith annotation with its source number. Offsets are
+    computed with the same page-join / word-join convention as :func:`assemble`,
+    so they line up with the continuous text.
+    """
+    out: list[tuple[int, str]] = []
+    offset = 0
+    for pi, page in enumerate(result.pages):
+        if pi:
+            offset += len(_PAGE_SEP)
+        col = 0
+        for block in page.content_blocks:
+            words = _block_words(block)
+            if not words:
+                continue
+            if col:
+                col += 1
+            if block.number is not None:
+                out.append((offset + col, block.number))
+            col += len(" ".join(words))
+        offset += len(_page_plain(page))
+    return out
+
+
 def assemble(result: ParseResult
              ) -> tuple[str, list[tuple[int, int, int]], list[int]]:
     """Return ``(text, page_offsets, boundaries)`` for a parsed book."""
