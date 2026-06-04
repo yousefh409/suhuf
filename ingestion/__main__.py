@@ -246,7 +246,7 @@ def run_tagged(args):
 
 def run_flow(args):
     """Execute the flow pipeline and dump <uri>.flow.json."""
-    # The flow structure pass needs ANTHROPIC_API_KEY; load the project .env so
+    # The flow structure pass needs OPENROUTER_API_KEY; load the project .env so
     # the real run picks it up (override empty/stale shell-inherited values).
     load_dotenv(override=True)
     from ingestion.pipeline_flow import build_flow_book

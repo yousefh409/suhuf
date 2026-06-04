@@ -14,9 +14,11 @@ from ingestion.tags import compile_tagged
 
 
 class _Resp:
+    """Mimics an OpenAI-compatible (OpenRouter) chat completion response."""
     def __init__(self, text):
-        self.content = [type("C", (), {"text": text})()]
-        self.usage = type("U", (), {"input_tokens": 7, "output_tokens": 9})()
+        msg = type("M", (), {"content": text})()
+        self.choices = [type("Ch", (), {"message": msg})()]
+        self.usage = type("U", (), {"prompt_tokens": 7, "completion_tokens": 9})()
 
 
 class _MockClient:
@@ -24,16 +26,18 @@ class _MockClient:
 
     ``script`` maps an input chunk's plain text -> the tagged string to return.
     Any chunk not in the script is echoed back unchanged (already valid plain).
+    Exposes ``client.chat.completions.create`` like the OpenAI/OpenRouter SDK.
     """
     def __init__(self, script):
         self.script = script
-        self.messages = self
+        self.chat = self
+        self.completions = self
         self.calls = 0
 
-    def create(self, *, model, max_tokens, system, messages):
+    def create(self, *, model, max_tokens, messages):
         self.calls += 1
-        user = messages[0]["content"]
-        # The chunk text is embedded in the user message as JSON.
+        # messages = [system, user]; the chunk text is JSON-embedded in the user message.
+        user = messages[1]["content"]
         payload = json.loads(user[user.find("{"):user.rfind("}") + 1])
         chunk = payload["text"]
         tagged = self.script.get(chunk, chunk)
@@ -88,7 +92,7 @@ def test_multiple_chunks_mixed_outcomes():
 
 def test_no_client_returns_plain_chunks(monkeypatch):
     # No API key in the env -> no client is built and nothing hits the network.
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     chunks = ["نص أول", "نص ثان"]
     out, stats = annotate_flow(chunks, client=None)
     assert out == chunks
