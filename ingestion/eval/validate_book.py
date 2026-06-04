@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 _PAGE_TOKEN = re.compile(r"PageV\d+P\d+")
+_MARKS = re.compile(r"[ً-ٰٟـ]")   # tashkeel, dagger alef, tatweel — added after parse
 
 from ingestion import tagged_format as tf
 from ingestion.tags import compile_tagged, render_tagged
@@ -49,7 +50,8 @@ def validate(uri: str, corpus_path: str) -> int:
     # text parity vs a fresh legacy parse (no data loss in the aligner)
     legacy = parse_file(find_book_file(uri, corpus_path=corpus_path), uri)
     legacy_words = " ".join(p.content_plain for p in legacy.pages).split()
-    new_words = " ".join(b.text for b in blocks).split()
+    # Strip diacritics: tashkeel is added after parse, so compare base letters.
+    new_words = _MARKS.sub("", " ".join(b.text for b in blocks)).split()
     parity = [] if legacy_words == new_words else [
         f"word count {len(new_words)} != source {len(legacy_words)}"]
     hard += _fails("text parity vs source", parity)

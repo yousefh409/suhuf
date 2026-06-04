@@ -51,12 +51,18 @@ def _remap(spans: list[tf.Span], omap: dict[int, int]) -> list[tf.Span]:
 def _batch(engine, texts: list[str], size: int = 32) -> list[str]:
     if not texts:
         return []
-    if hasattr(engine, "diacritize_batch"):
-        out: list[str] = []
-        for i in range(0, len(texts), size):
-            out.extend(engine.diacritize_batch(texts[i:i + size]))
-        return out
-    return [engine.diacritize(t) for t in texts]
+    if not hasattr(engine, "diacritize_batch"):
+        return [engine.diacritize(t) for t in texts]
+    # Sort by length so each batch holds similar-length texts: a batch pads to
+    # its longest member, so grouping short-with-short avoids wasting compute on
+    # padding the many short blocks up to a rare long one.
+    order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
+    out: list[str | None] = [None] * len(texts)
+    for i in range(0, len(order), size):
+        idxs = order[i:i + size]
+        for j, dia in zip(idxs, engine.diacritize_batch([texts[j] for j in idxs])):
+            out[j] = dia
+    return out  # type: ignore[return-value]
 
 
 def diacritize_tagged_book(book: tf.Book, engine) -> dict:

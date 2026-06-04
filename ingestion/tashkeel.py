@@ -143,7 +143,9 @@ class _FlanT5Engine:
         )
         inputs = {k: v.to(self._device) for k, v in inputs.items()}
         with torch.no_grad():
-            outputs = self._model.generate(**inputs, max_length=256, num_beams=4, early_stopping=True)
+            # Greedy (num_beams=1): ~4x faster than beam search on CPU, with
+            # only a small tashkeel-quality cost — the right trade for batch jobs.
+            outputs = self._model.generate(**inputs, max_length=256, num_beams=1)
         return [self._tokenizer.decode(o, skip_special_tokens=True) for o in outputs]
 
 
