@@ -490,6 +490,9 @@ def main():
                     help="fast smoke preset for iteration: tiny subset + tight caps, both sources. "
                          "A sanity signal, NOT a real measurement.")
     ap.add_argument("--report", default=None, help="write JSON report to this path")
+    ap.add_argument("--ensemble", action="store_true",
+                    help="score through the production RoutedEnsemble (ensemble_config.json) "
+                         "instead of the single base model")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
@@ -507,7 +510,15 @@ def main():
 
     random.seed(42)
     t_load = time.time()
-    engine = RecitationEngine(str(MODEL_PATH))
+    if args.ensemble:
+        from ensemble import load_ensemble_or_engine
+        _cfg = str(Path(__file__).resolve().parent / "ensemble_config.json")
+        engine = load_ensemble_or_engine(RecitationEngine, str(MODEL_PATH), _cfg)
+        kind = type(engine).__name__
+        members = sorted(getattr(engine, "members", {}).keys()) if kind == "RoutedEnsemble" else []
+        print(f"[engine: {kind}{' members=' + str(members) if members else ' (single-model fallback)'}]")
+    else:
+        engine = RecitationEngine(str(MODEL_PATH))
     print(f"[engine loaded in {time.time() - t_load:.0f}s]")
 
     report = {"config": {

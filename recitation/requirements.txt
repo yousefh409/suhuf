@@ -6,3 +6,8 @@ torchaudio
 transformers
 websockets
 numpy
+# runtime deps used by engine.py / server.py (were missing -> would fail at runtime)
+scikit-learn==1.7.2   # pinned: loads the pickled error/type classifiers cleanly
+soundfile
+librosa
+huggingface_hub
