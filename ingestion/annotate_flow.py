@@ -23,7 +23,8 @@ from ingestion.tags import compile_tagged, TagError
 logger = logging.getLogger(__name__)
 
 PROMPT_VERSION = "annotate-flow-v1"
-MODEL = "claude-sonnet-4-6"
+MODEL = "anthropic/claude-sonnet-4.5"  # via OpenRouter (OpenAI-compatible API)
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 MAX_TOKENS = 16384
 MAX_WORKERS = 8
 
@@ -62,17 +63,19 @@ Return ONLY JSON: {"tagged":"<the tagged passage>"} — no markdown, no explanat
 def _build_client(client):
     """Return a usable client, or None when one cannot be built offline-safely.
 
-    A caller-supplied client is used as-is. Otherwise a client is built only when
-    ``ANTHROPIC_API_KEY`` is present, so tests with the key unset never touch the
+    A caller-supplied client is used as-is. Otherwise an OpenRouter client (the
+    OpenAI-compatible SDK pointed at OpenRouter) is built only when
+    ``OPENROUTER_API_KEY`` is present, so tests with the key unset never touch the
     network.
     """
     if client is not None:
         return client
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if not key:
         return None
     try:
-        from anthropic import Anthropic
-        return Anthropic()
+        from openai import OpenAI
+        return OpenAI(base_url=OPENROUTER_BASE_URL, api_key=key)
     except Exception as e:  # pragma: no cover - construction rarely fails
         logger.warning(f"annotate_flow: could not create client: {e}")
         return None
@@ -99,17 +102,18 @@ def annotate_flow(chunks: list[str], client=None) -> tuple[list[str], dict]:
     system = _system_prompt()
 
     def _call(chunk: str):
-        """One API call. Returns (tagged_or_None, usage)."""
+        """One API call (OpenAI-compatible chat completion). Returns (tagged_or_None, usage)."""
         user = "Tag this passage:\n\n" + json.dumps({"text": chunk}, ensure_ascii=False)
         try:
-            resp = client.messages.create(
-                model=MODEL, max_tokens=MAX_TOKENS, system=system,
-                messages=[{"role": "user", "content": user}],
+            resp = client.chat.completions.create(
+                model=MODEL, max_tokens=MAX_TOKENS,
+                messages=[{"role": "system", "content": system},
+                          {"role": "user", "content": user}],
             )
         except Exception as e:
             logger.warning(f"annotate_flow: API call failed: {e}")
             return None, None
-        body = resp.content[0].text if resp.content else ""
+        body = resp.choices[0].message.content if resp.choices else ""
         usage = getattr(resp, "usage", None)
         try:
             data = json.loads(body[body.find("{"):body.rfind("}") + 1])
@@ -123,8 +127,8 @@ def annotate_flow(chunks: list[str], client=None) -> tuple[list[str], dict]:
     out: list[str] = []
     for chunk, (tagged, usage) in zip(chunks, results):
         if usage is not None:
-            stats["input_tokens"] += getattr(usage, "input_tokens", 0)
-            stats["output_tokens"] += getattr(usage, "output_tokens", 0)
+            stats["input_tokens"] += getattr(usage, "prompt_tokens", 0) or 0
+            stats["output_tokens"] += getattr(usage, "completion_tokens", 0) or 0
         if tagged is None:
             stats["api_errors"] += 1
             stats["fallbacks"] += 1

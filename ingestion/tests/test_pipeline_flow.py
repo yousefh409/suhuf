@@ -46,9 +46,11 @@ def _fixture():
 
 
 class _Resp:
+    """Mimics an OpenAI-compatible (OpenRouter) chat completion response."""
     def __init__(self, text):
-        self.content = [type("C", (), {"text": text})()]
-        self.usage = type("U", (), {"input_tokens": 1, "output_tokens": 1})()
+        msg = type("M", (), {"content": text})()
+        self.choices = [type("Ch", (), {"message": msg})()]
+        self.usage = type("U", (), {"prompt_tokens": 1, "completion_tokens": 1})()
 
 
 def _wrap_one_hadith(segment: str) -> str:
@@ -75,10 +77,11 @@ class _HadithWrappingClient:
     when a page break later falls in the middle of it.
     """
     def __init__(self):
-        self.messages = self
+        self.chat = self
+        self.completions = self
 
-    def create(self, *, model, max_tokens, system, messages):
-        user = messages[0]["content"]
+    def create(self, *, model, max_tokens, messages):
+        user = messages[1]["content"]
         payload = json.loads(user[user.find("{"):user.rfind("}") + 1])
         chunk = payload["text"]
         words = chunk.split(" ")
