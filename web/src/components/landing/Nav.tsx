@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
-export default function Nav() {
+export default function Nav({ signedIn }: { signedIn: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const authHref = signedIn ? "/dashboard" : "/login";
+  const authLabel = signedIn ? "Dashboard" : "Log in";
 
   return (
     <nav className="sticky top-0 z-50 flex items-center justify-between w-full px-5 md:px-16 py-5 md:py-7 bg-parchment-light/[0.97] md:bg-parchment-light/90 md:backdrop-blur-md">
@@ -13,7 +16,13 @@ export default function Nav() {
       </a>
 
       {/* Desktop links */}
-      <div className="hidden md:flex items-center gap-8">
+      <div className="hidden md:flex items-center gap-6">
+        <Link
+          href={authHref}
+          className="text-sm font-medium text-ink/70 hover:text-ink transition-colors"
+        >
+          {authLabel}
+        </Link>
         <a
           href="#waitlist"
           className="flex items-center rounded-full px-6 py-2.5 bg-ink text-white text-sm font-medium hover:bg-ink/90 transition-colors"
@@ -42,6 +51,13 @@ export default function Nav() {
       {/* Mobile menu */}
       {menuOpen && (
         <div className="absolute top-full left-0 right-0 bg-parchment-light p-6 flex flex-col gap-4 md:hidden border-t border-ink/5">
+          <Link
+            href={authHref}
+            onClick={() => setMenuOpen(false)}
+            className="flex items-center justify-center rounded-full px-6 py-2.5 border border-ink/15 text-ink text-sm font-medium"
+          >
+            {authLabel}
+          </Link>
           <a
             href="#waitlist"
             className="flex items-center justify-center rounded-full px-6 py-2.5 bg-ink text-white text-sm font-medium"
