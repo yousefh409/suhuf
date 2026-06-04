@@ -33,8 +33,12 @@ def _system_prompt() -> str:
     return """You tag one passage of classical Arabic / Islamic text (hadith, fiqh, tafsir).
 
 You receive ONE passage of plain Arabic text. Return the SAME text with structure
-and entity boundary tags added. Do NOT change, add, or remove any words — the
+and entity boundary tags added. Do NOT change, add, or remove any character — the
 visible text with every tag removed must be byte-identical to the input.
+
+CRITICAL: preserve EVERY character exactly, including all punctuation and the
+quotation guillemets « and » . Do NOT drop, add, normalize, or move any character
+(no removing «», no changing diacritics, hamza, or spacing). You ONLY insert tags.
 
 Structure tags:
 - Wrap each complete hadith in <hadith>...</hadith>.
