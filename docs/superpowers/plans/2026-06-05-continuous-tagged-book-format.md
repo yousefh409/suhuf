@@ -135,13 +135,15 @@ Run the self-review at the bottom before starting Phase 1, and re-read it after 
 - Word tap, highlight, and recitation key off a derived `{page or unit}:{wordIndex}` from the rendered word list, with no stored per-word tokens.
 
 **Tasks:**
-- [ ] **Port reconstruction.** Test first (reuse the hadith #2 fixture in vitest): concat + parse rebuilds the whole hadith and its spans. Implement in `newFormat.ts`.
-- [ ] **Types.** Update `types.ts` to the page-row shape; fix the compile.
-- [ ] **Render the tag tree.** Test/verify first: the block renderer shows hadith #2 continuous with isnad/matn styling across the seam. Update the components.
-- [ ] **Page markers + jump.** Test/verify first: page markers render at the right offsets and jump-to-page lands correctly using `open_tags`.
-- [ ] **Selection map.** Test first: the word/selection map is built from rendered text and matches what the user taps. Update `sentences.ts`.
+- [x] **Port reconstruction.** **DONE** — `web/src/lib/reader/flowFormat.ts`: `parseFlowPage(tagged, open_tags)` (tolerant compile: seed the open-tag stack, parse, close still-open tags at page end) + `flowToNewBook` (one prose block per page). 8 vitest tests; verified on the real flow.json (pages 47/49/50 → continuous matn).
+- [x] **Types.** **DONE** — flow types live in `flowFormat.ts`; the converter emits the existing `NewBook` shape so `types.ts`/renderer are unchanged. `tsc --noEmit` clean.
+- [x] **Render the tag tree.** **DONE** — flow loads via a new `.flow.json` tier in `queries.ts` → `flowToNewBook` → `convertNewBook` → existing renderer. Verified in the dev reader: hadith #2 renders **whole and continuous** across the source page seam with isnad/matn/person styling (the matn the old data dropped on pp.49–50 is now one run). Full web suite green (147 tests).
+- [ ] **Page markers + jump.** **DEFERRED** — flow page-marker rendering (the markers are a default-off toggle) + jump-to-page seeded by `open_tags` not yet wired for the flow path.
+- [x] **Selection map.** **DONE (reused)** — `sentences.ts` works on the converted shape unchanged (each page is a prose block with derived word ids).
 
-**Checkpoint:** Reader shows hadith #2 whole. Run the web reader test suite and the dev loop (dump then open `/reader/0676Nawawi.ArbacunaNawawiyya`). Commit.
+**Known gaps (follow-ups):** (1) the flow AI pass leaves chapter/section headings untagged, so a heading renders as inline prose (the chapter TOC still works); (2) Supabase flow-read path in `queries.ts` (local dev path done; needs the live migration first); (3) flow page-marker rendering + jump-to-page.
+
+**Checkpoint:** **DONE 2026-06-05** — dev reader at `/reader/0676Nawawi.ArbacunaNawawiyya` renders hadith #2 whole from the flow format; `tsc` clean, 147 web tests green. Commits: `6af0bf2` (parser), `8069092` (loader tier).
 
 ---
 
