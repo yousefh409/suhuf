@@ -15,6 +15,8 @@ import { ReaderThemeShell } from "@/components/reader/ReaderThemeShell";
 import {
   ReciteShell,
   ReciteShellToggle,
+  ReciteShellEnd,
+  ReciteShellHideToggle,
   ReciteShellContent,
 } from "@/components/reader/recite/ReciteShell";
 import { WordPopoverShell } from "@/components/reader/word/WordPopoverShell";
@@ -51,42 +53,50 @@ export default async function ReaderPage({
     <ReaderThemeShell>
       <ReciteShell chapterBlocks={chapterBlocks} recitable={recitable}>
         <header
-          className="sticky top-0 z-10 grid items-center gap-3 border-b px-4 py-2.5 backdrop-blur sm:px-5"
+          className="sticky top-0 z-10 flex flex-col gap-2 border-b px-4 py-2.5 backdrop-blur sm:px-5"
           style={{
-            gridTemplateColumns: "1fr auto 1fr",
             background: "var(--reader-chrome-bg)",
             borderColor: "var(--reader-rule)",
           }}
         >
-          {/* Left: back · title */}
-          <div className="flex min-w-0 items-center gap-1.5 justify-self-start">
-            <Link
-              href="/library"
-              className="reader-iconbtn"
-              title="Library"
-              aria-label="Back to library"
-            >
-              <ChevronLeft size={20} />
-            </Link>
-            <div
-              className="truncate text-[17px]"
-              dir="rtl"
-              style={{ fontFamily: "var(--font-arabic), serif", color: "var(--reader-fg)" }}
-            >
-              {result.book.title_ar}
+          {/* Top row: title left · recite cluster centered · display right */}
+          <div
+            className="grid items-center gap-3"
+            style={{ gridTemplateColumns: "1fr auto 1fr" }}
+          >
+            <div className="flex min-w-0 items-center gap-1.5 justify-self-start">
+              <Link
+                href="/library"
+                className="reader-iconbtn"
+                title="Library"
+                aria-label="Back to library"
+              >
+                <ChevronLeft size={20} />
+              </Link>
+              <div
+                className="truncate text-[17px]"
+                dir="rtl"
+                style={{ fontFamily: "var(--font-arabic), serif", color: "var(--reader-fg)" }}
+              >
+                {result.book.title_ar}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 justify-self-center">
+              <ReciteShellHideToggle />
+              <ReciteShellToggle />
+              <ReciteShellEnd />
+            </div>
+
+            <div className="flex items-center gap-1 justify-self-end">
+              <TashkeelButton />
+              <DisplayPanel />
             </div>
           </div>
 
-          {/* Center: the focal action, with the current chapter under it */}
-          <div className="flex flex-col items-center gap-1 justify-self-center">
-            <ReciteShellToggle />
+          {/* Chapter selector — its own row, below the controls */}
+          <div className="flex justify-center">
             <ChapterSelect chapters={chapters} pages={pages} />
-          </div>
-
-          {/* Right: diacritics toggle · display & reading settings */}
-          <div className="flex items-center gap-1 justify-self-end">
-            <TashkeelButton />
-            <DisplayPanel />
           </div>
         </header>
 

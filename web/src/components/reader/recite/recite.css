@@ -5,6 +5,15 @@
 .tok--tashkeel     { border-bottom: 2px solid rgb(234, 88, 12); }
 .tok--skipped      { color: rgb(161, 161, 170); border-bottom: 2px dashed rgb(161, 161, 170); }
 .tok--current      { background: rgba(250, 204, 21, 0.25); border-radius: 2px; }
+/* Hide-text mode: unread words are fully invisible (transparent ink) but keep
+   their space so revealing one doesn't reflow the page; each appears once
+   recited (reveal-as-read). */
+.tok--concealed {
+  color: transparent;
+  cursor: default;
+  user-select: none;
+  transition: color 0.2s ease;
+}
 .reader-word {
   cursor: pointer;
 }

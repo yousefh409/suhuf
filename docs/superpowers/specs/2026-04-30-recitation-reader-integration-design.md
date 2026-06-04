@@ -335,3 +335,29 @@ The token-mint API route (`web/src/app/api/recitation/token/route.ts`) signs a J
 - Whether the reader auto-stops the session at end-of-chapter or waits for the user.
 - Append batch size: send 10 phrases at a time? 20? Tune empirically.
 - How quickly the reader re-renders status updates for very long chapters (perf check; may need memoization on `TokenText`).
+
+## Update 2026-06-04 — recite controls v2 (pause / end / hide-text)
+
+The v1 toggle was start ⇄ stop (stop tore the session down and cleared all
+highlights). Replaced with three controls so feedback persists and a
+memorisation mode exists.
+
+- **Session phases** (`recitePhase` in `state.ts`): `idle → connecting →
+  listening ⇄ paused`, plus terminal `error`. Derived from the connection state
+  and a new `paused` flag in the reducer.
+- **Main button** (`ReciteToggle`): Recite → **Pause** (listening) ⇄ **Resume**
+  (paused). Pause stops the mic but keeps the WebSocket open (the client
+  auto-pongs the server's pings, so the server-side cursor/audio survive) and
+  leaves the highlights on screen. Resume restarts the mic on the *same* socket;
+  if the socket dropped during a long pause it falls back to a fresh start at the
+  current anchor.
+- **End button** (`ReciteEndButton`, ■ icon, shown only while active): the old
+  teardown — `done()` + close socket + reset highlights → idle.
+- **Hide-text toggle** (`HideTextToggle`, eye icon): "reveal as read". While on
+  AND a session is active, unread words are blurred (`tok--concealed`, CSS
+  `filter: blur`); each word un-blurs once the engine scores it (errors still
+  flag). Blur, not opacity, to avoid the doubled joint-seam artifact on faded
+  Arabic. No effect when idle, so navigation isn't obscured.
+- Engine and WS protocol are unchanged. Pure-logic additions (`recitePhase`,
+  `isConcealed`, reducer `pause`/`resume`) are unit-tested in `state.test.ts`;
+  the controls + socket lifecycle were verified in-browser.
