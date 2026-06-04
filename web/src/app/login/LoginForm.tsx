@@ -32,6 +32,7 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -55,7 +56,17 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
       done();
       return;
     }
-    // signup
+    // signup — require a valid invite code
+    const normalizedCode = inviteCode.trim().toUpperCase();
+    const { data: invite } = await supabase
+      .from("invite_codes")
+      .select("code")
+      .eq("code", normalizedCode)
+      .maybeSingle();
+    if (!invite) {
+      setPending(false);
+      return setError("Invalid invite code.");
+    }
     const { data, error } = await supabase.auth.signUp({ email, password });
     setPending(false);
     if (error) return setError(error.message);
@@ -185,6 +196,17 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
           onChange={(e) => setPassword(e.target.value)}
           className={inputClass}
         />
+        {mode === "signup" && (
+          <input
+            type="text"
+            required
+            autoComplete="off"
+            placeholder="Invite code"
+            value={inviteCode}
+            onChange={(e) => setInviteCode(e.target.value)}
+            className={inputClass}
+          />
+        )}
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button type="submit" disabled={pending} className={primaryButtonClass}>
           {pending ? "…" : mode === "login" ? "Log in" : "Sign up"}
