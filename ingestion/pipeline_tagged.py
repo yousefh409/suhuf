@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 def build_tagged_book(uri: str, corpus_path: str = "./RELEASE",
-                      annotate: bool = True) -> tuple[tf.Book, dict]:
+                      annotate: bool = True,
+                      tashkeel_engine: str = "shakkala") -> tuple[tf.Book, dict]:
     path = find_book_file(uri, corpus_path=corpus_path)
     logger.info(f"Found file: {path.name}")
     result = parse_file(path, uri)
@@ -38,4 +39,15 @@ def build_tagged_book(uri: str, corpus_path: str = "./RELEASE",
                     f"({a['input_tokens']} in / {a['output_tokens']} out tokens)")
     stats["resolve"] = resolve_book(book)
     logger.info(f"Resolved: {stats['resolve']['quran_refs']} quran refs")
+
+    # Tashkeel last: diacritize block text and remap offsets (the source is
+    # undiacritized; the engine adds harakat). Skipped with engine 'none'.
+    if tashkeel_engine and tashkeel_engine != "none":
+        from ingestion.tashkeel import load_engine
+        from ingestion.tashkeel_tagged import diacritize_tagged_book
+        logger.info(f"Running tashkeel ({tashkeel_engine})...")
+        eng = load_engine(tashkeel_engine)
+        stats["tashkeel"] = diacritize_tagged_book(book, eng)
+        logger.info(f"Tashkeel: {stats['tashkeel']['diacritized']} diacritized, "
+                    f"{stats['tashkeel']['skipped']} skipped")
     return book, stats
