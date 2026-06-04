@@ -45,12 +45,12 @@ Run the self-review at the bottom before starting Phase 1, and re-read it after 
 - A helper makes a single fragment independently well-formed (prepend the open tags, append closers for tags still open at the end) so one page can be compiled and rendered in isolation for jump-to-page.
 
 **Tasks:**
-- [ ] **Slice/reconstruct round-trip.** Test first: for several tagged documents and break sets, slicing then concatenating returns the original string. Implement the slicer that walks the tag stream, tracks the open-tag stack, and cuts the current fragment when the plain offset reaches a break. Cover breaks that land inside a tag's text, exactly on a tag boundary, and between two tags.
-- [ ] **Open-tag stack capture.** Test first: a break inside a `<matn>` inside a `<hadith id="h2">` yields a next-fragment `open_tags` of `[hadith#h2, matn]`. Implement the stack snapshot at each cut. Confirm tag `id` attributes are captured (extend the tag regex to read `id` if needed; keep it ignoring all other attributes).
-- [ ] **Fragment isolation + compile.** Test first: a mid-matn fragment, made well-formed by the helper, compiles (via `compile_tagged`) to plain text equal to that page's words and a `matn` span covering them. Implement the close-and-reopen helper.
-- [ ] **Hadith of Jibril fixture.** Test first: a fixture of the three-page hadith #2 split (page 47/49/50 fragments with the `<hadith id="h2">` and one `<matn>` spanning all three) reconstructs to the whole hadith, the matn is one span end to end, and each page's `open_tags` is correct. This is the canonical regression guard for the whole feature.
+- [x] **Slice/reconstruct round-trip.** Test first: for several tagged documents and break sets, slicing then concatenating returns the original string. Implement the slicer that walks the tag stream, tracks the open-tag stack, and cuts the current fragment when the plain offset reaches a break. Cover breaks that land inside a tag's text, exactly on a tag boundary, and between two tags.
+- [x] **Open-tag stack capture.** Test first: a break inside a `<matn>` inside a `<hadith id="h2">` yields a next-fragment `open_tags` of `[hadith#h2, matn]`. Implement the stack snapshot at each cut. Confirm tag `id` attributes are captured (extend the tag regex to read `id` if needed; keep it ignoring all other attributes).
+- [x] **Fragment isolation + compile.** Test first: a mid-matn fragment, made well-formed by the helper, compiles (via `compile_tagged`) to plain text equal to that page's words and a `matn` span covering them. Implement the close-and-reopen helper.
+- [x] **Hadith of Jibril fixture.** Test first: a fixture of the three-page hadith #2 split (page 47/49/50 fragments with the `<hadith id="h2">` and one `<matn>` spanning all three) reconstructs to the whole hadith, the matn is one span end to end, and each page's `open_tags` is correct. This is the canonical regression guard for the whole feature.
 
-**Checkpoint:** All `test_page_slice.py` tests pass. Commit. The round-trip is the foundation; do not proceed until it is green on the hadith #2 fixture.
+**Checkpoint:** All `test_page_slice.py` tests pass. Commit. The round-trip is the foundation; do not proceed until it is green on the hadith #2 fixture. **DONE 2026-06-05** — `ingestion/page_slice.py` + 15 tests (suite 277 green); commits `24aa62f`, `ca99a88`, `cdd3ed5`. Spec review ✅, code quality Approved (over-close now raises `TagError`).
 
 ---
 
