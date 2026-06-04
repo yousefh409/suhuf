@@ -7,7 +7,7 @@ allowed chunk cut points). Page boundaries are NOT chunk boundaries — a page m
 begin mid-hadith.
 """
 from ingestion.models import Block, Token, Page, ParseResult, BookMetadata
-from ingestion.assemble import assemble
+from ingestion.assemble import assemble, numbered_units
 
 
 def _toks(page, key, words):
@@ -81,3 +81,20 @@ def test_assemble_page_offset_can_land_mid_unit():
     _, page_offsets, boundaries = assemble(_fixture())
     page3_off = page_offsets[2][2]
     assert boundaries[1] < page3_off
+
+
+def test_numbered_units_records_block_numbers():
+    meta = BookMetadata(openiti_id="t.1", title_ar="x", author_openiti_id="a")
+    h = _heading(1, "b0", ["الحديث", "الأول"])
+    numbered = Block(key="b1", type="prose", tokens=_toks(1, "b1", ["نص"]), number="1")
+    page = Page(page_number=1, content_blocks=[h, numbered])
+    text, _, _ = assemble(ParseResult(metadata=meta, pages=[page]))
+    units = numbered_units(ParseResult(metadata=meta, pages=[page]))
+    assert len(units) == 1
+    off, num = units[0]
+    assert num == "1"
+    assert text[off:].startswith("نص")
+
+
+def test_numbered_units_empty_when_no_numbers():
+    assert numbered_units(_fixture()) == []
