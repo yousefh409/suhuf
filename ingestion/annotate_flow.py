@@ -19,6 +19,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 
 from ingestion.tags import compile_tagged, TagError
+from ingestion.tag_transfer import transfer_tags
 
 logger = logging.getLogger(__name__)
 
@@ -93,9 +94,9 @@ def annotate_flow(chunks: list[str], client=None) -> tuple[list[str], dict]:
     failures that reverted to plain), ``api_errors``, ``input_tokens``,
     ``output_tokens``, ``no_client``, ``model``, and ``prompt_version``.
     """
-    stats = {"chunks": len(chunks), "fallbacks": 0, "api_errors": 0,
-             "input_tokens": 0, "output_tokens": 0, "no_client": False,
-             "model": MODEL, "prompt_version": PROMPT_VERSION}
+    stats = {"chunks": len(chunks), "fallbacks": 0, "transferred": 0,
+             "api_errors": 0, "input_tokens": 0, "output_tokens": 0,
+             "no_client": False, "model": MODEL, "prompt_version": PROMPT_VERSION}
 
     client = _build_client(client)
     if client is None:
@@ -145,9 +146,17 @@ def annotate_flow(chunks: list[str], client=None) -> tuple[list[str], dict]:
             out.append(chunk)
             continue
         if plain != chunk:
-            # The model altered the words; discard the tags, keep the plain text.
-            stats["fallbacks"] += 1
-            out.append(chunk)
+            # The model drifted characters (commonly dropped the « » matn marks).
+            # Transfer the tags onto the EXACT source via alignment instead of
+            # losing the whole chunk's structure; only genuinely garbled output
+            # (low alignment similarity) falls back to plain.
+            transferred = transfer_tags(tagged, chunk)
+            if transferred is not None:
+                stats["transferred"] += 1
+                out.append(transferred)
+            else:
+                stats["fallbacks"] += 1
+                out.append(chunk)
             continue
         out.append(tagged)
 

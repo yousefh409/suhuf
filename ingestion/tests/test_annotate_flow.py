@@ -58,10 +58,23 @@ def test_valid_tagged_output_is_kept():
     assert stats["chunks"] == 1
 
 
+def test_drifted_output_is_transferred_not_dropped():
+    # The model dropped the « » marks (a tiny drift). Tags must be transferred
+    # onto the exact source, not discarded.
+    chunk = "عن عمر «إنما الأعمال» رواه البخاري"
+    drifted = ("<hadith><isnad>عن عمر</isnad> <matn>إنما الأعمال</matn> "
+               "<takhrij>رواه البخاري</takhrij></hadith>")  # « » missing
+    client = _MockClient({chunk: drifted})
+    out, stats = annotate_flow([chunk], client=client)
+    assert compile_tagged(out[0])[0] == chunk     # source preserved exactly, « » kept
+    assert stats["transferred"] == 1
+    assert stats["fallbacks"] == 0
+
+
 def test_word_altering_output_falls_back_to_plain():
     chunk = "عن زيد قال نعم"
-    # the model dropped a word -> tags-stripped != input
-    bad = "<matn>عن زيد قال</matn>"
+    # the model rewrote the text entirely -> too different to align, falls back
+    bad = "<matn>كلام مختلف تماما بلا صلة بالأصل إطلاقا</matn>"
     client = _MockClient({chunk: bad})
     out, stats = annotate_flow([chunk], client=client)
     assert out == [chunk]            # fell back to the plain chunk
