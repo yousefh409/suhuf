@@ -20,10 +20,11 @@ import re
 
 from pydantic import BaseModel
 
-from ingestion.tags import _TAG_SPLIT, _TAG
+from ingestion.tags import TagError, _TAG_SPLIT, _TAG
 
 # `_TAG` captures (closing-slash, name) but drops attributes. Pull the optional
-# `id="…"` out separately; every other attribute stays ignored.
+# `id="…"` out separately; every other attribute stays ignored. Matches only the
+# canonical double-quoted `id="..."` the writer emits (single quotes never occur).
 _ID_ATTR = re.compile(r'\bid\s*=\s*"([^"]*)"')
 
 
@@ -46,13 +47,20 @@ def slice_tagged(tagged: str, breaks: list[int]) -> list[PageSlice]:
     begins — interior cut points, in ascending order, not including 0. Produces
     ``len(breaks) + 1`` slices in document order.
 
+    Precondition: each break must be an interior plain-text offset
+    (``0 < b < len(plain)``); out-of-range breaks (``<= 0``) are dropped, and
+    coincident duplicate offsets collapse to a single cut. Raises
+    :class:`~ingestion.tags.TagError` on a mismatched or over-closing tag, to
+    agree with ``compile_tagged``'s contract.
+
     Walks the tag stream tracking the plain-text offset and the open-tag stack.
     When the plain offset reaches a break, the current fragment is finalized and
     a new one started whose ``open_tags`` is a snapshot of the stack at that
     point. A break may land inside a tag's text, exactly on a tag boundary, or
     between two tags. The first slice's ``open_tags`` is always empty.
     """
-    pending = sorted(b for b in breaks if b > 0)
+    # De-dup coincident offsets so a duplicate break can't yield an empty slice.
+    pending = sorted({b for b in breaks if b > 0})
 
     slices: list[PageSlice] = []
     stack: list[OpenTag] = []        # tags open at the current position
@@ -74,6 +82,8 @@ def slice_tagged(tagged: str, breaks: list[int]) -> list[PageSlice]:
             if m:
                 closing, name = m.group(1), m.group(2)
                 if closing:
+                    if not stack or stack[-1].name != name:
+                        raise TagError(f"mismatched closing tag: </{name}>")
                     stack.pop()
                 else:
                     id_m = _ID_ATTR.search(part)
@@ -126,8 +136,13 @@ def close_fragment(slice: PageSlice) -> str:
             continue
         closing, name = m.group(1), m.group(2)
         if closing:
-            if stack:
-                stack.pop()
+            # A close is legitimate only if it matches the tag on top of the
+            # stack — which, for a context-closing fragment, was seeded from the
+            # prepended `open_tags`. An empty stack or a name mismatch is a
+            # genuine over-close, so agree with compile_tagged and raise.
+            if not stack or stack[-1].name != name:
+                raise TagError(f"mismatched closing tag: </{name}>")
+            stack.pop()
         else:
             stack.append(OpenTag(name=name))
 

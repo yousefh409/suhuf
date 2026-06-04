@@ -8,7 +8,7 @@ well-formed for isolated rendering.
 """
 import pytest
 
-from ingestion.tags import compile_tagged, _TAG_SPLIT
+from ingestion.tags import compile_tagged, TagError, _TAG_SPLIT
 from ingestion.page_slice import (
     OpenTag,
     PageSlice,
@@ -62,6 +62,16 @@ def test_roundtrip(tagged, needles):
     assert reconstruct(slices) == tagged
 
 
+def test_duplicate_breaks_no_empty_slice():
+    # Coincident break offsets must collapse to one cut, not yield an empty
+    # `tagged` slice between them; round-trip must still hold.
+    tagged = "<matn>أبجد هوز حطي</matn>"
+    b = _breaks_at(tagged, "هوز")[0]
+    slices = slice_tagged(tagged, [b, b])
+    assert all(s.tagged != "" for s in slices)
+    assert reconstruct(slices) == tagged
+
+
 def test_first_slice_open_tags_empty():
     tagged = "<matn>أبجد هوز حطي</matn>"
     slices = slice_tagged(tagged, _breaks_at(tagged, "هوز"))
@@ -106,6 +116,46 @@ def test_close_fragment_mid_matn_compiles_to_its_words():
     # a matn span covers the whole fragment's text
     assert any(s.label == "matn" and s.start == 0 and s.end == len(text)
                for s in spans)
+
+
+# ── malformed input: over-closing raises a domain TagError ───────────────────
+
+def test_slice_tagged_overclose_raises_tagerror():
+    # `</hadith>` closes a tag that was never opened (stack empty) — a genuine
+    # over-close. Must raise the domain TagError, not leak a bare IndexError.
+    with pytest.raises(TagError):
+        slice_tagged("<matn>x</matn></hadith>", [])
+
+
+def test_slice_tagged_mismatched_close_raises_tagerror():
+    # `</hadith>` while `<matn>` is on top of the stack — a mismatched close.
+    with pytest.raises(TagError):
+        slice_tagged("<matn>x</hadith>", [])
+
+
+def test_close_fragment_balanced_via_open_tags_compiles():
+    # A fragment that opens mid-context: its body starts by CLOSING `matn`,
+    # which is legitimate because `open_tags` supplies the matching opener.
+    # close_fragment must prepend that opener and compile cleanly.
+    frag = PageSlice(
+        tagged="جلوس</matn> <takhrij>رواه مسلم</takhrij>",
+        open_tags=[OpenTag(name="hadith", id="h2"), OpenTag(name="matn")],
+    )
+    closed = close_fragment(frag)
+    text, spans, _ = compile_tagged(closed)   # must not raise
+    assert "جلوس" in text
+    assert any(s.label == "takhrij" for s in spans)
+
+
+def test_close_fragment_genuine_overclose_raises_tagerror():
+    # Body closes `hadith` after `matn` has already balanced out — beyond what
+    # the open_tags stack provides — so it is a genuine over-close.
+    frag = PageSlice(
+        tagged="جلوس</matn></hadith></qism>",
+        open_tags=[OpenTag(name="hadith", id="h2"), OpenTag(name="matn")],
+    )
+    with pytest.raises(TagError):
+        close_fragment(frag)
 
 
 # ── Hadith of Jibril fixture: the canonical regression guard ─────────────────
