@@ -244,6 +244,22 @@ def run_tagged(args):
     logger.info(f"Wrote: {out}")
 
 
+def run_flow(args):
+    """Execute the flow pipeline and dump <uri>.flow.json."""
+    # The flow structure pass needs ANTHROPIC_API_KEY; load the project .env so
+    # the real run picks it up (override empty/stale shell-inherited values).
+    load_dotenv(override=True)
+    from ingestion.pipeline_flow import build_flow_book
+    book, _ = build_flow_book(
+        args.uri, corpus_path=args.corpus_path, annotate=not args.skip_annotate
+    )
+    dump_dir = Path(args.dump)
+    dump_dir.mkdir(parents=True, exist_ok=True)
+    out = dump_dir / f"{args.uri}.flow.json"
+    out.write_text(book.model_dump_json(indent=2), encoding="utf-8")
+    logger.info(f"Wrote: {out}")
+
+
 def main():
     parser = build_parser()
     args = parser.parse_args()
@@ -254,6 +270,8 @@ def main():
         run_parse(args)
     elif args.command == "tagged":
         run_tagged(args)
+    elif args.command == "flow":
+        run_flow(args)
     else:
         parser.print_help()
         sys.exit(1)

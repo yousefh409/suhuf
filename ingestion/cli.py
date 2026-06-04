@@ -36,4 +36,13 @@ def build_parser() -> argparse.ArgumentParser:
                             choices=["shakkala", "flan-t5", "sadeed", "none"],
                             help="Diacritization engine (shakkala falls back to flan-t5)")
 
+    # flow command: continuous tagged, page-sliced format (parse -> assemble ->
+    # chunk -> AI structure -> number -> slice), dumps <uri>.flow.json
+    flow_cmd = sub.add_parser("flow", help="Build the continuous-tagged page-sliced book")
+    flow_cmd.add_argument("uri", help="OpenITI URI")
+    flow_cmd.add_argument("--corpus-path", default="./RELEASE")
+    flow_cmd.add_argument("--dump", required=True, help="Output directory for <uri>.flow.json")
+    flow_cmd.add_argument("--skip-annotate", action="store_true",
+                          help="Skip the Claude flow structure pass (no API)")
+
     return parser
