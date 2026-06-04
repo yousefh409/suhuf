@@ -131,15 +131,20 @@ class _FlanT5Engine:
         self._model.to(self._device)
 
     def diacritize(self, text: str) -> str:
+        return self.diacritize_batch([text])[0]
+
+    def diacritize_batch(self, texts: list[str]) -> list[str]:
         import torch
 
+        # Dynamic padding (to the longest in the batch, not a fixed 256) makes
+        # short hadith blocks far cheaper than padding="max_length".
         inputs = self._tokenizer(
-            text, return_tensors="pt", max_length=256, truncation=True, padding="max_length",
+            texts, return_tensors="pt", max_length=256, truncation=True, padding=True,
         )
         inputs = {k: v.to(self._device) for k, v in inputs.items()}
         with torch.no_grad():
             outputs = self._model.generate(**inputs, max_length=256, num_beams=4, early_stopping=True)
-        return self._tokenizer.decode(outputs[0], skip_special_tokens=True)
+        return [self._tokenizer.decode(o, skip_special_tokens=True) for o in outputs]
 
 
 def load_engine(name: str = "shakkala") -> TashkeelEngine | None:

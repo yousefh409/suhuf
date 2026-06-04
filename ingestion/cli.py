@@ -32,5 +32,8 @@ def build_parser() -> argparse.ArgumentParser:
     tagged_cmd.add_argument("--dump", required=True, help="Output directory for <uri>.book.json")
     tagged_cmd.add_argument("--skip-annotate", action="store_true",
                             help="Skip the Claude tagged-annotate pass (no API)")
+    tagged_cmd.add_argument("--tashkeel-engine", default="shakkala",
+                            choices=["shakkala", "flan-t5", "sadeed", "none"],
+                            help="Diacritization engine (shakkala falls back to flan-t5)")
 
     return parser

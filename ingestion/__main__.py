@@ -234,7 +234,8 @@ def run_tagged(args):
     """Execute the tagged-format pipeline and dump <uri>.book.json."""
     from ingestion.pipeline_tagged import build_tagged_book
     book, _ = build_tagged_book(
-        args.uri, corpus_path=args.corpus_path, annotate=not args.skip_annotate
+        args.uri, corpus_path=args.corpus_path, annotate=not args.skip_annotate,
+        tashkeel_engine=args.tashkeel_engine,
     )
     dump_dir = Path(args.dump)
     dump_dir.mkdir(parents=True, exist_ok=True)
