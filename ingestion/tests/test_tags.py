@@ -97,6 +97,17 @@ def test_render_compile_roundtrip(tagged):
 
 # ── errors ──────────────────────────────────────────────────────────────────
 
+def test_render_handles_crossing_spans():
+    # Partially-overlapping spans (an entity straddling a structural boundary)
+    # must still render as VALID markup — split via close-and-reopen, never
+    # crossing tags. compile must accept the result and a re-render is stable.
+    spans = [Span(start=0, end=6, label="isnad"), Span(start=3, end=10, label="person")]
+    tagged = render_tagged("ابجد هوز حط", spans, [])
+    text, sp, lines = compile_tagged(tagged)   # must not raise
+    assert text == "ابجد هوز حط"
+    assert render_tagged(text, sp, lines) == tagged   # stable round-trip
+
+
 def test_unknown_tag_errors():
     with pytest.raises(TagError):
         compile_tagged("<foo>x</foo>")
