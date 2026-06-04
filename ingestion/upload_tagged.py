@@ -10,6 +10,7 @@ constraint holds without data loss.
 from __future__ import annotations
 import hashlib
 import logging
+import re
 import unicodedata
 from typing import Any
 
@@ -17,6 +18,16 @@ from ingestion import tagged_format as tf
 
 logger = logging.getLogger(__name__)
 PAGE_BATCH_SIZE = 50
+
+
+def _author_display(author_data: dict, openiti_id: str) -> str:
+    """A readable author name: the yml shuhra unless it's the OpenITI placeholder
+    (Ibn Fulān al-Fulānī), else derived from the id (0672IbnMalik -> Ibn Malik)."""
+    shuhra = author_data.get("shuhra_lat")
+    if shuhra and "Ful" not in shuhra:
+        return shuhra
+    name = re.sub(r"^\d+", "", openiti_id)            # strip leading death year
+    return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", name) or openiti_id
 
 
 def _page_plain(page: tf.Page) -> str:
@@ -61,15 +72,26 @@ def _merge_duplicate_pages(pages: list[tf.Page]) -> list[tf.Page]:
     return out
 
 
-def upload_tagged_book(book: tf.Book, client: Any) -> dict:
+def upload_tagged_book(book: tf.Book, client: Any, author_data: dict | None = None) -> dict:
     meta = book.metadata
+    author_data = author_data or {}
     stats = {"pages": 0, "chapters": 0}
 
-    # 1. Author (minimal; shuhra_ar is NOT NULL — fall back to the openiti id)
+    # 1. Author — populated from the OpenITI author yml when available so the
+    # catalog shows a real name rather than the openiti id. (shuhra_ar is NOT
+    # NULL; fall back to the latin shuhra, then the id.)
+    display = _author_display(author_data, meta.author_openiti_id)
     author_row = {
         "openiti_id": meta.author_openiti_id,
-        "shuhra_ar": meta.author_openiti_id,
-        "death_ah": getattr(meta, "death_ah", None),
+        "shuhra_ar": display,
+        "shuhra_lat": display,
+        "ism_ar": author_data.get("ism_lat"),
+        "nasab_ar": author_data.get("nasab_lat"),
+        "kunya_ar": author_data.get("kunya_lat"),
+        "laqab_ar": author_data.get("laqab_lat"),
+        "nisba_ar": author_data.get("nisba_lat"),
+        "birth_ah": author_data.get("birth_ah"),
+        "death_ah": author_data.get("death_ah"),
     }
     author_row = {k: v for k, v in author_row.items() if v is not None}
     resp = client.table("authors").upsert(author_row, on_conflict="openiti_id").execute()
