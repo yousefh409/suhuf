@@ -259,6 +259,20 @@ def run_flow(args):
     out.write_text(book.model_dump_json(indent=2), encoding="utf-8")
     logger.info(f"Wrote: {out}")
 
+    # Default is dump-only; only write to the DB when --upload is set. The flow
+    # path has no author yml in hand, so author_data is None (uploader handles it).
+    if getattr(args, "upload", False):
+        from supabase import create_client
+        from ingestion.upload_flow import upload_flow_book
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        if not url or not key:
+            logger.error("Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables")
+            sys.exit(1)
+        client = create_client(url, key)
+        upload_flow_book(book, client, author_data=None)
+        logger.info(f"Upload complete: {args.uri}")
+
 
 def main():
     parser = build_parser()
