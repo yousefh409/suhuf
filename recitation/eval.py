@@ -38,7 +38,7 @@ from arabic import (
     replace_final_diacritic,
 )
 
-MODEL_PATH = BASE / "models" / "ssl_xls_r_v5"
+MODEL_PATH = BASE / "models" / "xlsr_mixed"
 FRAME_STRIDE = 320
 SAMPLE_RATE = 16000
 
