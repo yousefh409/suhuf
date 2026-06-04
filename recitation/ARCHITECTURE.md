@@ -214,50 +214,60 @@ signal. An earlier figure of "~93% detection" came from a capped 10-phrase
 subset that also hid the comprehensive false-positive rate; the numbers above are
 the honest all-phrases measurement.
 
-## Error-scoring ensemble — decorrelated agreement (Phase 3-4, PROVISIONAL)
+## Error-scoring ensemble — decorrelated per-error-type routing (Phase 4)
 
-The single XLS-R discriminator has a per-error-type ceiling. Phases 3-4 added an
-optional **ensemble of decorrelated diacritized-char CTC models** combined via
-FP-safe agreement-gating. Full log in `experiments.md` (Phases 3-4).
+The single XLS-R discriminator has a per-error-type ceiling. We route each error
+type to its own decorrelated member(s) and flag on an FP-safe margin threshold.
+This is the **ported, live-validated** version of the offline `final_system.json`
+recipe. Full log in `experiments.md`.
 
-**Members** (all score identically — reference-vs-error margin via `assess_word`):
-- `base` (`ssl_xls_r_v5`) — careful-studio ASC; strongest single on i3rab.
-- **contrastive fine-tunes** — same architecture, trained with a *margin* loss on
-  one-diacritic-off hard negatives, specialized per error type (i3rab-only /
-  tashkeel-only / consonant-only negatives) from different starts/seeds, so their
-  errors decorrelate (`xlsr_i3rab_contr`, `xlsr_i3rab_v2/v3`, `xlsr_consfix`,
-  `xlsr_consv2`, `xlsr_tashcontr` — on the network volume).
-- IqraEval phoneme-CTC — a different model *family*, a decorrelated vote.
+**Recipe** (margin = reference-vs-error gap from `assess_word`; each member uses
+its OWN forced-alignment boundaries, paired across members by word index):
+- **i3rab** — `base` + `i3rabcontr` must BOTH fire (2-of-2 agreement). `i3rabcontr`
+  is a weaker but decorrelated contrastive fine-tune; requiring agreement lifts
+  i3rab past the long-stuck base ceiling.
+- **tashkeel** — `base` single (margin threshold).
+- **consonant** — `contr1000` single (a contrastive fine-tune; makhraj-confusable
+  single-consonant-swap scoring, added here since `assess_word` covers only
+  i3rab+tashkeel).
+- *Deferred:* `iqra` (IqraEval phoneme-CTC, a different model family) would push
+  i3rab→~94 / consonant→~92 but needs a non-`RecitationEngine` adapter.
 
-**Combination** — per error type, route to a small set and flag only if **≥k
-members agree** (each above its own FP-safe threshold). Agreement is the
-false-positive control; decorrelation is essential (identical models voting does
-nothing).
+**Port is exact.** Live margins reproduce the offline score files to ~3e-4 (mean),
+so the offline thresholds transfer; verified per cell against the offline
+methodology.
 
-**Honest numbers (5-fold CV on the careful sessions, de-overfit):** i3rab ~92,
-tashkeel ~86, consonant ~88 (up from base 86/91/71) — but held-out FP ~2.5% (over
-budget) and selected on only ~206 words. The **mechanism** is the transferable
-result; the **specific member set + thresholds are data-limited and PENDING
-validation on a larger / more general dataset** before being trusted as the
-production default.
+**The combined-FP finding (important).** The offline analysis calibrated each cell
+to <2% FP *independently* and never measured the **combined** per-word FP. But
+production tests every word for all three error types, so the false positives
+**stack** — copying the per-cell thresholds gives **4.85%** combined FP (10/206
+correct words flagged). Thresholds are therefore **jointly recalibrated** so the
+union holds <2%. Honest live numbers on the careful sessions (206 words), both
+sides at <2% combined FP:
 
-**Implementation (shipped):** `ensemble.py` → `RoutedEnsemble`, a drop-in scorer
-selected at startup by `load_ensemble_or_engine` from `ensemble_config.json`. It
-wraps the member engines and adds `ensemble_i3rab/tashkeel/consonant` agreement
-flags per word; `classify_words` uses them when present and the existing
-single-model logic otherwise. **Both entrypoints are wired** — `/ws/score`
-(streaming, via `score_phrase`) and `/api/score` (batch, via `locate_and_score`,
-which maps the matched phrase's local word indices back to global). A `consonant`
-channel (makhraj-confusable single-swap scoring) is added here since `assess_word`
-covers only i3rab+tashkeel.
+| @ <2% combined FP | i3rab | tashkeel | consonant |
+| --- | --- | --- | --- |
+| base alone (3 cells) | 49% | 72% | 57% |
+| **this ensemble** | **80%** | **91%** | **64%** |
 
-**Deploy safety / fallback:** the loader resolves member dirs relative to the
-config and verifies every *used* member's weights are on disk. If any are missing
-(the 5 non-`base` members currently live on the region-locked RunPod volume
-`29p3s0lzcq`), it logs and **falls back to single-model** — a server with only
-`base` runs exactly as before, never crashing on a missing optional weight. Drop
-the member dirs in next to the config and the full ensemble auto-activates on the
-next startup. `ensemble_config.example.json` documents the schema.
+The decorrelated members buy a real lift at equal FP budget (i3rab nearly doubles).
+Still data-limited (~170-206 careful words) → **monitor production FP**; more real
+reading data is the lever to push higher.
+
+**Implementation:** `ensemble.py` → `RoutedEnsemble`, selected at startup by
+`load_ensemble_or_engine` from `ensemble_config.json`. Adds
+`ensemble_i3rab/tashkeel/consonant` flags per word; `classify_words` uses them when
+present, the legacy single-model logic otherwise. **Both entrypoints wired** —
+`/ws/score` (`score_phrase`) and `/api/score` (`locate_and_score`, mapping matched-
+phrase local word indices back to global). Thresholds were ported from the offline
+score files and then **jointly recalibrated** on live correct-margins so the
+union of all three cells holds <2% FP (not each cell independently).
+
+**Deploy safety / fallback:** the loader resolves member dirs relative to the config
+and verifies every *used* member's weights are on disk; if any are missing it logs
+and **falls back to single-model `base`** — never crashes on a missing weight, and
+the full ensemble auto-activates once the dirs are present. Production deploy
+(Modal GPU, weights on a Volume): see `DEPLOY_MODAL.md`.
 
 **Casual reading (Phase 3):** fine-tuning on Qur'an-filtered Common Voice
 (`xlsr_mixed`) roughly doubled casual tashkeel/consonant detection; casual

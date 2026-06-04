@@ -58,21 +58,23 @@ def _i3rab_margin(a):
 
 
 def _tashkeel_margin(a):
-    if a.get("skip_tashkeel"):
+    # Matches the offline detector exactly (xlsr_cv_full.assess_clip): the
+    # tashkeel wrongness margin is best_tashkeel_score - eff. (The add-vowel
+    # term is intentionally excluded so the locked consfix threshold transfers.)
+    if a.get("skip_tashkeel") or a.get("best_tashkeel_score", -999.0) <= -900:
         return None
-    best = max(a.get("best_tashkeel_score", -999.0), a.get("best_addvowel_score", -999.0))
-    if best <= -900:
-        return None
-    return best - a["effective_score"]
+    return a["best_tashkeel_score"] - a["effective_score"]
 
 
-def _consonant_margin(engine, segment, word, eff, cap=6):
+def _consonant_margin(engine, segment, word, eff):
+    """Consonant wrongness margin, matching the offline detector exactly
+    (xlsr_cv_full.cons_branch): max over ALL makhraj-confusable single-consonant
+    swaps of the swap's effective_score (sukoon-aware, == assess_word), minus the
+    word's effective_score `eff`. No cap, so the locked threshold transfers."""
     alts = list(consonant_alternatives(word).values())
     if not alts:
         return None
-    if len(alts) > cap:
-        alts = alts[:cap]
-    best = max(engine.score_hypothesis(segment, w) for w in alts)
+    best = max(engine.assess_word(segment, a)["effective_score"] for a in alts)
     return best - eff
 
 
@@ -122,43 +124,56 @@ class RoutedEnsemble:
     def __getattr__(self, name):
         return getattr(self.__dict__["members"][self.__dict__["primary_name"]], name)
 
+    def _member_logprobs(self, waveform):
+        """One CTC forward per member. Cache this per audio segment and reuse it
+        across many reference texts (the forward is the expensive part)."""
+        lp_p = self.primary.get_log_probs(waveform)
+        return {name: (lp_p if name == self.primary_name else eng.get_log_probs(waveform))
+                for name, eng in self.members.items()}
+
+    def _raw_word_margins(self, member_lp, phrase_text):
+        """Per-word RAW per-member margins keyed by LOCAL word index:
+        {wi: {"i3": {member: margin|None}, "ta": {...}, "co": {...}}}.
+
+        Each member uses its OWN forced-alignment boundaries — matching how the
+        offline detector calibrated its thresholds (xlsr_cv_full.assess_clip runs
+        every model independently). Words are paired across members by word_idx,
+        so the locked per-member thresholds transfer directly. Used by the
+        agreement flags and by threshold tuning."""
+        words = phrase_text.split()
+        out = {}
+        for name, eng in self.members.items():
+            lp = member_lp[name]
+            T = lp.shape[0]
+            tokens = eng.text_to_tokens(phrase_text)
+            if not tokens:
+                continue
+            wbs = eng.word_boundaries_from_alignment(eng.forced_align(lp, tokens), tokens)
+            for wb in wbs:
+                wi = wb["word_idx"]
+                if wi >= len(words):
+                    continue
+                sf, ef = wb["start_frame"], wb["end_frame"]
+                seg = lp[max(0, sf - 2):min(T - 1, ef + 2) + 1]
+                if seg.shape[0] < 3:
+                    continue
+                a = eng.assess_word(seg, words[wi])
+                d = out.setdefault(wi, {"i3": {}, "ta": {}, "co": {}})
+                d["i3"][name] = _i3rab_margin(a)
+                d["ta"][name] = _tashkeel_margin(a)
+                d["co"][name] = _consonant_margin(eng, seg, words[wi], a["effective_score"])
+        return out
+
     def _flags_by_local_idx(self, waveform, phrase_text):
         """Per-word ensemble agreement flags keyed by LOCAL word index within
         `phrase_text`. Shared by score_phrase (WS) and locate_and_score (REST)
         so both entrypoints get identical ensemble behavior."""
-        words = phrase_text.split()
-        lp_p = self.primary.get_log_probs(waveform)
-        tokens = self.primary.text_to_tokens(phrase_text)
-        if not tokens:
-            return {}
-        spans = self.primary.forced_align(lp_p, tokens)
-        wbs = self.primary.word_boundaries_from_alignment(spans, tokens)
-        # per-member log-probs (one forward each)
-        member_lp = {name: (lp_p if name == self.primary_name else eng.get_log_probs(waveform))
-                     for name, eng in self.members.items()}
-        T = {name: lp.shape[0] for name, lp in member_lp.items()}
-
-        by_idx = {}
-        for wb in wbs:
-            wi = wb["word_idx"]
-            if wi >= len(words):
-                continue
-            sf, ef = wb["start_frame"], wb["end_frame"]
-            i3, ta, co = {}, {}, {}
-            for name, eng in self.members.items():
-                seg = member_lp[name][max(0, sf - 2):min(T[name] - 1, ef + 2) + 1]
-                if seg.shape[0] < 3:
-                    continue
-                a = eng.assess_word(seg, words[wi])
-                i3[name] = _i3rab_margin(a)
-                ta[name] = _tashkeel_margin(a)
-                co[name] = _consonant_margin(eng, seg, words[wi], a["effective_score"])
-            by_idx[wi] = {
-                "ensemble_i3rab": agrees(i3, self.routing.get("i3rab")),
-                "ensemble_tashkeel": agrees(ta, self.routing.get("tashkeel")),
-                "ensemble_consonant": agrees(co, self.routing.get("consonant")),
-            }
-        return by_idx
+        raw = self._raw_word_margins(self._member_logprobs(waveform), phrase_text)
+        return {wi: {
+            "ensemble_i3rab": agrees(m["i3"], self.routing.get("i3rab")),
+            "ensemble_tashkeel": agrees(m["ta"], self.routing.get("tashkeel")),
+            "ensemble_consonant": agrees(m["co"], self.routing.get("consonant")),
+        } for wi, m in raw.items()}
 
     def score_phrase(self, waveform, phrase_text, **kw):
         """Same return as RecitationEngine.score_phrase, with ensemble_* flags
