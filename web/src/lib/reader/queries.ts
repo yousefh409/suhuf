@@ -2,8 +2,13 @@ import "server-only";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { cache } from "react";
-import type { Author, Book, BookListItem, Chapter, NewBook, Page } from "./types";
+import type { Author, Book, BookListItem, Chapter, NewBlock, NewBook, Page } from "./types";
 import { convertNewBook } from "./newFormat";
+import { createClient } from "@/lib/supabase/server";
+
+// When READER_SOURCE=supabase the reader loads books from Supabase (the new
+// tagged format stored in pages.content_blocks); otherwise it reads local dumps.
+const USE_SUPABASE = process.env.READER_SOURCE === "supabase";
 
 type PageRange = { volume: number; page_number: number };
 
@@ -145,9 +150,82 @@ async function readFileIfExists(p: string): Promise<string | null> {
   }
 }
 
+// Reconstruct a NewBook from Supabase rows (pages.content_blocks holds the new
+// tagged blocks) and normalise it the same way as a local .book.json. Chapter
+// block_index is derived by matching the chapter title to a heading block in its
+// page (the chapters table has no block_index column).
+async function _loadBookFromSupabase(
+  openitiId: string,
+): Promise<{ data: LocalBookFile; tier: LoadTier } | null> {
+  const supabase = await createClient();
+  const { data: bookRow } = await supabase
+    .from("books")
+    .select("id, title_ar, title_lat, genres, language, authors(openiti_id)")
+    .eq("openiti_id", openitiId)
+    .maybeSingle();
+  if (!bookRow) return null;
+
+  const [{ data: pageRows }, { data: chapterRows }] = await Promise.all([
+    supabase
+      .from("pages")
+      .select("id, page_number, volume, content_blocks")
+      .eq("book_id", bookRow.id)
+      .order("volume", { ascending: true })
+      .order("page_number", { ascending: true }),
+    supabase
+      .from("chapters")
+      .select("title, level, sort_order, page_id")
+      .eq("book_id", bookRow.id)
+      .order("sort_order", { ascending: true }),
+  ]);
+
+  const pages = (pageRows ?? []).map((p) => ({
+    page_number: p.page_number as number,
+    volume: p.volume as number,
+    blocks: p.content_blocks as NewBlock[],
+    footnotes: [],
+  }));
+  const pageById = new Map((pageRows ?? []).map((p) => [p.id, p]));
+
+  const chapters = (chapterRows ?? []).map((c) => {
+    const pg = c.page_id ? pageById.get(c.page_id) : undefined;
+    const blocks = (pg?.content_blocks as NewBlock[] | undefined) ?? [];
+    const bi = blocks.findIndex(
+      (b) => b.type === "heading" && (b.text ?? "").trim() === c.title.trim(),
+    );
+    return {
+      title: c.title as string,
+      level: c.level as number,
+      page_number: (pg?.page_number as number) ?? 1,
+      sort_order: c.sort_order as number,
+      block_index: bi >= 0 ? bi : null,
+    };
+  });
+
+  const authorRel = bookRow.authors as { openiti_id: string } | { openiti_id: string }[] | null;
+  const author_openiti_id = Array.isArray(authorRel)
+    ? authorRel[0]?.openiti_id ?? ""
+    : authorRel?.openiti_id ?? "";
+
+  const newBook: NewBook = {
+    metadata: {
+      openiti_id: openitiId,
+      title_ar: bookRow.title_ar as string,
+      title_lat: (bookRow.title_lat as string | null) ?? null,
+      author_openiti_id,
+      genres: (bookRow.genres as string[] | null) ?? [],
+      language: (bookRow.language as string | null) ?? undefined,
+    },
+    pages,
+    chapters,
+  };
+  return { data: convertNewBook(newBook) as LocalBookFile, tier: "book" };
+}
+
 const _loadBookFile = cache(async (
   openitiId: string,
 ): Promise<{ data: LocalBookFile; tier: LoadTier } | null> => {
+  if (USE_SUPABASE) return _loadBookFromSupabase(openitiId);
   // Read all tiers in parallel; missing files just return null.
   const [bookRaw, enrichedRaw, annotatedRaw, tashkeeledRaw, parsedRaw] = await Promise.all([
     readFileIfExists(path.join(DATA_DIR, `${openitiId}.book.json`)),
