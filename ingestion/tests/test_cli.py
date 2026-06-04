@@ -42,3 +42,21 @@ def test_ingest_with_dump():
     parser = build_parser()
     args = parser.parse_args(["ingest", "0676Nawawi.ArbacunaNawawiyya", "--dump", "/tmp/debug"])
     assert args.dump == "/tmp/debug"
+
+
+def test_flow_command_parses():
+    parser = build_parser()
+    args = parser.parse_args(["flow", "0676Nawawi.ArbacunaNawawiyya", "--dump", "./out"])
+    assert args.command == "flow"
+    assert args.uri == "0676Nawawi.ArbacunaNawawiyya"
+    assert args.corpus_path == "./RELEASE"
+    assert args.dump == "./out"
+    assert args.skip_annotate is False
+
+
+def test_flow_skip_annotate():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["flow", "0676Nawawi.ArbacunaNawawiyya", "--dump", "./out", "--skip-annotate"]
+    )
+    assert args.skip_annotate is True
