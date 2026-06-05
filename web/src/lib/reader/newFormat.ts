@@ -87,33 +87,43 @@ function poetryHemistich(blockKey: string, vi: number, hi: number, text: string)
   }));
 }
 
-/** Convert one NEW block into a legacy in-memory Block. */
-export function convertBlock(block: NewBlock): Block {
+/** Convert one NEW block into a legacy in-memory Block.
+ *
+ * `keyPrefix` makes the block key globally unique. The stored `block.key`
+ * (`b0`, `b1`, …) RESETS per page, so derived token ids `${block.key}:${i}`
+ * collide across pages — and since recitation/highlighting is keyed by token id
+ * in a flat Map, a single status would light up the same word on EVERY page.
+ * Prefixing with a page-unique string keeps every token id globally unique.
+ */
+export function convertBlock(block: NewBlock, keyPrefix = ""): Block {
+  const ub: NewBlock = keyPrefix
+    ? { ...block, key: `${keyPrefix}${block.key}` }
+    : block;
   const base = {
-    key: block.key,
-    parser_type: block.parser_type ?? null,
-    flags: block.flags ?? [],
-    level: block.level ?? null,
-    number: block.number ?? null,
+    key: ub.key,
+    parser_type: ub.parser_type ?? null,
+    flags: ub.flags ?? [],
+    level: ub.level ?? null,
+    number: ub.number ?? null,
   };
 
-  if (block.type === "poetry") {
-    const lines = block.lines ?? [];
+  if (ub.type === "poetry") {
+    const lines = ub.lines ?? [];
     return {
       ...base,
       type: "poetry",
       hemistichs: lines.map((verse, vi) =>
-        verse.map((hemi, hi) => poetryHemistich(block.key, vi, hi, hemi)),
+        verse.map((hemi, hi) => poetryHemistich(ub.key, vi, hi, hemi)),
       ),
     };
   }
 
-  const { tokens, words } = buildTokens(block);
+  const { tokens, words } = buildTokens(ub);
   return {
     ...base,
-    type: block.type, // prose | heading | quran
+    type: ub.type, // prose | heading | quran
     tokens,
-    spans: convertSpans(block, words),
+    spans: convertSpans(ub, words),
   };
 }
 
@@ -125,11 +135,14 @@ function convertFootnote(fn: NewFootnote): Footnote {
   };
 }
 
-function convertPage(page: NewPage): Page {
+function convertPage(page: NewPage, pageIdx: number): Page {
+  // pageIdx is the page's index in the book — globally unique regardless of how
+  // page_number/volume are stored — so it disambiguates the per-page block keys.
+  const keyPrefix = `pg${pageIdx}_`;
   return {
     page_number: page.page_number,
     volume: page.volume,
-    content_blocks: page.blocks.map(convertBlock),
+    content_blocks: page.blocks.map((b) => convertBlock(b, keyPrefix)),
     footnotes: (page.footnotes ?? []).map(convertFootnote),
   };
 }
@@ -145,7 +158,7 @@ export type NormalisedBookFile = {
 export function convertNewBook(book: NewBook): NormalisedBookFile {
   return {
     metadata: book.metadata,
-    pages: book.pages.map(convertPage),
+    pages: book.pages.map((p, i) => convertPage(p, i)),
     chapters: book.chapters,
   };
 }

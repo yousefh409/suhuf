@@ -155,4 +155,23 @@ describe("convertNewBook", () => {
     expect(out.chapters[0].block_index).toBe(0);
     expect(out.metadata.title_ar).toBe("ك");
   });
+
+  it("makes token ids globally unique across pages (per-page block keys collide otherwise)", () => {
+    const page = (pn: number): NewBook["pages"][number] => ({
+      page_number: pn,
+      volume: 1,
+      blocks: [{ key: "b0", type: "prose", text: "كلمة أخرى" }], // same per-page key on both pages
+    });
+    const book: NewBook = {
+      metadata: { openiti_id: "x", title_ar: "ك", author_openiti_id: "a" },
+      pages: [page(1), page(2)],
+      chapters: [],
+    };
+    const out = convertNewBook(book);
+    const ids = out.pages.flatMap((p) =>
+      p.content_blocks.flatMap((b) => ("tokens" in b ? b.tokens.map((t) => t.id) : [])),
+    );
+    expect(ids).toEqual(["pg0_b0:0", "pg0_b0:1", "pg1_b0:0", "pg1_b0:1"]);
+    expect(new Set(ids).size).toBe(ids.length); // no collisions across pages
+  });
 });
