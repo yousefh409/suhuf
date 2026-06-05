@@ -36,23 +36,23 @@ There's also a memorization mode: hide the text, and each word only appears when
 
 **6. How it works — talk over the inspector view or just the README diagram — ~75s**
 
-Two AI systems. **Ingestion:** the hard part is structure — these books have no tags telling you which part of a hadith is the chain of narrators vs the Prophet's words. I first asked an LLM to label it and got 8% coverage. The fix wasn't more AI — one phrase, "the Messenger of God said," reliably splits the two in every collection. A deterministic detector around that took coverage from 8% to 99%, for free. Claude then just tags people, places, and references.
+Two AI systems. **Ingestion:** it takes a raw OpenITI book, parses it into structure, adds the diacritics with a neural model, and has Claude tag the people, places, and references and resolve every Qur'an quote to the exact verse. That's how a scholarly markup file becomes a clean, readable book.
 
-**Recitation:** two models, because neither does both jobs. Whisper figures out *where* I am but throws away the vowels. A fine-tuned XLS-R model does the grading — it can tell the vowels apart. And because I already know the correct text, I never transcribe — I just score the right reading against a few wrong versions. That's what keeps false positives near zero.
+**Recitation:** two models, because neither does both jobs. Whisper figures out *where* I am but throws away the vowels. A fine-tuned XLS-R model does the grading — it can tell the vowels apart. And because I already know the correct text, I never transcribe — I just score the right reading against a few wrong versions. That's what keeps false positives near zero. Getting there took a graveyard of architectures — I'll show that in a second.
 
 And to be transparent: I built almost all of this with Claude Code on a strict spec → plan → test → review workflow — it's all in the repo. The recitation engine especially I built in long overnight loops: Claude would try an architecture, score it against my recordings, repeat, and I'd redirect it each morning.
 
 ---
 
-**7. Does it work? — show the README eval table — ~30s**
+**7. Does it work? — show the evolution table in the README (or experiments.md) — ~40s**
 
-Wrong-word detection is 100%, false positives are near zero on my own voice. Honestly: on a completely unseen speaker false positives rise to ~3.7%, above my 2% goal, and detecting dropped internal vowels is basically an acoustic limit, not a model one. The real bottleneck now is real user data, not a bigger model.
+I built this across a lot of dead ends — a NeMo model I scrapped, GMM scorers, an audio-LLM judge, a 600M model, noise augmentation, a bunch of fine-tunes. Most got parked, and the table shows why. Where it landed: wrong-word detection ~100%, false positives near zero on clean in-domain reading. Honestly — on an unseen speaker false positives rise to ~3.7%, above my 2% goal, and detecting dropped internal vowels turned out to be an acoustic limit, not a model one: if someone reads quickly and drops the vowel, the error literally isn't in the audio. Every model I tried plateaued the same way. So the real bottleneck now is real user data, not a bigger model.
 
 ---
 
 **8. Wrap — use cases + what's next — ~25s**
 
-This is for students of Arabic who can't always get a teacher, anyone memorizing, or anyone who just wants to actually read the classical library. Every OpenITI book becomes interactive and recitable. Next: better diacritization, real usage data, and opening up the catalog. Thanks for watching.
+This is for students of Arabic who can't always get a teacher, anyone memorizing, or anyone who just wants to actually read the classical library. Every OpenITI book becomes interactive and recitable. Next: open the catalog to the full ~10,000-book corpus we can AI-ingest, add notes and a saved vocabulary for readers, and keep feeding the recitation model real usage data to push past the acoustic ceiling. Thanks for watching.
 
 ---
 
