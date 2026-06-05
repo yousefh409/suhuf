@@ -21,7 +21,7 @@ def run_flow(args):
     from ingestion.pipeline_flow import build_flow_book
     book, _ = build_flow_book(
         args.uri, corpus_path=args.corpus_path, annotate=not args.skip_annotate,
-        tashkeel_engine=args.tashkeel_engine,
+        tashkeel_engine=args.tashkeel_engine, enrich=not args.skip_enrich,
     )
     dump_dir = Path(args.dump)
     dump_dir.mkdir(parents=True, exist_ok=True)

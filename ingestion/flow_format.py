@@ -53,6 +53,11 @@ class FlowBook(BaseModel):
     pages: list[FlowPage] = []
     chapters: list[Chapter] = []
     annotations: list[Annotation] = []
+    # Author yml fields (parsed from the corpus .yml), and AI catalog enrichment
+    # shaped {"book": {...}, "author": {...}}. Both default empty so existing
+    # round-trips and tests are unaffected.
+    author_data: dict = {}
+    enrichment: dict = {}
 
 
 def _resolve_meta(label: str, quote: str,

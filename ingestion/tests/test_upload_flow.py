@@ -184,6 +184,75 @@ def test_upload_upserts_chapters():
     assert upsert_data["page_id"] == "page-uuid-1"
 
 
+def _make_enriched_book() -> FlowBook:
+    book = _make_book()
+    book.author_data = {"shuhra_lat": "al-Nawawi", "ism_lat": "Yahya", "death_ah": 676}
+    book.enrichment = {
+        "book": {
+            "title_en": "The Forty Hadith",
+            "description": "A famous collection of forty hadiths.",
+            "genres": ["HADITH", "FIQH"],
+            "composition_date_ah": 670,
+            "commentary_on": None,
+            "abridgement_of": None,
+        },
+        "author": {
+            "full_name_en": "Yahya al-Nawawi",
+            "bio_en": "A Shafi'i scholar.",
+            "birth_ah": 631,
+            "death_ah": 676,
+            "primary_fields": ["HADITH", "FIQH"],
+        },
+    }
+    return book
+
+
+def test_upload_writes_enriched_author_fields():
+    client, table_mocks = _make_mock_client()
+    upload_flow_book(_make_enriched_book(), client)
+
+    row = table_mocks["authors"].upsert.call_args.args[0]
+    assert row["full_name_ar"] == "Yahya al-Nawawi"
+    assert row["birth_ah"] == 631
+    assert row["death_ah"] == 676
+    assert row["ism_ar"] == "Yahya"
+
+
+def test_upload_author_yml_birth_takes_precedence_over_enrichment():
+    """yml birth/death win over the AI guess when both are present."""
+    book = _make_enriched_book()
+    book.author_data["birth_ah"] = 632  # yml value differs from enrichment 631
+    client, table_mocks = _make_mock_client()
+    upload_flow_book(book, client)
+
+    row = table_mocks["authors"].upsert.call_args.args[0]
+    assert row["birth_ah"] == 632
+
+
+def test_upload_writes_enriched_book_fields():
+    client, table_mocks = _make_mock_client()
+    upload_flow_book(_make_enriched_book(), client)
+
+    row = table_mocks["books"].upsert.call_args.args[0]
+    assert row["title_lat"] == "The Forty Hadith"
+    assert row["description"] == "A famous collection of forty hadiths."
+    assert row["genres"] == ["HADITH", "FIQH"]
+    assert row["composition_date_ah"] == 670
+    # None-valued enrichment fields are dropped before upsert
+    assert "commentary_on" not in row
+    assert "abridgement_of" not in row
+
+
+def test_upload_book_data_prefers_book_author_data_attr():
+    """book.author_data is preferred over the author_data arg."""
+    book = _make_enriched_book()
+    client, table_mocks = _make_mock_client()
+    upload_flow_book(book, client, author_data={"shuhra_lat": "WRONG"})
+
+    row = table_mocks["authors"].upsert.call_args.args[0]
+    assert row["shuhra_ar"] == "al-Nawawi"
+
+
 def test_upload_writes_annotations():
     client, table_mocks = _make_mock_client()
     stats = upload_flow_book(_make_book(), client)
