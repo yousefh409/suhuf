@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ChevronDown } from "lucide-react";
 import type { Chapter, Page } from "@/lib/reader/types";
 
@@ -21,6 +22,7 @@ const pageAnchorId = (volume: number, pageNumber: number) =>
  */
 export function ChapterSelect({ chapters, pages }: Props) {
   const [open, setOpen] = useState(false);
+  const reduce = useReducedMotion();
   const [currentIdx, setCurrentIdx] = useState(0);
   const btnRef = useRef<HTMLButtonElement>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
@@ -117,46 +119,56 @@ export function ChapterSelect({ chapters, pages }: Props) {
         <ChevronDown size={15} style={{ flexShrink: 0 }} />
       </button>
 
-      {open &&
-        menuPos &&
-        typeof document !== "undefined" &&
+      {typeof document !== "undefined" &&
         createPortal(
-          <>
-            <div
-              className="reader-scrim"
-              style={{ background: "transparent" }}
-              onClick={close}
-              aria-hidden
-            />
-            <div
-              role="listbox"
-              className="reader-chapter-menu"
-              style={{ top: menuPos.top, left: menuPos.left, transform: "translateX(-50%)" }}
-            >
-              {chapters.map((c, i) => (
-                <a
-                  key={`${c.sort_order}-${c.title}`}
-                  href={hrefFor(i)}
-                  role="option"
-                  aria-selected={i === currentIdx}
+          <AnimatePresence>
+            {open && menuPos && (
+              <div>
+                <motion.div
+                  className="reader-scrim"
+                  style={{ background: "transparent" }}
                   onClick={close}
-                  className="block w-full rounded-md px-3 py-2 text-right transition-colors hover:bg-[var(--reader-chip-bg)]"
-                  style={{ paddingInlineStart: `${0.75 + (c.level ?? 0) * 0.875}rem` }}
+                  aria-hidden
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.12 }}
+                />
+                <motion.div
+                  role="listbox"
+                  className="reader-chapter-menu"
+                  style={{ top: menuPos.top, left: menuPos.left, transformOrigin: "top center" }}
+                  initial={reduce ? { opacity: 0, x: "-50%" } : { opacity: 0, scale: 0.96, y: -4, x: "-50%" }}
+                  animate={{ opacity: 1, scale: 1, y: 0, x: "-50%" }}
+                  exit={reduce ? { opacity: 0, x: "-50%" } : { opacity: 0, scale: 0.96, y: -4, x: "-50%" }}
+                  transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  <span
-                    dir="rtl"
-                    style={{
-                      fontFamily: "var(--font-arabic), serif",
-                      fontSize: 16,
-                      color: i === currentIdx ? "var(--reader-accent)" : "var(--reader-fg)",
-                    }}
-                  >
-                    {c.title}
-                  </span>
-                </a>
-              ))}
-            </div>
-          </>,
+                  {chapters.map((c, i) => (
+                    <a
+                      key={`${c.sort_order}-${c.title}`}
+                      href={hrefFor(i)}
+                      role="option"
+                      aria-selected={i === currentIdx}
+                      onClick={close}
+                      className="block w-full rounded-md px-3 py-2 text-right transition-colors hover:bg-[var(--reader-chip-bg)]"
+                      style={{ paddingInlineStart: `${0.75 + (c.level ?? 0) * 0.875}rem` }}
+                    >
+                      <span
+                        dir="rtl"
+                        style={{
+                          fontFamily: "var(--font-arabic), serif",
+                          fontSize: 16,
+                          color: i === currentIdx ? "var(--reader-accent)" : "var(--reader-fg)",
+                        }}
+                      >
+                        {c.title}
+                      </span>
+                    </a>
+                  ))}
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>,
           document.body,
         )}
     </>
