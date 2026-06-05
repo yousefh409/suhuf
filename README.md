@@ -4,7 +4,9 @@
 
 > Think **Tarteel, but for any Arabic text** — not just Qur'an.
 
-🎥 **Demo:** _(link here)_ &nbsp;•&nbsp; 💻 https://github.com/yousefh409/suhuf &nbsp;•&nbsp; Built solo for **Stanford CS 153** (Application / Product + Research). ~3 months, 349 commits, built almost entirely with Claude Code — see [AI usage](#ai-usage-disclosure).
+🚀 **Try it live:** [**suhuf.ai**](https://suhuf.ai) — sign up with invite code **`CS153`**.
+
+💻 https://github.com/yousefh409/suhuf &nbsp;•&nbsp; Built solo for **Stanford CS 153** (Application / Product + Research). 349 commits, built almost entirely with Claude Code — see [AI usage](#ai-usage-disclosure).
 
 ![Suhuf landing page](assets/screenshots/landing.png)
 
