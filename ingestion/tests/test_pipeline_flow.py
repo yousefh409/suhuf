@@ -155,13 +155,12 @@ def test_continuation_page_open_tags():
 
 def test_annotate_false_yields_plain_flowbook():
     book, stats = flow_from_result(_fixture(), annotate=False, client=None)
-    # no AI structure tags; only the deterministic <heading> pass may add tags.
+    # no AI structure tags: the tagged document is plain text (headings are
+    # standoff annotations, not tags).
     full = reconstruct([PageSlice(tagged=p.tagged, open_tags=p.open_tags)
                         for p in book.pages])
-    assert "<hadith>" not in full and "<matn>" not in full
-    _, spans, _ = compile_tagged(full)
-    assert all(s.label == "heading" for s in spans)   # nothing but headings
-    assert book.annotations == []
+    assert compile_tagged(full)[0] == full            # no tags in the document
+    assert all(a.label == "heading" for a in book.annotations)  # only deterministic headings
     # page texts still set, fragments still reconstruct
     assert full == stats["tagged"]
 

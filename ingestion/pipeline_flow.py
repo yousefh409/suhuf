@@ -19,9 +19,8 @@ from ingestion.assemble import assemble, numbered_units, heading_ranges
 from ingestion.chunk import chunk_text
 from ingestion.annotate_flow import annotate_flow
 from ingestion.number_ids import assign_ids
-from ingestion.headings import tag_headings
 from ingestion.page_slice import slice_tagged
-from ingestion.flow_format import FlowBook, FlowPage, build_annotations
+from ingestion.flow_format import FlowBook, FlowPage, Annotation, build_annotations
 from ingestion.tashkeel import diacritize_blocks, load_engine
 from ingestion.models import ParseResult
 
@@ -60,13 +59,15 @@ def flow_from_result(result: ParseResult, annotate: bool = True,
         continuous = text
 
     numbered = assign_ids(continuous)
-    # Headings are reliable source structure the AI leaves untagged; wrap them
-    # deterministically so the reader renders them as headings. Plain text is
-    # unchanged, so the page breaks below stay valid.
-    numbered = tag_headings(numbered, heading_ranges(result))
     stats["tagged"] = numbered
 
     annotations = build_annotations(numbered, hadith_numbers=numbered_units(result))
+    # Headings are reliable source structure the AI leaves untagged. Emit them as
+    # standoff annotations (book-global plain-text offsets) rather than tags in
+    # the document — inserting tags could interleave with the AI's spans. The
+    # reader splits heading blocks by these offsets.
+    for i, (hs, he) in enumerate(heading_ranges(result), 1):
+        annotations.append(Annotation(id=f"hd{i}", label="heading", start=hs, end=he))
 
     # Page breaks are the interior page start offsets (exclude the first page's 0).
     breaks = [off for (_pn, _vol, off) in page_offsets[1:]]

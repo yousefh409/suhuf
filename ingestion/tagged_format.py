@@ -15,7 +15,7 @@ from ingestion.models import BookMetadata, Chapter
 
 # Inline tags become spans; structural tags become `lines`.
 INLINE_TAGS = {
-    "hadith", "heading", "isnad", "matn", "takhrij",
+    "hadith", "isnad", "matn", "takhrij",
     "person", "place", "quran", "book_ref", "hadith_ref", "date_hijri", "footnote",
 }
 STRUCT_TAGS = {"verse", "hemistich"}

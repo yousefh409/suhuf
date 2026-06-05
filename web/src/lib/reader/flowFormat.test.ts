@@ -90,11 +90,12 @@ describe("flowToNewBook", () => {
     }
   });
 
-  it("splits a page with a <heading> into a heading block + prose", () => {
+  it("splits a page into a heading block + prose using heading annotations", () => {
     const book: FlowBook = {
       metadata: { openiti_id: "x", title_ar: "ت", author_openiti_id: "a" },
       chapters: [],
-      annotations: [],
+      // heading is a standoff annotation (book-global offsets), not a tag
+      annotations: [{ id: "hd1", label: "heading", start: 0, end: "الحديث الثاني".length, meta: {} }],
       pages: [
         {
           page_number: 47,
@@ -103,7 +104,7 @@ describe("flowToNewBook", () => {
           text: "",
           open_tags: [],
           tagged:
-            '<heading>الحديث الثاني</heading> <hadith id="h2"><isnad>عن عمر</isnad> <matn>إنما الأعمال</matn></hadith>',
+            'الحديث الثاني <hadith id="h2"><isnad>عن عمر</isnad> <matn>إنما الأعمال</matn></hadith>',
         },
       ],
     };
