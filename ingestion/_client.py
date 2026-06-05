@@ -1,7 +1,13 @@
-"""Shared Anthropic client + response parsing for the ingestion pipeline."""
+"""Shared LLM client + response parsing for the ingestion pipeline.
+
+Calls run through OpenRouter's Anthropic-compatible Messages endpoint, so the
+Anthropic SDK is reused unchanged — only the base URL, auth, and model slugs
+differ. Models are passed as OpenRouter slugs (e.g. ``anthropic/claude-sonnet-4``).
+"""
 from __future__ import annotations
 import json
 import logging
+import os
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -9,11 +15,21 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+OPENROUTER_BASE_URL = "https://openrouter.ai/api"
+
 
 def create_client() -> "Anthropic":
-    """Create an Anthropic client from environment (reads ANTHROPIC_API_KEY)."""
+    """Create an Anthropic SDK client pointed at OpenRouter (reads OPENROUTER_API_KEY).
+
+    Uses ``auth_token`` so the SDK sends ``Authorization: Bearer <key>``, which is
+    what OpenRouter expects. Raises if OPENROUTER_API_KEY is unset.
+    """
     from anthropic import Anthropic
-    return Anthropic()
+
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if not key:
+        raise RuntimeError("OPENROUTER_API_KEY is not set")
+    return Anthropic(base_url=OPENROUTER_BASE_URL, auth_token=key)
 
 
 def parse_json_response(text: str) -> dict:

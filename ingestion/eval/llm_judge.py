@@ -6,12 +6,12 @@ relabels, person/qur'an spans, and poetry-block precision. Not human ground
 truth, but a quantitative accuracy estimate with failure examples.
 
 Run: PYTHONPATH=. python ingestion/eval/llm_judge.py [N_per_category]
-Writes ingestion/eval/judge_results.json. Needs ANTHROPIC_API_KEY.
+Writes ingestion/eval/judge_results.json. Needs OPENROUTER_API_KEY.
 """
 import json, os, random, sys
-from anthropic import Anthropic
+from ingestion._client import create_client
 
-JUDGE_MODEL = "claude-sonnet-4-6"
+JUDGE_MODEL = "anthropic/claude-sonnet-4.6"
 BOOKS = [
     "0676Nawawi.ArbacunaNawawiyya",
     "0751IbnQayyimJawziyya.DaWaDawa",
@@ -93,7 +93,7 @@ def judge(client, prompt):
 
 def main():
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 12
-    client = Anthropic()
+    client = create_client()
     cats = collect()
     out = {}
     score = {"correct": 1.0, "partial": 0.5, "incorrect": 0.0}

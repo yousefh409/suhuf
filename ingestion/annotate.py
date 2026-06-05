@@ -25,8 +25,8 @@ from ingestion.models import Block, Span, ParseResult, Token
 
 logger = logging.getLogger(__name__)
 
-# Haiku 4.5 — cheap labeling tool. Override via SUHUF_ANNOTATE_MODEL.
-DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+# Haiku 4.5 — cheap labeling tool. OpenRouter slug; override via SUHUF_ANNOTATE_MODEL.
+DEFAULT_MODEL = "anthropic/claude-haiku-4.5"
 PROMPT_VERSION = "annotate-v1.1"  # v1.1: allow poetry→prose relabel (flatten hemistichs)
 
 # Block-type frozen vocabulary (7 types). The model returns one of these or

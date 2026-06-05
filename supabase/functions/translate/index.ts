@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')!;
+const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY')!;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,15 +34,15 @@ Return a JSON object with:
 
 Return ONLY valid JSON, no markdown fences.`;
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://openrouter.ai/api/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'anthropic/claude-sonnet-4',
         max_tokens: 600,
         messages: [
           { role: 'user', content: `Translate this Arabic sentence and provide related vocabulary:\n\n${sentence}` },

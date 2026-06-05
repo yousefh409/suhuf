@@ -1,7 +1,7 @@
 """Precision check: does a stronger model agree the deterministic isnad/matn/
 takhrij boundaries are correct? Stratified by confidence (marker vs fallback)."""
 import json, os, random
-from anthropic import Anthropic
+from ingestion._client import create_client
 random.seed(7)
 d=json.load(open("web/data/0852IbnHajarCasqalani.BulughMaram.parsed.json"))
 h=[b for p in d["pages"] for b in p["content_blocks"] if b.get("number")]
@@ -17,7 +17,7 @@ def conf(b):
 hi=[b for b in h if conf(b)==0.95]; lo=[b for b in h if conf(b)==0.7]
 random.shuffle(hi); random.shuffle(lo)
 sample=hi[:12]+lo[:18]
-client=Anthropic()
+client=create_client()
 SYS=("You grade a system's segmentation of a hadith into isnad (chain of narrators), "
      "matn (the reported text), and takhrij (source attribution). Reply ONLY JSON: "
      '{"verdict":"correct|partial|incorrect","reason":"<=15 words"}.')
@@ -26,7 +26,7 @@ for b in sample:
     c=conf(b)
     p=f"ISNAD: {seg(b,'isnad')}\nMATN: {seg(b,'matn')}\nTAKHRIJ: {seg(b,'takhrij')}\n\nIs this segmentation correct?"
     try:
-        m=client.messages.create(model="claude-sonnet-4-6",max_tokens=120,system=SYS,messages=[{"role":"user","content":p}])
+        m=client.messages.create(model="anthropic/claude-sonnet-4.6",max_tokens=120,system=SYS,messages=[{"role":"user","content":p}])
         t=m.content[0].text; v=json.loads(t[t.find("{"):t.rfind("}")+1])
     except Exception as e: v={"verdict":"error","reason":str(e)[:40]}
     res[c].append(v.get("verdict"))

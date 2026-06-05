@@ -62,9 +62,10 @@ All three suffixes live under `web/data/` (gitignored).
 
 ### Required env
 
-- `ANTHROPIC_API_KEY` — for Claude enrichment. Without it, enrichment
-  fails gracefully (returns `{}`) and the dump still completes; the
-  reader will just show the un-enriched book.
+- `OPENROUTER_API_KEY` — for Claude enrichment (routed through OpenRouter's
+  Anthropic-compatible endpoint). Without it, enrichment fails gracefully
+  (returns `{}`) and the dump still completes; the reader will just show the
+  un-enriched book.
 
 ### Skipping stages for fast iteration
 

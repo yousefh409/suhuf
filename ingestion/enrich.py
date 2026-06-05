@@ -12,7 +12,7 @@ from ingestion.models import ParseResult
 
 logger = logging.getLogger(__name__)
 
-MODEL = "claude-sonnet-4-20250514"
+MODEL = "anthropic/claude-sonnet-4"
 MAX_SAMPLE_CHARS = 4000
 
 
