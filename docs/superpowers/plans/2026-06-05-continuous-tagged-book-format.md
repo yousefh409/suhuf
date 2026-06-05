@@ -141,7 +141,9 @@ Run the self-review at the bottom before starting Phase 1, and re-read it after 
 - [ ] **Page markers + jump.** **DEFERRED** — flow page-marker rendering (the markers are a default-off toggle) + jump-to-page seeded by `open_tags` not yet wired for the flow path.
 - [x] **Selection map.** **DONE (reused)** — `sentences.ts` works on the converted shape unchanged (each page is a prose block with derived word ids).
 
-**Known gaps (follow-ups):** (1) the flow AI pass leaves chapter/section headings untagged, so a heading renders as inline prose (the chapter TOC still works); (2) Supabase flow-read path in `queries.ts` (local dev path done; needs the live migration first); (3) flow page-marker rendering + jump-to-page.
+**Resolved post-launch (commits `93315c5`, `3707c98`):** (a) **Tashkeel** — the flow pipeline now diacritizes before assembly (`--tashkeel-engine`, default shakkala→flan-t5 fallback); reader shows ~98% diacritized. (b) **Headings** — the AI leaves chapter/hadith titles untagged, so they were rendering as prose; now emitted as **standoff `heading` annotations** (book-global offsets, no tag insertion — an earlier attempt to insert `<heading>` tags crashed on tag interleaving), and the reader splits a page into prose/heading blocks by offset. "الحديث الثاني" et al. render as `<h2>` headings.
+
+**Known gaps (follow-ups):** (1) Supabase flow-read path in `queries.ts` (local dev path done; needs the live migration first); (2) flow page-marker rendering + jump-to-page; (3) the flow dev-loop now needs `--tashkeel-engine` (defaults to shakkala) — update `docs/reader/dev-loop.md` when syncing docs.
 
 **Checkpoint:** **DONE 2026-06-05** — dev reader at `/reader/0676Nawawi.ArbacunaNawawiyya` renders hadith #2 whole from the flow format; `tsc` clean, 147 web tests green. Commits: `6af0bf2` (parser), `8069092` (loader tier).
 
