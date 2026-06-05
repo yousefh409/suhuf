@@ -1,10 +1,9 @@
 """Flow AI structure pass: the model tags a whole passage from scratch.
 
-Unlike :mod:`ingestion.annotate_tagged` (which adds entity tags to text that
-already carries detector structure), the flow pass starts from PLAIN text and
-asks the model to return the SAME words with ALL structure added: each hadith
-wrapped in ``<hadith>`` containing ``<isnad>/<matn>/<takhrij>``, plus the entity
-tags. Tags are attribute-free; ids are assigned later by ``assign_ids``.
+The pass starts from PLAIN text and asks the model to return the SAME words with
+ALL structure added: each hadith wrapped in ``<hadith>`` containing
+``<isnad>/<matn>/<takhrij>``, plus the entity tags. Tags are attribute-free; ids
+are assigned later by ``assign_ids``.
 
 Each returned chunk is validated with ``compile_tagged``. If it raises
 ``TagError`` or its tags-stripped text differs from the input chunk, the chunk

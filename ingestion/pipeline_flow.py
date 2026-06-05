@@ -7,8 +7,6 @@ document, numbered (:mod:`ingestion.number_ids`), and finally sliced at page
 boundaries (:mod:`ingestion.page_slice`). Because structure is tagged on the
 continuous document BEFORE slicing, a hadith stored across pages stays ONE
 ``<hadith>`` with ONE ``<matn>`` — the win the format buys.
-
-Built alongside :mod:`ingestion.pipeline_tagged`; neither path touches the other.
 """
 from __future__ import annotations
 import logging
