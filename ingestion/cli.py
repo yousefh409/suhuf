@@ -44,6 +44,9 @@ def build_parser() -> argparse.ArgumentParser:
     flow_cmd.add_argument("--dump", required=True, help="Output directory for <uri>.flow.json")
     flow_cmd.add_argument("--skip-annotate", action="store_true",
                           help="Skip the Claude flow structure pass (no API)")
+    flow_cmd.add_argument("--tashkeel-engine", default="shakkala",
+                          choices=["shakkala", "flan-t5", "sadeed", "none"],
+                          help="Diacritization engine for the assembled text (none = skip)")
     flow_cmd.add_argument("--upload", action="store_true",
                           help="Upload the built flow book to Supabase (default: dump only)")
 

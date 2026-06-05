@@ -15,12 +15,14 @@ import logging
 
 from ingestion.corpus import find_book_file
 from ingestion.parse import parse_file
-from ingestion.assemble import assemble, numbered_units
+from ingestion.assemble import assemble, numbered_units, heading_ranges
 from ingestion.chunk import chunk_text
 from ingestion.annotate_flow import annotate_flow
 from ingestion.number_ids import assign_ids
+from ingestion.headings import tag_headings
 from ingestion.page_slice import slice_tagged
 from ingestion.flow_format import FlowBook, FlowPage, build_annotations
+from ingestion.tashkeel import diacritize_blocks, load_engine
 from ingestion.models import ParseResult
 
 logger = logging.getLogger(__name__)
@@ -58,6 +60,10 @@ def flow_from_result(result: ParseResult, annotate: bool = True,
         continuous = text
 
     numbered = assign_ids(continuous)
+    # Headings are reliable source structure the AI leaves untagged; wrap them
+    # deterministically so the reader renders them as headings. Plain text is
+    # unchanged, so the page breaks below stay valid.
+    numbered = tag_headings(numbered, heading_ranges(result))
     stats["tagged"] = numbered
 
     annotations = build_annotations(numbered, hadith_numbers=numbered_units(result))
@@ -90,12 +96,23 @@ def flow_from_result(result: ParseResult, annotate: bool = True,
 
 
 def build_flow_book(uri: str, corpus_path: str = "./RELEASE",
-                    annotate: bool = True, client=None) -> tuple[FlowBook, dict]:
+                    annotate: bool = True, client=None,
+                    tashkeel_engine: str | None = "shakkala") -> tuple[FlowBook, dict]:
     """Parse a book from the corpus and build its :class:`FlowBook`."""
     path = find_book_file(uri, corpus_path=corpus_path)
     logger.info(f"Found file: {path.name}")
     result = parse_file(path, uri)
     logger.info(f"Parsed: {len(result.pages)} pages, {len(result.chapters)} chapters")
+    # Diacritize before assembly so the assembled text (and everything the AI
+    # tags over it) carries tashkeel. The source rarely has diacritics; the engine
+    # supplies them, exactly as the legacy pipeline does.
+    if tashkeel_engine and tashkeel_engine != "none":
+        engine = load_engine(tashkeel_engine)
+        if engine:
+            result.pages = diacritize_blocks(result.pages, engine)
+            logger.info(f"Tashkeel complete ({tashkeel_engine})")
+        else:
+            logger.warning(f"Tashkeel engine '{tashkeel_engine}' unavailable; text will lack diacritics")
     # No deterministic hadith pass here: the flow AI pass tags structure from the
     # assembled plain text, which ignores detector spans.
     book, stats = flow_from_result(result, annotate=annotate, client=client)

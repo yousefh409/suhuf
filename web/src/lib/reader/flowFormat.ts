@@ -100,27 +100,68 @@ export function parseFlowPage(
   return { text, spans };
 }
 
-/** Convert a FlowBook into the NewBook shape: one prose block per page carrying
- *  the page's label spans (the `hadith` container tag is dropped — it is the unit
- *  boundary, not a styled span; unit identity lives in `annotations`). */
+/** Inline label spans within `[s,e)`, clipped and re-based to block-local
+ *  offsets. The `heading` container is excluded (it drives block splitting, not
+ *  inline styling). */
+function clipSpans(spans: ParsedSpan[], s: number, e: number): NewSpan[] {
+  return spans
+    .filter((sp) => sp.label !== "heading" && SPAN_LABELS.has(sp.label) && sp.start < e && s < sp.end)
+    .map((sp) => ({
+      start: Math.max(sp.start, s) - s,
+      end: Math.min(sp.end, e) - s,
+      label: sp.label as SpanLabel,
+      ref: null,
+      sub: null,
+      conf: null,
+    }))
+    .filter((sp) => sp.end > sp.start);
+}
+
+/** Split one page's parsed text into blocks at `heading` spans: prose around the
+ *  headings, a `heading` block for each. A page with no heading is one prose
+ *  block. The `hadith` container span is dropped (unit identity lives in
+ *  `annotations`); the inner isnad/matn/person/... spans style each block. */
+function pageToBlocks(text: string, spans: ParsedSpan[]): NewBlock[] {
+  const headings = spans
+    .filter((s) => s.label === "heading" && s.end > s.start)
+    .sort((a, b) => a.start - b.start);
+
+  if (headings.length === 0) {
+    return [{ key: "b0", type: "prose", text, spans: clipSpans(spans, 0, text.length) }];
+  }
+
+  const blocks: NewBlock[] = [];
+  let cursor = 0;
+  const add = (s: number, e: number, type: "prose" | "heading") => {
+    if (e <= s) return;
+    const block: NewBlock = {
+      key: `b${blocks.length}`,
+      type,
+      text: text.slice(s, e),
+      spans: clipSpans(spans, s, e),
+    };
+    if (type === "heading") block.level = 1;
+    blocks.push(block);
+  };
+  for (const h of headings) {
+    add(cursor, h.start, "prose");
+    add(h.start, h.end, "heading");
+    cursor = h.end;
+  }
+  add(cursor, text.length, "prose");
+  return blocks;
+}
+
+/** Convert a FlowBook into the NewBook shape: each page split into prose/heading
+ *  blocks by `parseFlowPage`'s spans, so headings render as headings and the
+ *  hadith body styles continuously. */
 export function flowToNewBook(book: FlowBook): NewBook {
   return {
     metadata: book.metadata,
     chapters: book.chapters,
     pages: book.pages.map((p) => {
       const { text, spans } = parseFlowPage(p.tagged, p.open_tags);
-      const newSpans: NewSpan[] = spans
-        .filter((s) => s.end > s.start && SPAN_LABELS.has(s.label))
-        .map((s) => ({
-          start: s.start,
-          end: s.end,
-          label: s.label as SpanLabel,
-          ref: null,
-          sub: null,
-          conf: null,
-        }));
-      const block: NewBlock = { key: "b0", type: "prose", text, spans: newSpans };
-      return { page_number: p.page_number, volume: p.volume, blocks: [block] };
+      return { page_number: p.page_number, volume: p.volume, blocks: pageToBlocks(text, spans) };
     }),
   };
 }
