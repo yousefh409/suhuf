@@ -117,14 +117,20 @@ function clipSpans(spans: ParsedSpan[], s: number, e: number): NewSpan[] {
     .filter((sp) => sp.end > sp.start);
 }
 
-/** Split one page's parsed text into blocks at `heading` spans: prose around the
- *  headings, a `heading` block for each. A page with no heading is one prose
- *  block. The `hadith` container span is dropped (unit identity lives in
- *  `annotations`); the inner isnad/matn/person/... spans style each block. */
-function pageToBlocks(text: string, spans: ParsedSpan[]): NewBlock[] {
-  const headings = spans
-    .filter((s) => s.label === "heading" && s.end > s.start)
-    .sort((a, b) => a.start - b.start);
+/** Split one page's text into blocks at the given heading ranges (page-local
+ *  offsets): prose around the headings, a `heading` block for each. A page with
+ *  no heading is one prose block. Inline spans (isnad/matn/person/...) are
+ *  clipped per block; the `hadith` container is dropped (unit identity lives in
+ *  `annotations`). */
+function pageToBlocks(
+  text: string,
+  spans: ParsedSpan[],
+  headingRanges: [number, number][],
+): NewBlock[] {
+  const headings = headingRanges
+    .map(([s, e]): [number, number] => [Math.max(0, s), Math.min(text.length, e)])
+    .filter(([s, e]) => e > s)
+    .sort((a, b) => a[0] - b[0]);
 
   if (headings.length === 0) {
     return [{ key: "b0", type: "prose", text, spans: clipSpans(spans, 0, text.length) }];
@@ -143,25 +149,34 @@ function pageToBlocks(text: string, spans: ParsedSpan[]): NewBlock[] {
     if (type === "heading") block.level = 1;
     blocks.push(block);
   };
-  for (const h of headings) {
-    add(cursor, h.start, "prose");
-    add(h.start, h.end, "heading");
-    cursor = h.end;
+  for (const [hs, he] of headings) {
+    add(cursor, hs, "prose");
+    add(hs, he, "heading");
+    cursor = he;
   }
   add(cursor, text.length, "prose");
   return blocks;
 }
 
 /** Convert a FlowBook into the NewBook shape: each page split into prose/heading
- *  blocks by `parseFlowPage`'s spans, so headings render as headings and the
- *  hadith body styles continuously. */
+ *  blocks (headings come from standoff `heading` annotations mapped to page-local
+ *  offsets), so headings render as headings and the hadith body styles
+ *  continuously across page seams. */
 export function flowToNewBook(book: FlowBook): NewBook {
+  const headingAnns = book.annotations.filter((a) => a.label === "heading");
   return {
     metadata: book.metadata,
     chapters: book.chapters,
     pages: book.pages.map((p) => {
       const { text, spans } = parseFlowPage(p.tagged, p.open_tags);
-      return { page_number: p.page_number, volume: p.volume, blocks: pageToBlocks(text, spans) };
+      const localHeadings: [number, number][] = headingAnns
+        .map((a): [number, number] => [a.start - p.start_offset, a.end - p.start_offset])
+        .filter(([s, e]) => e > 0 && s < text.length);
+      return {
+        page_number: p.page_number,
+        volume: p.volume,
+        blocks: pageToBlocks(text, spans, localHeadings),
+      };
     }),
   };
 }
