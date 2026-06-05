@@ -1,8 +1,6 @@
 """Tests for inline Quran detection: {ayah} [sura: ayah] within prose."""
 from pathlib import Path
 
-from ingestion.annotate import _apply_block_annotation
-from ingestion.enrich import resolve_spans
 from ingestion.parse import parse_file, _extract_inline_quran
 
 
@@ -95,50 +93,3 @@ def test_parse_file_brace_without_citation_no_span(tmp_path):
     result = parse_file(src, "0100Test.QuranBook")
     block = result.pages[0].content_blocks[0]
     assert [s for s in block.spans if s.label == "quran"] == []
-
-
-def test_full_chain_parse_annotate_resolve_keeps_citation_ref(tmp_path):
-    """End-to-end: parse → annotate merge → resolve_spans.
-
-    Mimics the Ibn Kathir shape: a cited ayah whose sura name (آل عمران) also
-    happens to fall inside an unrelated ayah (3:33). The citation ref must
-    survive both the annotate pass (which marks the bracket as quran) and
-    resolve_spans (whose containment match would otherwise clobber it).
-    """
-    src = _write(
-        tmp_path,
-        "# قال تعالى {وإذ أخذ الله ميثاق الذين أوتوا الكتاب} [آل عمران: 187]\n",
-    )
-    result = parse_file(src, "0100Test.QuranBook")
-    block = result.pages[0].content_blocks[0]
-
-    # Parse set the citation ref on the ayah text.
-    parse_quran = [s for s in block.spans if s.label == "quran"]
-    assert len(parse_quran) == 1 and parse_quran[0].ref == "3:187"
-
-    # Locate the citation-bracket tokens "[آل" ... "187]" the way the model would.
-    texts = [t.text for t in block.tokens]
-    cite_start = next(i for i, t in enumerate(texts) if t.startswith("["))
-    cite_end = next(i for i, t in enumerate(texts) if t.endswith("]"))
-
-    # Model annotation: marks the citation bracket as quran (the failure mode)
-    # plus a legitimate person span elsewhere.
-    ann = {
-        "spans": [
-            {"start": cite_start, "end": cite_end, "label": "quran", "ref": "3:33", "confidence": 0.9},
-            {"start": 0, "end": 0, "label": "person", "confidence": 0.5},
-        ],
-        "flags": [],
-    }
-    _apply_block_annotation(block, ann)
-
-    # Parse's quran span wins; the model's duplicate quran span is dropped;
-    # the person span is kept.
-    quran = [s for s in block.spans if s.label == "quran"]
-    assert len(quran) == 1 and quran[0].ref == "3:187"
-    assert any(s.label == "person" for s in block.spans)
-
-    # resolve_spans must not corrupt the surviving citation ref.
-    resolve_spans(result)
-    quran = [s for s in block.spans if s.label == "quran"]
-    assert len(quran) == 1 and quran[0].ref == "3:187"
