@@ -65,6 +65,32 @@ def numbered_units(result: ParseResult) -> list[tuple[int, str]]:
     return out
 
 
+def heading_ranges(result: ParseResult) -> list[tuple[int, int]]:
+    """Return ``(start, end)`` plain-text ranges for every heading block, in
+    document order. Uses the same page-join / word-join convention as
+    :func:`assemble`, so the ranges line up with the continuous text. The flow
+    pipeline wraps these ranges in ``<heading>`` tags so the reader renders them
+    as headings (the AI leaves chapter titles untagged)."""
+    out: list[tuple[int, int]] = []
+    offset = 0
+    for pi, page in enumerate(result.pages):
+        if pi:
+            offset += len(_PAGE_SEP)
+        col = 0
+        for block in page.content_blocks:
+            words = _block_words(block)
+            if not words:
+                continue
+            if col:
+                col += 1
+            width = len(" ".join(words))
+            if block.type == "heading":
+                out.append((offset + col, offset + col + width))
+            col += width
+        offset += len(_page_plain(page))
+    return out
+
+
 def assemble(result: ParseResult
              ) -> tuple[str, list[tuple[int, int, int]], list[int]]:
     """Return ``(text, page_offsets, boundaries)`` for a parsed book."""

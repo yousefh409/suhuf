@@ -89,6 +89,32 @@ describe("flowToNewBook", () => {
       expect(labels).toContain("matn");
     }
   });
+
+  it("splits a page with a <heading> into a heading block + prose", () => {
+    const book: FlowBook = {
+      metadata: { openiti_id: "x", title_ar: "ت", author_openiti_id: "a" },
+      chapters: [],
+      annotations: [],
+      pages: [
+        {
+          page_number: 47,
+          volume: 1,
+          start_offset: 0,
+          text: "",
+          open_tags: [],
+          tagged:
+            '<heading>الحديث الثاني</heading> <hadith id="h2"><isnad>عن عمر</isnad> <matn>إنما الأعمال</matn></hadith>',
+        },
+      ],
+    };
+    const blocks = flowToNewBook(book).pages[0].blocks;
+    const heading = blocks.find((b) => b.type === "heading");
+    expect(heading).toBeTruthy();
+    expect(heading!.text).toBe("الحديث الثاني");
+    // the hadith body still styles as matn, in a following prose block
+    const matnBlock = blocks.find((b) => (b.spans ?? []).some((s) => s.label === "matn"));
+    expect(matnBlock?.type).toBe("prose");
+  });
 });
 
 function spanRange(
