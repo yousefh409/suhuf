@@ -2,9 +2,9 @@ import "server-only";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { cache } from "react";
-import type { Author, Book, BookListItem, Chapter, NewBlock, NewBook, Page } from "./types";
+import type { Author, Book, BookListItem, Chapter, NewBook, Page } from "./types";
 import { convertNewBook } from "./newFormat";
-import { flowToNewBook, type FlowBook } from "./flowFormat";
+import { flowToNewBook, type FlowBook, type OpenTag } from "./flowFormat";
 import { createClient } from "@/lib/supabase/server";
 
 // The reader loads books from Supabase (the tagged format in pages.content_blocks)
@@ -156,10 +156,11 @@ async function readFileIfExists(p: string): Promise<string | null> {
   }
 }
 
-// Reconstruct a NewBook from Supabase rows (pages.content_blocks holds the new
-// tagged blocks) and normalise it the same way as a local .book.json. Chapter
-// block_index is derived by matching the chapter title to a heading block in its
-// page (the chapters table has no block_index column).
+// Reconstruct a book from Supabase FLOW rows: each page carries its `tagged`
+// fragment + `open_tags` (the continuous tagged document sliced per page), and
+// the `annotations` table holds the heading/entity layer. flowToNewBook splits
+// pages into blocks (headings from the standoff `heading` annotations) and
+// convertNewBook normalises to the renderer's shape.
 async function _loadBookFromSupabase(
   openitiId: string,
 ): Promise<{ data: LocalBookFile; tier: LoadTier } | null> {
@@ -171,10 +172,10 @@ async function _loadBookFromSupabase(
     .maybeSingle();
   if (!bookRow) return null;
 
-  const [{ data: pageRows }, { data: chapterRows }] = await Promise.all([
+  const [{ data: pageRows }, { data: chapterRows }, { data: annRows }] = await Promise.all([
     supabase
       .from("pages")
-      .select("id, page_number, volume, content_blocks")
+      .select("id, page_number, volume, tagged, open_tags, content_plain, start_offset")
       .eq("book_id", bookRow.id)
       .order("volume", { ascending: true })
       .order("page_number", { ascending: true }),
@@ -183,37 +184,22 @@ async function _loadBookFromSupabase(
       .select("title, level, sort_order, page_id")
       .eq("book_id", bookRow.id)
       .order("sort_order", { ascending: true }),
+    supabase
+      .from("annotations")
+      .select("tag_id, label, start_offset, end_offset, meta")
+      .eq("book_id", bookRow.id),
   ]);
 
-  const pages = (pageRows ?? []).map((p) => ({
-    page_number: p.page_number as number,
-    volume: p.volume as number,
-    blocks: p.content_blocks as NewBlock[],
-    footnotes: [],
-  }));
-  const pageById = new Map((pageRows ?? []).map((p) => [p.id, p]));
-
-  const chapters = (chapterRows ?? []).map((c) => {
-    const pg = c.page_id ? pageById.get(c.page_id) : undefined;
-    const blocks = (pg?.content_blocks as NewBlock[] | undefined) ?? [];
-    const bi = blocks.findIndex(
-      (b) => b.type === "heading" && (b.text ?? "").trim() === c.title.trim(),
-    );
-    return {
-      title: c.title as string,
-      level: c.level as number,
-      page_number: (pg?.page_number as number) ?? 1,
-      sort_order: c.sort_order as number,
-      block_index: bi >= 0 ? bi : null,
-    };
-  });
+  const pageNumberById = new Map(
+    (pageRows ?? []).map((p) => [p.id, p.page_number as number]),
+  );
 
   const authorRel = bookRow.authors as { openiti_id: string } | { openiti_id: string }[] | null;
   const author_openiti_id = Array.isArray(authorRel)
     ? authorRel[0]?.openiti_id ?? ""
     : authorRel?.openiti_id ?? "";
 
-  const newBook: NewBook = {
+  const flowBook: FlowBook = {
     metadata: {
       openiti_id: openitiId,
       title_ar: bookRow.title_ar as string,
@@ -222,10 +208,29 @@ async function _loadBookFromSupabase(
       genres: (bookRow.genres as string[] | null) ?? [],
       language: (bookRow.language as string | null) ?? undefined,
     },
-    pages,
-    chapters,
+    pages: (pageRows ?? []).map((p) => ({
+      page_number: p.page_number as number,
+      volume: p.volume as number,
+      tagged: (p.tagged as string | null) ?? "",
+      open_tags: (p.open_tags as OpenTag[] | null) ?? [],
+      text: (p.content_plain as string | null) ?? "",
+      start_offset: (p.start_offset as number | null) ?? 0,
+    })),
+    chapters: (chapterRows ?? []).map((c) => ({
+      title: c.title as string,
+      level: c.level as number,
+      page_number: c.page_id ? pageNumberById.get(c.page_id) ?? 1 : 1,
+      sort_order: c.sort_order as number,
+    })),
+    annotations: (annRows ?? []).map((a) => ({
+      id: a.tag_id as string,
+      label: a.label as string,
+      start: a.start_offset as number,
+      end: a.end_offset as number,
+      meta: (a.meta as Record<string, unknown>) ?? {},
+    })),
   };
-  return { data: convertNewBook(newBook) as LocalBookFile, tier: "book" };
+  return { data: convertNewBook(flowToNewBook(flowBook)) as LocalBookFile, tier: "flow" };
 }
 
 const _loadBookFile = cache(async (
