@@ -91,7 +91,6 @@ create table if not exists pages (
   book_id uuid not null references books(id) on delete cascade,
   page_number int not null,
   volume int not null default 1,
-  content_blocks jsonb,                       -- legacy block array (nullable: flow pages carry `tagged`)
   content_plain text not null,                -- page plain text
   content_hash text,
   tagged text,                                -- flow: this page's slice of the continuous tagged document
