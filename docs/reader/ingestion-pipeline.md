@@ -1,170 +1,172 @@
 # Ingestion Pipeline
 
-A local Node.js script that transforms OpenITI mARkdown source files into structured block-based book data in Supabase Postgres. Runs manually per book. Three stages execute in sequence for V1: parse structure into typed blocks with word tokens, add tashkeel to token text, upload to Supabase. A fourth stage, Claude annotation, runs by default and supplies the semantic labels (isnad/matn/takhrij, person, qur'an) that the source markup does **not** carry. (This page also predates the move to a Python pipeline; see `dev-loop.md` for the current architecture.)
+A Python pipeline (`python -m ingestion flow`) that transforms an OpenITI mARkdown source file into the continuous-tagged, page-sliced book format and writes it to `web/data/<uri>.flow.json` and/or Supabase. The pipeline is the only ingestion path; the `flow` command is the only CLI command.
 
-## Pipeline Flow
-
-`ingest.ts` is the CLI orchestrator. It calls each stage in order and passes the output of one stage as input to the next.
+## Pipeline Overview
 
 ```mermaid
 flowchart LR
-    A[mARkdown file] --> B[ingest.ts]
-    B --> C[parse.ts]
-    C --> D[tashkeel.ts]
-    D --> E[upload.ts]
-    E --> F[(Supabase Postgres)]
-
-    D -.->|optional| G[annotate.ts]
-    G -.-> E
+    A[mARkdown file] --> B[parse\nblocks + chapters]
+    B --> C[tashkeel\ndiacritize blocks]
+    C --> D[assemble\none plain-text string\npage offsets + boundaries]
+    D --> E[chunk\nat unit boundaries]
+    E --> F[AI structure pass\nboundary tags per chunk]
+    F --> G[tag-transfer\nalign AI output to source]
+    G --> H[number ids\nh2 p7 q5]
+    H --> I[build annotations\nmetadata layer]
+    I --> J[headings as standoff annotations]
+    J --> K[slice at page offsets]
+    K --> L[enrich\nbook + author metadata]
+    L --> M[dump flow.json\nand/or upload]
 ```
 
-## Stage 1: Parse (`parse.ts`)
+Because structure is tagged on the assembled plain text BEFORE slicing, a hadith stored across pages stays one `<hadith>` with one `<matn>`. The page boundary cuts the tag tree, but the reader reconstructs the whole unit by concatenating page fragments in order.
 
-**Parsing** converts a raw OpenITI mARkdown file into three structured outputs:
+## Stage 1: Parse (`parse.py`)
 
-- **Pages array** -- each item contains `page_number`, `volume`, `content_blocks` (JSON array of typed blocks with word tokens), and `content_plain` (flat text for search)
-- **Chapters tree** -- each item contains `title`, `level`, `page_id`, and `sort_order`
+Converts the raw mARkdown file into typed blocks and a chapters tree. The parser reads only *structural* markup: page markers, headings, poetry hemistich dividers. Semantic hadith tags (`$RWY$`, `@MATN@`) are absent from essentially every real corpus file and are not depended on.
 
-### OpenITI Tag-to-Block Mapping
+Block types emitted:
+- `prose` -- default paragraph text
+- `heading` -- chapter/section title (also stored in `chapters`)
+- `poetry` -- verse with hemistich pairs
+- `isnad` / `matn` / `takhrij` -- only when native `@MATN@` markers are present (rare)
+- `quran` -- inline Qur'an quotation detected via `{ayah} [سورة: آية]` citation brackets
 
-The parser reads OpenITI's existing semantic tags and produces typed blocks. This preserves structure that the source already provides, avoiding expensive AI re-detection.
+The parser emits one block per source paragraph. Raw-file heuristics handle common OpenITI oddities: ` ... ` hemistich separators in prose blocks, ordinal-only headings that are really item numbers, and `[ص: N]` print-sheet refs (dropped).
 
-| mARkdown tag | Block type | Behavior |
+## Stage 2: Tashkeel (`tashkeel.py`)
+
+Adds Arabic diacritical marks to the block token text before assembly. Engine choices:
+
+| Engine | Type | Notes |
 |---|---|---|
-| `# $RWY$` | `hadith` | Opens a hadith block. Content until the next structural marker is tokenized into this block. |
-| `@MATN@` | Splits `isnad` / `matn` | Within a hadith block, everything before `@MATN@` becomes an `isnad` block, everything after becomes a `matn` block. |
-| `### $BIO_MAN$` / `### $BIO_WOM$` / `### $` / `### $$` | `biography` | Biography entry. `@YB####` and `@YD####` inline tags are extracted into block `metadata`. |
-| `%~%` | `poetry` hemistich divider | Builds hemistich pairs within a `poetry` block. Each hemistich is a separate token array. |
-| `### \|` through `### \|\|\|\|\|` | `heading` + `chapters` row | Header text becomes a `heading` block. Also inserted into the `chapters` tree with matching `level` (1-5). |
-| `PageV##P###` | Page boundary | Starts a new page. `V##` sets `volume`, `P###` sets `page_number`. |
-| `### \|EDITOR\|` | Stripped | Editorial content (title pages, indices) is not ingested. |
-| `#META#...` / `######OpenITI#` | Metadata | Parsed for book-level metadata (title, author) but not stored as blocks. |
-| All other content | `prose` | Default block type. Plain paragraph text, tokenized into words. |
+| `shakkala` | Deep learning | Default; falls back to `flan-t5` when Shakkala fails to load |
+| `flan-t5` | Seq2seq | Fallback |
+| `sadeed` | Rule-based | Alternative |
+| `none` | -- | Skip diacritization |
 
-### Word Tokenization
+Diacritizing before assembly means the assembled plain text (and everything the AI tags over it) carries tashkeel. Sets `has_tashkeel = true` on the book record.
 
-Within each block, text is split into word tokens by whitespace. Each token gets a deterministic ID:
+## Stage 3: Assemble (`assemble.py`)
 
-```
-p{page_number}_b{block_index}_w{word_index}
-```
+Concatenates each page's plain text (tokens joined by spaces, pages joined by a single space) into one book-global string. Returns:
 
-Clitics stay attached (whitespace-only splitting). For example, `والكتاب` is one token, not three.
+- `text` -- the continuous plain text
+- `page_offsets` -- `(page_number, volume, start_offset)` per page
+- `boundaries` -- start offset of every heading block; these are the only allowed chunk cut points
 
-### Output Format
+Page offsets mark where each page's content begins in the continuous string. They may land mid-unit and are NOT cut points.
 
-```json
-{
-  "pages": [
-    {
-      "page_number": 42,
-      "volume": 1,
-      "content_blocks": [
-        {
-          "key": "b0",
-          "type": "isnad",
-          "tokens": [
-            {"id": "p42_b0_w0", "text": "حدثنا"},
-            {"id": "p42_b0_w1", "text": "عبد"},
-            {"id": "p42_b0_w2", "text": "الله"}
-          ]
-        },
-        {
-          "key": "b1",
-          "type": "matn",
-          "tokens": [
-            {"id": "p42_b1_w0", "text": "إنما"},
-            {"id": "p42_b1_w1", "text": "الأعمال"},
-            {"id": "p42_b1_w2", "text": "بالنيات"}
-          ]
-        }
-      ],
-      "content_plain": "حدثنا عبد الله إنما الأعمال بالنيات"
-    }
-  ],
-  "chapters": [
-    {"title": "باب النية", "level": 1, "page_number": 42, "sort_order": 1}
-  ]
-}
-```
+## Stage 4: Chunk (`chunk.py`)
 
-`content_plain` is derived by concatenating all token text with spaces. It exists for future full-text search only.
+Groups whole units into chunks under a character budget (default 8,000 chars). The hard rule: **cut only at `boundaries` (heading start offsets), never at page markers.** A single unit longer than the budget becomes its own oversized chunk; it is never split.
 
-## Stage 2: Tashkeel (`tashkeel.ts`)
+This guarantees every chunk holds whole hadiths and that no tag ever opens in one chunk and closes in another. Chunk outputs concatenate to a well-formed tagged document.
 
-**Tashkeel** adds Arabic diacritical marks (harakat) to unvocalized token text. The stage iterates over all tokens in all blocks and replaces each token's `text` with its diacritized form. It also updates `content_plain` to match. Sets `has_tashkeel = true` on the book record when complete.
+## Stage 5: AI Structure Pass (`annotate_flow.py`)
 
-Two candidate engines:
+Sends each chunk as plain text to the Claude API (`anthropic/claude-sonnet-4.5` via OpenRouter, OpenAI-compatible endpoint) and receives back the same text with HTML-style boundary tags added. The model must not change, add, or remove any character -- the visible text with all tags stripped must be byte-identical to the input.
 
-| Engine | Type | Strength |
-|---|---|---|
-| Mishkal | Rule-based Python | Classical Arabic morphology |
-| Shakkala | Deep learning model | Modern Arabic |
+Tag vocabulary: `<hadith>`, `<isnad>`, `<matn>`, `<takhrij>`, `<person>`, `<place>`, `<quran>`, `<book_ref>`, `<hadith_ref>`, `<date_hijri>`. Tags carry no attributes at this stage; ids are assigned in the next pass.
 
-The tashkeel stage runs a Python subprocess. Tokens are batched per page to minimize subprocess overhead.
+Chunk calls fan out across a thread pool (up to 8 workers). Each chunk is validated:
 
-## Stage 3 (Optional): Annotate (`annotate.ts`)
+1. Parse the tagged output to check for `TagError` (malformed or unknown tags, mismatched closes).
+2. Strip tags from the output and compare to the input; they must be identical.
+3. If the model drifted characters (commonly drops `«»` guillemets), try **tag-transfer** to align the AI structure onto the exact source text.
+4. If transfer fails or the alignment similarity is too low, fall back to plain text (no tags) for that chunk and record a fallback in stats.
 
-**Runs by default.** OpenITI's mainstream corpus carries only *structural* markup (page markers, headings) — not the semantic `$RWY$`/`@MATN@`/`$BIO_*` hadith tags (verified zero across Bukhari, Muslim, Tirmidhi, Bulugh). So this pass, not the source tags, supplies isnad/matn/takhrij and inline span labels on real books.
+When `OPENROUTER_API_KEY` is absent the pass returns every chunk unchanged (no tags, no API calls).
 
-When enabled, this stage uses Claude to enrich blocks with metadata that the source doesn't provide:
-- Quran quote detection (surah, ayah) -- OpenITI does not tag inline Quran quotes
-- Hadith grading (sahih, hasan, etc.)
-- Narrator chain extraction from isnad blocks
-- Poetry meter and poet identification
+## Stage 6: Tag-Transfer (`tag_transfer.py`)
 
-The annotate stage reads `content_blocks`, adds metadata to matching blocks, and writes the enriched blocks back. It does not change block types or token structure.
+When the AI output's plain text differs from the source chunk (character drift), `transfer_tags` aligns the AI-tagged text to the exact source string using sequence alignment and projects the tag boundaries onto the exact characters. Only genuinely garbled output (low alignment score) falls back to plain; minor drift (a dropped `«`) is recovered.
 
-## Stage 4: Upload (`upload.ts`)
+## Stage 7: Number Ids (`number_ids.py`)
 
-**Upload** pushes all processed data to Supabase Postgres. Upsert operations throughout make re-ingestion idempotent.
+Walks the merged continuous tagged document in document order and assigns a short sequential id to each id-bearing opening tag: first `<hadith>` gets `h1`, second `h2`; first `<person>` gets `p1`; etc. Id-bearing labels: `hadith` (prefix `h`), `person` (`p`), `place` (`pl`), `quran` (`q`), `book_ref` (`b`), `hadith_ref` (`hr`), `date_hijri` (`d`). Structural tags (`isnad`, `matn`, `takhrij`) get no ids. The pass is idempotent: tags that already have an `id` attribute are not renumbered.
 
-Upload order:
+## Stage 8: Build Annotations (`flow_format.py`)
 
-1. Upsert into `books` (keyed on `openiti_id`)
-2. Generate `content_hash` (hash of `content_plain`) per page and upsert into `pages` (keyed on `book_id`, `volume`, `page_number`)
-3. Upsert into `chapters`
+Walks the numbered continuous document and emits one `Annotation` per id-bearing tag (close order, then sorted by start). Each annotation records `{id, label, start, end, meta}` where `start`/`end` are character offsets into the compiled plain text and `meta` is resolved per label:
 
-The `content_hash` stored per page enables change detection when a book is re-ingested. User data (bookmarks, highlights, notes) stores `anchor_context` for re-anchoring token references that drift after content changes.
+- `quran`: exact match against the bundled ayah index; falls back to loose (Uthmani-tolerant) match
+- `hadith`: `{number}` from the first printed item number whose offset falls inside the hadith's range
+- all others: `{}` (resolver TBD)
 
-## Orchestrator (`ingest.ts`)
+## Stage 9: Headings as Standoff Annotations
 
-`ingest.ts` is the CLI entry point. It accepts a path to an OpenITI mARkdown file and runs stages in order.
+Heading ranges (computed from the parse result via `heading_ranges`) are added to the annotation list as standoff `heading` entries with book-global plain-text offsets. The reader uses these to split each page's prose into `heading` and `prose` blocks without the AI needing to tag chapter text.
 
-Usage:
+## Stage 10: Slice (`page_slice.py`)
+
+Cuts the numbered continuous document at the interior page-start offsets from `page_offsets`. Each `PageSlice` stores its raw tagged fragment and the `open_tags` stack (the tags open at its start). Tags are genuinely unclosed at page boundaries; the reader reconstructs by plain concatenation.
+
+## Stage 11: Catalog Enrichment (`enrich.py`)
+
+Calls the Claude API (via OpenRouter) to produce book and author metadata: English title and description, genre tags, composition date, commentary/abridgement links, author biographical fields. Gracefully returns `{}` when the API key is absent, so `--skip-enrich` and offline runs still produce a valid dump.
+
+## Storage: Upload (`upload_flow.py`)
+
+Writes the flow book to Supabase in order:
+1. `authors` upsert (keyed on `openiti_id`)
+2. `books` upsert (keyed on `openiti_id`)
+3. `pages` upsert in batches of 50 (keyed on `book_id, volume, page_number`): stores `tagged`, `open_tags`, `content_plain`, `content_hash`, `start_offset`; `content_blocks` is left NULL
+4. `chapters` upsert (keyed on `book_id, sort_order`)
+5. `annotations` upsert in batches of 50 (keyed on `book_id, tag_id`)
+
+All upserts make re-ingestion idempotent.
+
+## CLI Reference
 
 ```sh
-npx ts-node ingestion/ingest.ts path/to/book.mARkdown
+python -m ingestion flow <openiti_id> \
+  --corpus-path ./RELEASE \
+  --dump web/data \
+  [--skip-annotate] \
+  [--skip-enrich] \
+  [--tashkeel-engine shakkala|flan-t5|sadeed|none] \
+  [--upload]
 ```
-
-Options:
 
 | Flag | Default | Description |
 |---|---|---|
-| `--annotate` | `false` | Enable the Claude annotation stage |
-| `--tashkeel-engine` | `mishkal` | Tashkeel engine: `mishkal` or `shakkala` |
+| `--corpus-path` | `./RELEASE` | Path to the OpenITI RELEASE directory |
+| `--dump` | (required) | Output directory; writes `<uri>.flow.json` |
+| `--skip-annotate` | off | Skip the Claude AI structure pass (no API calls) |
+| `--skip-enrich` | off | Skip the Claude catalog enrichment (no API calls) |
+| `--tashkeel-engine` | `shakkala` | Diacritization engine (`none` = skip) |
+| `--upload` | off | Write to Supabase after dumping (`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` required) |
 
 ## Key Files
 
 | Path | Purpose |
 |---|---|
-| `ingestion/ingest.ts` | CLI orchestrator |
-| `ingestion/parse.ts` | Converts mARkdown to typed blocks with word tokens |
-| `ingestion/tashkeel.ts` | Adds diacritical marks to token text via Python subprocess |
-| `ingestion/annotate.ts` | Optional Claude enrichment (skipped for V1) |
-| `ingestion/upload.ts` | Upserts all data into Supabase Postgres |
+| `ingestion/__main__.py` | CLI entry point (`python -m ingestion flow ...`) |
+| `ingestion/cli.py` | Argument parser |
+| `ingestion/pipeline_flow.py` | Orchestrator: calls all stages in order |
+| `ingestion/parse.py` | mARkdown -> typed blocks + chapters |
+| `ingestion/tashkeel.py` | Diacritize block tokens |
+| `ingestion/assemble.py` | Concatenate pages into one plain-text string |
+| `ingestion/chunk.py` | Split at unit boundaries under a char budget |
+| `ingestion/annotate_flow.py` | AI structure pass over plain chunks |
+| `ingestion/tag_transfer.py` | Align AI tags to exact source on character drift |
+| `ingestion/number_ids.py` | Assign sequential ids to id-bearing tags |
+| `ingestion/flow_format.py` | Pydantic models + `build_annotations` |
+| `ingestion/page_slice.py` | Cut tagged document at page offsets |
+| `ingestion/enrich.py` | AI catalog enrichment (book + author metadata) |
+| `ingestion/upload_flow.py` | Write FlowBook to Supabase |
 
 ## Gotchas
 
-**Tashkeel engine benchmarking is required.** Mishkal is the likely better fit for classical Arabic texts from OpenITI; Shakkala is stronger on modern Arabic. Run both on representative classical samples before committing to one.
+**Tashkeel engine fallback.** `shakkala` silently falls back to `flan-t5` in the current environment (Shakkala load fails). The dump is still valid; diacritics come from flan-t5.
 
-**Tashkeel modifies token text in place.** After tashkeel, `content_plain` must be regenerated from token text to stay in sync. The tashkeel stage handles this automatically.
+**AI cost scales with book size.** Each chunk is one API call. A 1,000-page book with a 8,000-char chunk budget produces roughly 30-100 chunks depending on unit sizes. Use `--skip-annotate` for parse-only dev work.
 
-**Token IDs are position-based.** Inserting or removing content in the source file shifts token IDs on affected pages. User data referencing those IDs will need re-anchoring via `anchor_context`. Prefer correcting diacritics within words (ID-stable) over inserting/removing words (ID-breaking).
+**Fallback chunks produce no structural tags.** When a chunk falls back to plain text (API error, tag validation failure, or transfer failure), that chunk's hadiths will not be tagged. The dump is still valid and renderable; it will just render as prose for those sections.
 
-**Prefer higher-tier files for cleaner *structure*, not for tags.** `.mARkdown` > `.completed` > raw reflects how well the structural markup (page markers, headings) was vetted; none of the tiers carries semantic `$RWY$`/`@MATN@` tags. Untagged content (i.e. essentially all of it) parses as `prose`; the Claude annotate stage (default-on) recovers isnad/matn/takhrij and inline span labels.
-
-**Annotation cost scales linearly with book size.** When the annotate stage is enabled, it calls Claude once per page. A 1,000-page book means 1,000 Claude API calls. Budget accordingly.
+**Prefer higher-tier files for cleaner structure, not for tags.** `.mARkdown` > `.completed` > raw reflects how well the structural markup was vetted; none of the tiers carries `$RWY$`/`@MATN@` semantic tags. All semantic structure comes from the AI pass.
 
 **Unicode normalization before hashing.** Apply NFC normalization to `content_plain` before computing `content_hash`. Arabic combining characters can appear in different orders, producing different byte sequences for visually identical text.
 
