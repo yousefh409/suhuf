@@ -96,7 +96,8 @@ def flow_from_result(result: ParseResult, annotate: bool = True,
 
 def build_flow_book(uri: str, corpus_path: str = "./RELEASE",
                     annotate: bool = True, client=None,
-                    tashkeel_engine: str | None = "shakkala") -> tuple[FlowBook, dict]:
+                    tashkeel_engine: str | None = "shakkala",
+                    enrich: bool = True) -> tuple[FlowBook, dict]:
     """Parse a book from the corpus and build its :class:`FlowBook`."""
     path = find_book_file(uri, corpus_path=corpus_path)
     logger.info(f"Found file: {path.name}")
@@ -115,6 +116,28 @@ def build_flow_book(uri: str, corpus_path: str = "./RELEASE",
     # No deterministic hadith pass here: the flow AI pass tags structure from the
     # assembled plain text, which ignores detector spans.
     book, stats = flow_from_result(result, annotate=annotate, client=client)
+
+    # Author yml (corpus metadata) — carried on the book for the uploader.
+    from ingestion.corpus import find_author_metadata
+    from ingestion.metadata import parse_author_yml
+    author_yml = find_author_metadata(result.metadata.author_openiti_id, corpus_path)
+    if author_yml:
+        with open(author_yml, encoding="utf-8") as f:
+            author_data = parse_author_yml(f.readlines())
+    else:
+        author_data = {}
+    book.author_data = author_data
+
+    # AI catalog enrichment (book + author). No client -> returns {} gracefully,
+    # so this is offline-safe; --skip-enrich bypasses it entirely.
+    if enrich:
+        from ingestion.enrich import enrich_book_metadata, enrich_author_metadata
+        eb = enrich_book_metadata(result)
+        ea = enrich_author_metadata(result.metadata.author_openiti_id, author_data)
+        book.enrichment = {"book": eb, "author": ea}
+        logger.info(f"Enrichment: book={'ok' if eb else 'empty'}, "
+                    f"author={'ok' if ea else 'empty'}")
+
     if annotate:
         a = stats.get("annotate", {})
         logger.info(f"Flow annotate: {stats['chunks']} chunks, "

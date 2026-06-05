@@ -40,38 +40,48 @@ def _content_hash(plain: str) -> str:
 def upload_flow_book(book: ff.FlowBook, client: Any,
                      author_data: dict | None = None) -> dict:
     meta = book.metadata
-    author_data = author_data or {}
+    # Prefer the author yml carried on the book, then the explicit arg.
+    author_data = book.author_data or author_data or {}
+    enriched_book = (book.enrichment or {}).get("book", {})
+    enriched_author = (book.enrichment or {}).get("author", {})
     stats = {"pages": 0, "chapters": 0, "annotations": 0}
 
-    # 1. Author
+    # 1. Author (yml fields + AI enrichment; yml birth/death win over the guess)
     display = _author_display(author_data, meta.author_openiti_id)
     author_row = {
         "openiti_id": meta.author_openiti_id,
-        "shuhra_ar": display,
-        "shuhra_lat": display,
+        "shuhra_ar": author_data.get("shuhra_lat") or display,
+        "shuhra_lat": author_data.get("shuhra_lat") or display,
         "ism_ar": author_data.get("ism_lat"),
         "nasab_ar": author_data.get("nasab_lat"),
         "kunya_ar": author_data.get("kunya_lat"),
         "laqab_ar": author_data.get("laqab_lat"),
         "nisba_ar": author_data.get("nisba_lat"),
-        "birth_ah": author_data.get("birth_ah"),
-        "death_ah": author_data.get("death_ah"),
+        "birth_ah": author_data.get("birth_ah") or enriched_author.get("birth_ah"),
+        "death_ah": author_data.get("death_ah") or enriched_author.get("death_ah"),
+        "full_name_ar": enriched_author.get("full_name_en"),
     }
     author_row = {k: v for k, v in author_row.items() if v is not None}
     resp = client.table("authors").upsert(author_row, on_conflict="openiti_id").execute()
     author_uuid = resp.data[0]["id"]
 
-    # 2. Book
+    # 2. Book (catalog fields from AI enrichment, falling back to parsed metadata)
     pages = book.pages
     book_row = {
         "openiti_id": meta.openiti_id,
         "author_id": author_uuid,
         "title_ar": meta.title_ar,
-        "genres": list(meta.genres) if meta.genres else [],
+        "title_lat": enriched_book.get("title_en") or meta.title_lat,
+        "description": enriched_book.get("description"),
+        "genres": enriched_book.get("genres") or (list(meta.genres) if meta.genres else []),
+        "composition_date_ah": enriched_book.get("composition_date_ah"),
+        "commentary_on": enriched_book.get("commentary_on"),
+        "abridgement_of": enriched_book.get("abridgement_of"),
         "total_pages": len(pages),
         "total_volumes": max((p.volume for p in pages), default=1),
         "language": getattr(meta, "language", "ara") or "ara",
     }
+    book_row = {k: v for k, v in book_row.items() if v is not None}
     resp = client.table("books").upsert(book_row, on_conflict="openiti_id").execute()
     book_uuid = resp.data[0]["id"]
     logger.info(f"Upserted book {meta.openiti_id} -> {book_uuid}")

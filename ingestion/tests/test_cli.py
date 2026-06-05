@@ -9,6 +9,7 @@ def test_flow_command_parses():
     assert args.corpus_path == "./RELEASE"
     assert args.dump == "./out"
     assert args.skip_annotate is False
+    assert args.skip_enrich is False
     assert args.upload is False
 
 
@@ -18,6 +19,14 @@ def test_flow_skip_annotate():
         ["flow", "0676Nawawi.ArbacunaNawawiyya", "--dump", "./out", "--skip-annotate"]
     )
     assert args.skip_annotate is True
+
+
+def test_flow_skip_enrich():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["flow", "0676Nawawi.ArbacunaNawawiyya", "--dump", "./out", "--skip-enrich"]
+    )
+    assert args.skip_enrich is True
 
 
 def test_flow_upload_flag():
