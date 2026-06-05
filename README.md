@@ -202,7 +202,7 @@ Honest failure analysis — these are the dead ends and the known gaps.
 
 ```bash
 git clone https://github.com/yousefh409/suhuf.git && cd suhuf
-cp .env.example .env   # fill in SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY, etc.
+cp .env.example .env   # fill in SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENROUTER_API_KEY, etc.
 ```
 
 **Web reader (the easiest thing to run):**
@@ -218,7 +218,7 @@ python -m venv venv && source venv/bin/activate && pip install -r requirements.t
 python -m ingestion ingest <openiti_uri> --dump ../web/data --dry-run --tashkeel-engine shakkala
 # then open http://localhost:3000/reader/<openiti_id>  (or /inspector/<openiti_id>)
 ```
-Requires `ANTHROPIC_API_KEY`. Full dev loop: [`docs/reader/dev-loop.md`](docs/reader/dev-loop.md).
+Requires `OPENROUTER_API_KEY`. Full dev loop: [`docs/reader/dev-loop.md`](docs/reader/dev-loop.md).
 
 **Recitation engine:**
 ```bash

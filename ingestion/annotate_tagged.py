@@ -18,7 +18,7 @@ from ingestion.tags import compile_tagged, render_tagged, TagError
 logger = logging.getLogger(__name__)
 
 PROMPT_VERSION = "annotate-tagged-v1"
-MODEL = "claude-sonnet-4-6"
+MODEL = "anthropic/claude-sonnet-4.6"
 CHUNK_SIZE = 30
 MAX_TOKENS = 16384
 MAX_WORKERS = 8
@@ -77,8 +77,8 @@ def annotate_book_tagged(book: tf.Book, client=None) -> dict:
              "model": MODEL, "prompt_version": PROMPT_VERSION}
     if client is None:
         try:
-            from anthropic import Anthropic
-            client = Anthropic()
+            from ingestion._client import create_client
+            client = create_client()
         except Exception as e:
             logger.warning(f"annotate_tagged: could not create client: {e}")
             return stats

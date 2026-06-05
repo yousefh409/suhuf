@@ -10,13 +10,13 @@ function req(body: unknown) {
 }
 
 describe("/api/agents/translate", () => {
-  const ORIGINAL = process.env.ANTHROPIC_API_KEY;
+  const ORIGINAL = process.env.OPENROUTER_API_KEY;
   beforeEach(() => {
-    process.env.ANTHROPIC_API_KEY = "test-key";
+    process.env.OPENROUTER_API_KEY = "test-key";
   });
   afterEach(() => {
-    if (ORIGINAL === undefined) delete process.env.ANTHROPIC_API_KEY;
-    else process.env.ANTHROPIC_API_KEY = ORIGINAL;
+    if (ORIGINAL === undefined) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = ORIGINAL;
     vi.restoreAllMocks();
   });
 

@@ -1,6 +1,8 @@
-// Model matches the current Supabase edge functions; bump deliberately when the
-// prompt or model changes.
-const MODEL = "claude-sonnet-4-20250514";
+// Routed through OpenRouter's Anthropic-compatible Messages endpoint, so the
+// request/response shape is still the native Anthropic format — only the host,
+// auth header, and model slug change. Bump deliberately when the prompt or model
+// changes.
+const MODEL = "anthropic/claude-sonnet-4";
 
 export class AgentError extends Error {
   status: number;
@@ -18,14 +20,14 @@ export async function callAnthropic(opts: {
   messages: Message[];
   maxTokens: number;
 }): Promise<string> {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new AgentError("ANTHROPIC_API_KEY is not set", 500);
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new AgentError("OPENROUTER_API_KEY is not set", 500);
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch("https://openrouter.ai/api/v1/messages", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": key,
+      Authorization: `Bearer ${key}`,
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
