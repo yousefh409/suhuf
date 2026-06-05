@@ -2,7 +2,7 @@
   z-index: 50;
   width: 320px;
   max-width: calc(100vw - 24px);
-  background: var(--reader-card-bg, #fff);
+  background: var(--reader-bg, #fff);
   color: var(--reader-fg, #18181b);
   border: 1px solid var(--reader-card-border, #e4e4e7);
   border-radius: 10px;
