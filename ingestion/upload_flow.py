@@ -1,24 +1,40 @@
 """Upload a flow-format book to Supabase.
 
-Mirrors :mod:`ingestion.upload_tagged` (authors -> books -> pages -> chapters)
-but writes a :class:`~ingestion.flow_format.FlowBook`: each page stores its raw
-``tagged`` fragment plus the ``open_tags`` stack open at its start, and a separate
-``annotations`` layer is written keyed by tag id. Flow pages leave
-``content_blocks`` NULL — the ``tagged`` column is canonical for this format.
+Writes a :class:`~ingestion.flow_format.FlowBook` (authors -> books -> pages ->
+chapters): each page stores its raw ``tagged`` fragment plus the ``open_tags``
+stack open at its start, and a separate ``annotations`` layer is written keyed by
+tag id. Flow pages leave ``content_blocks`` NULL — the ``tagged`` column is
+canonical for this format.
 
 (volume, page_number) is assumed unique across flow pages (the slicer emits one
-slice per page), so the duplicate-page merge from upload_tagged is not needed.
+slice per page), so no duplicate-page merge is needed.
 """
 from __future__ import annotations
+import hashlib
 import logging
+import re
+import unicodedata
 from typing import Any
 
 from ingestion import flow_format as ff
-from ingestion.upload_tagged import _author_display, _content_hash
 
 logger = logging.getLogger(__name__)
 PAGE_BATCH_SIZE = 50
 ANNOTATION_BATCH_SIZE = 50
+
+
+def _author_display(author_data: dict, openiti_id: str) -> str:
+    """A readable author name: the yml shuhra unless it's the OpenITI placeholder
+    (Ibn Fulān al-Fulānī), else derived from the id (0672IbnMalik -> Ibn Malik)."""
+    shuhra = author_data.get("shuhra_lat")
+    if shuhra and "Ful" not in shuhra:
+        return shuhra
+    name = re.sub(r"^\d+", "", openiti_id)            # strip leading death year
+    return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", name) or openiti_id
+
+
+def _content_hash(plain: str) -> str:
+    return hashlib.sha256(unicodedata.normalize("NFC", plain).encode()).hexdigest()
 
 
 def upload_flow_book(book: ff.FlowBook, client: Any,
@@ -27,7 +43,7 @@ def upload_flow_book(book: ff.FlowBook, client: Any,
     author_data = author_data or {}
     stats = {"pages": 0, "chapters": 0, "annotations": 0}
 
-    # 1. Author — same as upload_tagged_book.
+    # 1. Author
     display = _author_display(author_data, meta.author_openiti_id)
     author_row = {
         "openiti_id": meta.author_openiti_id,
